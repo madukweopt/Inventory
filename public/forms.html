@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inventory Form</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="page">
+
+    <section class="card">
+      <h2>Stock Inventory</h2>
+      <p class="form-description">Enter details of stock received and issued. Fill this form for each stock</p>
+      <form id="inventory-form">
+        <div class="field">
+          <label for="stock-date">Date</label>
+          <input type="date" id="stock-date" name="date" required>
+        </div>
+
+        <div class="field">
+          <label for="stock-name">Stock Name</label>
+          <select id="stock-name" name="stock-name" required>
+            <option value="" disabled selected>Select a stock</option>
+            <option value="Diesel">Diesel</option>
+            <option value="PKO">PKO</option>
+            <option value="PKC">PKC</option>
+            <option value="P Kernel">P Kernel</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="received">Received</label>
+            <input type="number" id="received" name="received" min="0" placeholder="0" required>
+          </div>
+
+          <div class="field">
+            <label for="issued">Issued</label>
+            <input type="number" id="issued" name="issued" min="0" placeholder="0" required>
+          </div>
+        </div>
+
+        <button type="submit">Save Entry</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Expenses Report</h2>
+      <p class="form-description">Fill this form for each expense incurred</p>
+      <form id="expenses-form">
+        <div class="field">
+          <label for="expense-date">Date</label>
+          <input type="date" id="expense-date" name="date" required>
+        </div>
+
+        <div class="field">
+          <label for="expense-category">Category</label>
+          <select id="expense-category" name="category" required>
+            <option value="" disabled selected>Select a category</option>
+            <option value="Expenses">Expenses</option>
+            <option value="Asset/Capital Expenditure">Asset/Capital Expenditure</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="expense-description">Description</label>
+          <textarea id="expense-description" name="description" rows="2" required></textarea>
+        </div>
+
+        <div class="field">
+          <label for="expense-amount">Amount Spent</label>
+          <input type="number" id="expense-amount" name="amount" min="0" placeholder="0" required>
+        </div>
+
+        <button type="submit">Save Expense</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Production Report</h2>
+      <p class="form-description">Provide details of the day's production</p>
+      <form id="production-form">
+        <div class="field">
+          <label for="production-date">Date</label>
+          <input type="date" id="production-date" name="date" required>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="kernel-used">Kernel Used (kg)</label>
+            <input type="number" id="kernel-used" name="kernel-used" min="0" placeholder="0" required>
+          </div>
+
+          <div class="field">
+            <label for="oil-produced">Oil Produced (kg)</label>
+            <input type="number" id="oil-produced" name="oil-produced" min="0" placeholder="0" required>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="pkc-produced">PKC Produced (kg)</label>
+            <input type="number" id="pkc-produced" name="pkc-produced" min="0" placeholder="0" required>
+          </div>
+
+          <div class="field">
+            <label for="production-hours">Production Hours</label>
+            <input type="number" id="production-hours" name="production-hours" min="0" placeholder="0" required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="down-time">Down Time</label>
+          <input type="number" id="down-time" name="down-time" min="0" placeholder="0" required>
+        </div>
+
+        <button type="submit">Save Production Entry</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Inventory Purchases</h2>
+      <p class="form-description">Record details of inventory purchases. Fill this form for each purchase.</p>
+      <form id="purchases-form">
+        <div class="field">
+          <label for="purchase-date">Date</label>
+          <input type="date" id="purchase-date" name="date" required>
+        </div>
+
+        <div class="field">
+          <label for="supplier">Supplier</label>
+          <input type="text" id="supplier" name="supplier" placeholder="Supplier name" required>
+        </div>
+
+        <div class="field">
+          <label for="material-supplied">Material Supplied</label>
+          <select id="material-supplied" name="material-supplied" required>
+            <option value="" disabled selected>Select a material</option>
+            <option value="P Kernel">P Kernel</option>
+            <option value="Diesel">Diesel</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="quantity-supplied">Quantity Supplied</label>
+            <input type="number" id="quantity-supplied" name="quantity-supplied" min="0" placeholder="0" required>
+          </div>
+
+          <div class="field">
+            <label for="unit-cost">Unit Cost</label>
+            <input type="number" id="unit-cost" name="unit-cost" min="0" placeholder="0" required>
+          </div>
+        </div>
+
+        <button type="submit">Save Purchase</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Sales Report</h2>
+      <p class="form-description">Record details of sales transactions. Fill this form for each product sold.</p>
+      <form id="sales-form">
+        <div class="field">
+          <label for="sales-date">Date</label>
+          <input type="date" id="sales-date" name="date" required>
+        </div>
+
+        <div class="field">
+          <label for="customer">Customer</label>
+          <input type="text" id="customer" name="customer" placeholder="Customer name" required>
+        </div>
+
+        <div class="field">
+          <label for="product-sold">Product Sold</label>
+          <select id="product-sold" name="product-sold" required>
+            <option value="" disabled selected>Select a product</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="sales-quantity">Quantity</label>
+            <input type="number" id="sales-quantity" name="quantity" min="0" placeholder="0" required>
+          </div>
+
+          <div class="field">
+            <label for="unit-price">Unit Price</label>
+            <input type="number" id="unit-price" name="unit-price" min="0" placeholder="0" required>
+          </div>
+        </div>
+
+        <button type="submit">Save Sale</button>
+      </form>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
