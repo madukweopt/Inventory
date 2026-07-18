@@ -40,3 +40,28 @@ app.post('/api/sales', function(req, res){
   }
   );
 });
+
+app.post('/api/purchases', function(req, res){
+  const purchase = req.body;
+  if (!purchase.item_id || !purchase.quantity_supplied || purchase.quantity_supplied <= 0 || !purchase.unit_cost || purchase.unit_cost <= 0) {
+    return res.status(400).json({ error: 'Could not submit purchase'});
+  }
+  pool.query('INSERT INTO purchases(purchase_date, supplier, item_id, quantity_supplied, unit_cost) VALUES ($1, $2, $3, $4, $5) RETURNING *', [purchase.purchase_date, purchase.supplier, purchase.item_id, purchase.quantity_supplied, purchase.unit_cost], 
+  function(err, result){
+    if (err) {
+      console.log(err);
+      return res.status(500).json({err: 'could not save purchase'})
+    }
+    res.status(201).json(result.rows[0]);
+  });
+});
+
+app.post('/api/stock_counts', function(req, res){
+  const stockInventory = req.body;
+  if (!stockInventory.count_date || !stockInventory.item_id || !stockInventory.received || stockInventory.received <= 0 || !stockInventory.issued || stockInventory.issued <=0)
+  {
+   return res.status(400).json({error: 'Could not submit stock'})
+  }
+  pool.query()
+  
+})
