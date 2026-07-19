@@ -75,7 +75,9 @@ async function loadSalesDropdown() {
     const items = await response.json();
 
     const dropdown = document.querySelector('#product-sold');
-
+    if (!dropdown) {
+      return;
+    }
     const products = items.filter(function (item) {
       return item.item_type === 'product';
     });
@@ -96,6 +98,9 @@ loadSalesDropdown();
 async function loadPurchasesDropdown() {
   try {
   const select = document.querySelector('#material-supplied');
+  if (!select) {
+    return;
+  }
   const response = await fetch('/api/items');
   const items = await response.json();
   const inventories = items.filter((item) => {
@@ -118,6 +123,9 @@ async function loadInventoryDropdown() {
   const response = await fetch('/api/items');
   const items = await response.json();
   const select = document.querySelector('#stock-name');
+  if (!select) {
+    return;
+  }
   items.forEach((item) => {
     const option = document.createElement('option');
     option.value = item.item_id;
@@ -196,13 +204,15 @@ if (purchaseForm) {
   purchaseForm.addEventListener('submit', savePurchases);
 }
 
-async function saveInventory() {
+async function saveInventory(event) {
+  event.preventDefault();
   const inventoryItems = {
     count_date: document.querySelector('#stock-date').value,
     item_id: document.querySelector('#stock-name').value,
     received: document.querySelector('#received').value,
     issued: document.querySelector('#issued').value
-  } try {
+  };
+  try {
     const response = await fetch('/api/stock_counts', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -214,11 +224,14 @@ async function saveInventory() {
     }
     const savedStock = await response.json();
     console.log('saved:', savedStock);
-    alert('stock submited successfully');
+    alert('Stock submited successfully');
     inventoryForm.reset();
   } catch (err) {
     console.error(err);
     alert('Network problem. Failed to submit');
   }
+}
+if (inventoryForm) {
+  inventoryForm.addEventListener('submit', saveInventory);
 }
 

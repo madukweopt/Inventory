@@ -62,6 +62,12 @@ app.post('/api/stock_counts', function(req, res){
   {
    return res.status(400).json({error: 'Could not submit stock'})
   }
-  pool.query()
-  
+  pool.query('INSERT INTO stock_counts(count_date, item_id, received, issued) VALUES ($1, $2, $3, $4) RETURNING *', [stockInventory.count_date, stockInventory.item_id, stockInventory.received, stockInventory.issued],
+  function(err, result){
+    if (err) {
+      console.log(err);
+      return res.status(500).json({err: 'Server encountered a problem saving purchase'})
+    }
+    res.status(201).json(result.rows[0]);
+  })
 })
