@@ -8,7 +8,6 @@ body {
   background: #f2f4f7;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: #1f2937;
-  
 }
 
 .page {
@@ -31,8 +30,7 @@ body {
 
 .card form {
     scroll-margin-top: 10rem;
-}    
-    
+}
 .card.show {
   display: block;
 }
@@ -51,7 +49,426 @@ body {
   font-style: italic;
 }
 
-@media (max-width: 600px) {
+#dashboard .show{
+  display: block;
+}
+
+
+#dashboard .datebar {
+  background: #fff;
+  border: 1px solid #e5e0d3;
+  border-radius: 12px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+#dashboard .datebar label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  font-weight: 700;
+}
+
+#dashboard .datebar input {
+  flex: 1;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #14532d;
+  background: transparent;
+  font-family: inherit;
+}
+
+#dashboard .tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 15px;
+}
+
+#dashboard .tab {
+  background: #fff;
+  border: 1px solid #e5e0d3;
+  border-radius: 12px;
+  padding: 10px 8px;
+  text-align: center;
+  font-family: inherit;
+}
+
+#dashboard .tab.active {
+  background: #14532d;
+  border-color: #14532d;
+}
+
+#dashboard .tab-name {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+
+#dashboard .tab.active .tab-name {
+  color: #cfe6d5;
+}
+
+#dashboard .tab-range {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.72rem;
+  color: #1f2937;
+  line-height: 1.3;
+}
+
+#dashboard .tab.active .tab-range {
+  color: #fff;
+  font-weight: 600;
+}
+
+#dashboard .panel {
+  background: #f3ecdd;
+  border-radius: 14px;
+  padding: 14px;
+  margin: 10px;
+}
+
+#dashboard .panel.hidden {
+  display: none;
+}
+
+#dashboard .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+#dashboard .panel-title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #14532d;
+}
+
+#dashboard .panel-caption {
+  font-size: 0.7rem;
+  color: #6b7280;
+}
+
+#dashboard .stock-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 9px;
+}
+
+#production-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+#dashboard .stock-card {
+  container-type: inline-size;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 11px;
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  margin: 10px;
+}
+
+#dashboard .stock-badge {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #e5f1e8;
+  color: #075c34;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.stock-details {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.stock-name {
+  color: #656565;
+  font-size: 13px;
+}
+
+.stock-quantity {
+  max-width: 100%;
+  overflow: hidden;
+  color: #075c34;
+  font-size: clamp(0.9rem, 8cqi, 20px);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.date-caption {
+  font-size: 50px;
+}
+
+.stock-unit {
+  margin-left: 4px;
+  color: #777777;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+#dashboard .swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+#dashboard .stock-name {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
+#dashboard .stock-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #14532d;
+}
+
+#dashboard .stock-val small {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+#dashboard .prod-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: #f3ecdd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+#dashboard .prod-cell {
+  padding: 12px 10px;
+  border-right: 9px solid #f3ecdd;
+}
+
+#dashboard .prod-cell:last-child {
+  border-right: none;
+}
+
+#dashboard .prod-label {
+  font-size: 0.68rem;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+#dashboard .prod-val {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #14532d;
+  line-height: 1.1;
+}
+
+#dashboard .prod-val small {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+#dashboard .yield-row {
+  container-type: inline-size;
+  background: #fff;
+  border-radius: 10px;
+  margin-top: 9px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#dashboard .yield-label {
+  font-size: 0.74rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+#dashboard .yield-val {
+  max-width: 70%;
+  overflow: hidden;
+  font-size: clamp(0.9rem, 5cqi, 1.15rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #d99a2b;
+  white-space: nowrap;
+}
+
+#dashboard .sales-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px;
+}
+
+#dashboard .sale-card {
+  container-type: inline-size;
+  background: #fff;
+  border: 1px solid #e9e3d7;
+  border-radius: 16px;
+  min-width: 0;
+  padding: 11px;
+  box-shadow: 0 3px 10px rgba(63, 51, 29, 0.04);
+}
+
+#dashboard .sale-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+#dashboard .sale-head .swatch {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  flex: 0 0 28px;
+  font-size: 0.6rem;
+  font-weight: 800;
+}
+
+#dashboard .sale-card.pko .swatch {
+  background: #e8a60c;
+}
+
+#dashboard .sale-card.pkc .swatch {
+  background: #60320f;
+}
+
+#dashboard .sale-head h3 {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  border-bottom: 1px solid #e5e0d3;
+  color: #14532d;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+#dashboard .sale-body {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+#dashboard .sale-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  background: #fff4d8;
+  font-size: 0.78rem;
+}
+
+#dashboard .sale-details {
+  min-width: 0;
+}
+
+#dashboard .sale-row {
+  display: grid;
+  grid-template-columns: minmax(48px, 1fr) minmax(0, 1.45fr) auto;
+  align-items: baseline;
+  gap: 3px;
+  padding: 3px 0;
+  font-size: 0.78rem;
+}
+
+#dashboard .sale-row span {
+  color: #6b7280;
+}
+
+#dashboard .sale-row strong,
+#dashboard .sale-row small {
+  min-width: 0;
+  color: #1f2937;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(0.78rem, 5cqi, 0.95rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  text-align: right;
+  white-space: nowrap;
+}
+
+#dashboard .sale-row.total strong {
+  grid-column: 2 / 4;
+  color: #14532d;
+}
+
+#dashboard .profit-list {
+  background: #fff;
+  border-radius: 10px;
+  padding: 4px 12px;
+}
+
+#dashboard .profit-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid #e5e0d3;
+  font-size: 0.8rem;
+}
+
+#dashboard .profit-row:last-child {
+  border-bottom: none;
+}
+
+#dashboard .profit-row span {
+  color: #6b7280;
+}
+
+#dashboard .profit-row b {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+#dashboard .profit-row.headline {
+  padding: 12px 0;
+}
+
+#dashboard .profit-row.headline span {
+  color: #14532d;
+  font-weight: 700;
+}
+
+#dashboard .profit-row.headline b {
+  color: #14532d;
+  font-size: 1.05rem;
+}
+
+  @media (max-width: 600px) {
   .card {
     padding: 1.5rem 0rem;
     border-radius: 8px;
@@ -111,9 +528,9 @@ select:focus,
 textarea:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
+  }
 
-button {
+  button {
   width: 100%;
   padding: 1rem;
   margin-top: 0.75rem;
@@ -145,7 +562,6 @@ td {
   width: 30vw;
   padding: 5px 5px;
   font-weight: bold;
-  
 }
 
  th {
@@ -167,7 +583,7 @@ td {
 #production-data th {
   min-width: 20vw;
 }
-tbody 
+tbody
   tr:nth-child(even){
-    background: #f8f8f8;
+  background: #f8f8f8;
   }

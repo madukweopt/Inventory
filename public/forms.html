@@ -11,7 +11,9 @@
 
     <section class="card">
       <h2>Stock Inventory</h2>
-      <p class="form-description">Enter details of stock received and issued. Fill this form for each stock</p>
+      <p class="form-description">
+        Enter details of stock received and issued. Fill this form for each stock
+      </p>
       <form id="inventory-form">
         <div class="field">
           <label for="stock-date">Date</label>
@@ -43,7 +45,9 @@
 
     <section class="card">
       <h2>Expenses Report</h2>
-      <p class="form-description">Fill this form for each expense incurred</p>
+      <p class="form-description">
+        Fill this form for each expense incurred
+      </p>
       <form id="expenses-form">
         <div class="field">
           <label for="expense-date">Date</label>
@@ -75,7 +79,9 @@
 
     <section class="card">
       <h2>Production Report</h2>
-      <p class="form-description">Provide details of the day's production</p>
+      <p class="form-description">
+        Provide details of the day's production
+      </p>
       <form id="production-form">
         <div class="field">
           <label for="production-date">Date</label>
@@ -117,7 +123,9 @@
 
     <section class="card">
       <h2>Inventory Purchases</h2>
-      <p class="form-description">Record details of inventory purchases. Fill this form for each purchase.</p>
+      <p class="form-description">
+        Record details of inventory purchases. Fill this form for each purchase.
+      </p>
       <form id="purchases-form">
         <div class="field">
           <label for="purchase-date">Date</label>
@@ -154,7 +162,9 @@
 
     <section class="card">
       <h2>Sales Report</h2>
-      <p class="form-description">Record details of sales transactions. Fill this form for each product sold.</p>
+      <p class="form-description">
+        Record details of sales transactions. Fill this form for each product sold.
+      </p>
       <form id="sales-form">
         <div class="field">
           <label for="sales-date">Date</label>
@@ -188,7 +198,7 @@
         <button type="submit">Save Sale</button>
       </form>
     </section>
-    
+
     <section class="card" id="sales-data">
       <h2>SALES RECORD</h2>
       <table>
@@ -203,11 +213,11 @@
           </tr>
         </thead>
         <tbody id="sales-data-body">
-          
+
         </tbody>
       </table>
     </section>
-    
+
     <section class="card" id="inventory-data">
       <h2>INVENTORY RECORD</h2>
       <table>
@@ -222,11 +232,11 @@
           </tr>
         </thead>
         <tbody id="inventory-data-body">
-          
+
         </tbody>
       </table>
     </section>
-    
+
     <section class="card" id="purchases-data">
       <h2>PURCHASES RECORD</h2>
       <table>
@@ -241,11 +251,11 @@
           </tr>
         </thead>
         <tbody id="purchases-data-body">
-          
+
         </tbody>
       </table>
     </section>
-    
+
     <section class="card" id="production-data">
       <h2>PRODUCTION RECORD</h2>
       <table>
@@ -262,11 +272,11 @@
           </tr>
         </thead>
         <tbody id="production-data-body">
-          
+
         </tbody>
       </table>
     </section>
-    
+
     <section class="card" id="expenses-data">
       <h2>EXPENSES RECORD</h2>
       <table>
@@ -279,18 +289,78 @@
           </tr>
         </thead>
         <tbody id="expenses-data-body">
-          
+
         </tbody>
       </table>
     </section>
-    
-    
+
+    <div class="card" id="dashboard">
+
+      <div class="datebar">
+        <label for="dashboard-date"class="today">Showing</label>
+        <input type="date" id="dashboard-date">
+      </div>
+
+      <div class="tabs" id="period-tabs">
+        <button class="tab day-button" data-period="day">
+          <span class="tab-name">Day</span>
+        </button>
+        <button class="tab week-button" data-period="week">
+          <span class="tab-name">Week</span>
+          <span class="tab-range" id="range-week"></span>
+        </button>
+        <button class="tab month-button" data-period="month">
+          <span class="tab-name">Month</span>
+          <span class="tab-range" id="range-month"></span>
+        </button>
+      </div>
+
+      <div class="panel" id="stock-panel">
+        <div class="panel-head">
+          <span class="panel-title">Stock Levels</span>
+          <span class="panel-caption" id="stock-caption"></span>
+        </div>
+        <div class="stock-grid" id="stock-grid"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Production</span>
+          <span class="panel-caption" id="production-caption"></span>
+        </div>
+        <div class="prod-grid" id="production-grid"></div>
+        <div class="yield-row">
+          <span class="yield-label">Oil yield</span>
+          <span class="yield-val" id="oil-yield">—</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Sales</span>
+          <span class="panel-caption" id="sales-caption"></span>
+        </div>
+        <div class="sales-grid" id="sales-grid">
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <span class="panel-title">Profit</span>
+          <span class="panel-caption" id="profit-caption"></span>
+        </div>
+        <div class="profit-list" id="profit-list"></div>
+      </div>
+
+    </div>
+
+
   </div>
   <script src="script.js"></script>
-  
+
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-<script>
-  eruda.init();
-</script>
+  <script>
+    eruda.init();
+  </script>
 </body>
 </html>
