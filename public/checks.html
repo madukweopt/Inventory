@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Checks</title>
+    <link rel="stylesheet" href="checks.css">
+</head>
+<body>
+    <main class="checks-page">
+        <a class="back-link" href="forms.html#dashboard" aria-label="Back to dashboard">
+            <span aria-hidden="true">←</span> Dashboard
+        </a>
+
+        <section class="checks-shell">
+            <header class="checks-header">
+                <div>
+                    <h1>Checks</h1>
+                    <p>Where the store keeper and the manager disagree</p>
+                </div>
+                <span class="open-count" id="open-count">Open · 0</span>
+            </header>
+
+            <div class="checks-list" id="checks-list" aria-live="polite">
+                <p class="loading-message">Loading checks…</p>
+            </div>
+        </section>
+    </main>
+
+    <script src="checks.js"></script>
+</body>
+</html>

@@ -40,6 +40,13 @@ function stampAt(date, hour, minute) {
   return stamp.toISOString();
 }
 
+function formatDuration(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return String(hours).padStart(2, '0') + ':' +
+  String(minutes).padStart(2, '0');
+}
+
 // ---------- reference data ----------
 
 const kernelSuppliers = ['Amaonyeze', 'Chuks', 'Mighty Farms', 'Ngozi Traders'];
@@ -91,13 +98,18 @@ async function seed() {
   let pkcStock = 0;
   let dieselStock = 0;
 
-  const startDate = new Date(2026, 3, 6); // 6 April 2026
-  const totalDays = 100;
+  const startDate = new Date(2026, 3, 1); // 1 April 2026
+  const endDate = new Date();
+  endDate.setHours(0, 0, 0, 0);
 
   let counts = { purchases: 0, production: 0, sales: 0, expenses: 0, stock: 0 };
 
-  for (let dayNumber = 0; dayNumber < totalDays; dayNumber++) {
+  for (let dayNumber = 0; ; dayNumber++) {
     const day = addDays(startDate, dayNumber);
+
+    if (day > endDate) {
+      break;
+    }
 
     if (day.getDay() === 0) {
       continue; // no work on Sundays
@@ -150,8 +162,9 @@ async function seed() {
       const kernelUsed = Math.min(kernelStock, randomInt(25, 40) * 100);
       const pkoProduced = Math.round(kernelUsed * (randomInt(465, 530) / 1000));
       const pkcProduced = Math.round(kernelUsed * (randomInt(430, 470) / 1000));
-      const hours = randomInt(60, 95) / 10;
-      const downTime = chance(30) ? randomInt(5, 20) / 10 : 0;
+      const hours = formatDuration(randomInt(360, 570));
+      const downTime = chance(30) ?
+      formatDuration(randomInt(30, 120)) : '00:00';
       const dieselUsed = randomInt(80, 130);
 
       await pool.query(
@@ -214,7 +227,7 @@ async function seed() {
     if (chance(40)) {
       await pool.query(
         'INSERT INTO expenses (expense_date, description, category, amount_spent, created_at) VALUES ($1, $2, $3, $4, $5)',
-        [dateText, randomChoice(runningExpenses), 'Expense', randomInt(3, 60) * 1000, stampAt(day, randomInt(9, 17), randomInt(0, 59))]
+        [dateText, randomChoice(runningExpenses), 'Expenses', randomInt(3, 60) * 1000, stampAt(day, randomInt(9, 17), randomInt(0, 59))]
       );
       counts.expenses++;
     }

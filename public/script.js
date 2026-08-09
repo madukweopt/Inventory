@@ -12,6 +12,30 @@ const purchaseForm = document.querySelector('#purchases-form');
 const inventoryForm = document.querySelector('#inventory-form');
 const productionForm = document.querySelector('#production-form');
 const expensesForm = document.querySelector('#expenses-form');
+const salesDate = document.querySelector('#sales-date');
+const customer = document.querySelector('#customer');
+const productSold = document.querySelector('#product-sold');
+const salesQuantity = document.querySelector('#sales-quantity');
+const unitPrice = document.querySelector('#unit-price');
+const purchaseDate = document.querySelector('#purchase-date');
+const supplier = document.querySelector('#supplier');
+const materialSupplied = document.querySelector('#material-supplied');
+const quantitySupplied = document.querySelector('#quantity-supplied');
+const unitCost = document.querySelector('#unit-cost');
+const stockDate = document.querySelector('#stock-date');
+const stockName = document.querySelector('#stock-name');
+const received = document.querySelector('#received');
+const issued = document.querySelector('#issued');
+const productionDate = document.querySelector('#production-date');
+const kernelUsed = document.querySelector('#kernel-used');
+const oilProduced = document.querySelector('#oil-produced');
+const pkcProduced = document.querySelector('#pkc-produced');
+const productionHours = document.querySelector('#production-hours');
+const downTime = document.querySelector('#down-time');
+const expenseDate = document.querySelector('#expense-date');
+const expenseCategory = document.querySelector('#expense-category');
+const expenseDescription = document.querySelector('#expense-description');
+const expenseAmount = document.querySelector('#expense-amount');
 const dateInput = document.querySelector('#dashboard-date');
 const today = document.querySelector('.today');
 const stockPanel = document.querySelector('#stock-panel');
@@ -91,8 +115,8 @@ async function loadSalesDropdown() {
     const response = await fetch('/api/items');
     const items = await response.json();
 
-    const dropdown = document.querySelector('#product-sold');
-    if (!dropdown) {
+
+    if (!productSold) {
       return;
     }
     const products = items.filter(function (item) {
@@ -103,19 +127,17 @@ async function loadSalesDropdown() {
       const option = document.createElement('option');
       option.value = item.item_id;
       option.textContent = item.name;
-      dropdown.appendChild(option);
+      productSold.appendChild(option);
     });
   } catch (err) {
     console.error('Could not load items:', err);
   }
 }
 
-loadSalesDropdown();
-
 async function loadPurchasesDropdown() {
   try {
-    const select = document.querySelector('#material-supplied');
-    if (!select) {
+
+    if (!materialSupplied) {
       return;
     }
     const response = await fetch('/api/items');
@@ -127,19 +149,18 @@ async function loadPurchasesDropdown() {
       const option = document.createElement('option');
       option.value = inventory.item_id;
       option.textContent = inventory.name;
-      select.appendChild(option);
+      materialSupplied.appendChild(option);
     });
   } catch (err) {
     console.error('could Not load items:', err);
   }
 }
-loadPurchasesDropdown();
 
-async function loadInventoryDropdown() {
+async function loadInventoryDropdown(select = stockName) {
   try {
     const response = await fetch('/api/items');
     const items = await response.json();
-    const select = document.querySelector('#stock-name');
+
     if (!select) {
       return;
     }
@@ -153,16 +174,23 @@ async function loadInventoryDropdown() {
     console.error('Could not load items:', err);
   }
 }
-loadInventoryDropdown();
+
+async function loadForms() {
+  await loadInventoryDropdown();
+  await loadPurchasesDropdown();
+  await loadSalesDropdown();
+  editForm();
+}
+loadForms();
 
 async function saveSale(event) {
   event.preventDefault();
   const sale = {
-    sales_date: document.querySelector('#sales-date').value,
-    customer: document.querySelector('#customer').value,
-    item_id: document.querySelector('#product-sold').value,
-    quantity: document.querySelector('#sales-quantity').value,
-    unit_price: document.querySelector('#unit-price').value
+    sales_date: salesDate.value,
+    customer: customer.value,
+    item_id: productSold.value,
+    quantity: salesQuantity.value,
+    unit_price: unitPrice.value
   };
   try {
     const response = await fetch('/api/sales', {
@@ -193,11 +221,11 @@ if (salesForm) {
 async function savePurchases(event) {
   event.preventDefault();
   const purchase = {
-    purchase_date: document.querySelector('#purchase-date').value,
-    supplier: document.querySelector('#supplier').value,
-    item_id: document.querySelector('#material-supplied').value,
-    quantity_supplied: document.querySelector('#quantity-supplied').value,
-    unit_cost: document.querySelector('#unit-cost').value
+    purchase_date: purchaseDate.value,
+    supplier: supplier.value,
+    item_id: materialSupplied.value,
+    quantity_supplied: quantitySupplied.value,
+    unit_cost: unitCost.value
   };
   try {
     const response = await fetch('/api/purchases', {
@@ -228,10 +256,10 @@ if (purchaseForm) {
 async function saveInventory(event) {
   event.preventDefault();
   const inventoryItems = {
-    count_date: document.querySelector('#stock-date').value,
-    item_id: document.querySelector('#stock-name').value,
-    received: document.querySelector('#received').value,
-    issued: document.querySelector('#issued').value
+    count_date: stockDate.value,
+    item_id: stockName.value,
+    received: received.value,
+    issued: issued.value
   };
   try {
     const response = await fetch('/api/stock_counts', {
@@ -261,12 +289,12 @@ if (inventoryForm) {
 async function saveProduction(event) {
   event.preventDefault();
   const production = {
-    production_date: document.querySelector('#production-date').value,
-    kernel_used: document.querySelector('#kernel-used').value,
-    pko_produced: document.querySelector('#oil-produced').value,
-    pkc_produced: document.querySelector('#pkc-produced').value,
-    production_hours: document.querySelector('#production-hours').value,
-    down_time: document.querySelector('#down-time').value
+    production_date: productionDate.value,
+    kernel_used: kernelUsed.value,
+    pko_produced: oilProduced.value,
+    pkc_produced: pkcProduced.value,
+    production_hours: productionHours.value,
+    down_time: downTime.value
   };
   try {
     const response = await fetch('/api/production', {
@@ -278,8 +306,8 @@ async function saveProduction(event) {
     });
     if (!response.ok) {
       const problem = await response.json();
-      if (response.status === 400) {
-        alert('Failed to submit.' + problem.err);
+      if (response.status === 400 || response.status === 409) {
+        alert('Failed to submit. ' + problem.err);
       } else {
         alert('Failed to submit. Internal server problem');
       } return;
@@ -300,10 +328,10 @@ if (productionForm) {
 async function saveExpenses(event) {
   event.preventDefault();
   const expense = {
-    expense_date: document.querySelector('#expense-date').value,
-    category: document.querySelector('#expense-category').value,
-    description: document.querySelector('#expense-description').value,
-    amount_spent: document.querySelector('#expense-amount').value
+    expense_date: expenseDate.value,
+    category: expenseCategory.value,
+    description: expenseDescription.value,
+    amount_spent: expenseAmount.value
   };
   try {
     const response = await fetch('/api/expenses', {
@@ -396,38 +424,155 @@ async function loadInventoryData() {
       alert(problem.err);
       return;
     }
+
     const datalists = await response.json();
-    const inventoryDataBody = document.querySelector('#inventory-data-body');
-    inventoryDataBody.innerHTML = "";
-    datalists.forEach((dataItem) => {
-      const row = document.createElement('tr');
+    const inventoryList =
+    document.querySelector('#inventory-data-list');
+    const itemFilter =
+    document.querySelector('#inventory-item-filter');
+    const dateFrom =
+    document.querySelector('#inventory-date-from');
+    const dateTo =
+    document.querySelector('#inventory-date-to');
+    const sort =
+    document.querySelector('#inventory-sort');
+    const recordCount =
+    document.querySelector('#inventory-record-count');
+    const loadMore =
+    document.querySelector('#inventory-load-more');
+    let visibleRecords = 10;
+
+    if (itemFilter.options.length === 1) {
+      await loadInventoryDropdown(itemFilter);
+    }
+
+    function formatInventoryNumber(value) {
+      return Number(value).toLocaleString('en-NG');
+    }
+
+    function createInventoryValue(label, value, className) {
+      const valueBox = document.createElement('div');
+      const valueLabel = document.createElement('span');
+      const number = document.createElement('strong');
+      const unit = document.createElement('small');
+
+      valueBox.classList.add('inventory-card-value', className);
+      valueLabel.textContent = label;
+      number.textContent = formatInventoryNumber(value);
+      unit.textContent = 'kg';
+      valueBox.append(valueLabel, number, unit);
+
+      return valueBox;
+    }
+
+    function createInventoryCard(dataItem) {
+      const card = document.createElement('article');
+      const header = document.createElement('div');
+      const date = document.createElement('span');
+      const time = document.createElement('span');
+      const item = document.createElement('strong');
+      const recordNumber = document.createElement('small');
+      const values = document.createElement('div');
       const submittedAt = new Date(dataItem.created_at);
       const formatedDate = submittedAt.toLocaleDateString('en-NG', {
         day: '2-digit',
         month: '2-digit',
         year: '2-digit'
-      }).replace(/\//g, '-');
+      }).split('/').join('-');
       const formatedTime = submittedAt.toLocaleTimeString('en-NG', {
         hour: '2-digit',
         minute: '2-digit'
       });
-      const dateAndTime = formatedDate + ' ' + formatedTime;
 
-      const cells = [
-        dateAndTime,
-        dataItem.name,
-        dataItem.opening_stock,
-        dataItem.received,
-        dataItem.issued,
-        dataItem.closing_stock
-      ]
-      cells.forEach((item) => {
-        const td = document.createElement('td');
-        td.textContent = item;
-        row.appendChild(td);
+      card.classList.add('inventory-record-card');
+      card.classList.add(
+        dataItem.name.toLowerCase().replaceAll(' ', '-')
+      );
+      header.classList.add('inventory-record-header');
+      values.classList.add('inventory-record-values');
+
+      date.textContent = formatedDate;
+      time.textContent = formatedTime;
+      item.textContent = dataItem.name;
+      recordNumber.textContent = '#' + dataItem.count_id;
+
+      values.append(
+        createInventoryValue(
+          'Opening Stock', dataItem.opening_stock, 'opening'
+        ),
+        createInventoryValue(
+          'Received', dataItem.received, 'received'
+        ),
+        createInventoryValue(
+          'Issued', dataItem.issued, 'issued'
+        ),
+        createInventoryValue(
+          'Closing Stock', dataItem.closing_stock, 'closing'
+        )
+      );
+
+      header.append(date, time, item, recordNumber);
+      card.append(header, values);
+
+      return card;
+    }
+
+    function renderInventoryRecords() {
+      const filtered = datalists.filter((dataItem) => {
+        const matchesItem =
+        !itemFilter.value ||
+        String(dataItem.item_id) === itemFilter.value;
+        const matchesFrom =
+        !dateFrom.value ||
+        dataItem.count_date >= dateFrom.value;
+        const matchesTo =
+        !dateTo.value ||
+        dataItem.count_date <= dateTo.value;
+
+        return matchesItem && matchesFrom && matchesTo;
       });
-      inventoryDataBody.appendChild(row);
-    });
+
+      filtered.sort((first, second) => {
+        const difference =
+        new Date(first.created_at) -
+        new Date(second.created_at);
+
+        return sort.value === 'oldest' ?
+        difference: -difference;
+      });
+
+      inventoryList.replaceChildren();
+
+      filtered.slice(0, visibleRecords).forEach((dataItem) => {
+        inventoryList.appendChild(
+          createInventoryCard(dataItem)
+        );
+      });
+
+      const displayed =
+      Math.min(visibleRecords, filtered.length);
+
+      recordCount.textContent = filtered.length ?
+      'Showing 1 - ' + displayed + ' of ' +
+      filtered.length + ' records':
+      'Showing 0 records';
+
+      loadMore.hidden = displayed >= filtered.length;
+    }
+
+    itemFilter.onchange = function() {
+      visibleRecords = 10;
+      renderInventoryRecords();
+    };
+    dateFrom.onchange = itemFilter.onchange;
+    dateTo.onchange = itemFilter.onchange;
+    sort.onchange = itemFilter.onchange;
+    loadMore.onclick = function() {
+      visibleRecords += 10;
+      renderInventoryRecords();
+    };
+
+    renderInventoryRecords();
   } catch (error) {
     console.error(error.message);
     alert(error.message);
@@ -591,6 +736,15 @@ if (dashboardBtn) {
   });
 }
 
+function sizeDashboardNumber(element, value) {
+  const digits = Math.trunc(Math.abs(Number(value))).toString().length;
+  if (digits >= 7) {
+    element.classList.add('number-small');
+  } else if (digits >= 5) {
+    element.classList.add('number-medium');
+  }
+}
+
 async function showStockLevels() {
   try {
     const selectedDate = dateInput.value;
@@ -614,7 +768,10 @@ async function showStockLevels() {
       stockQuantity.classList.add('stock-quantity');
       stockUnit.classList.add('stock-unit');
 
-      stockQuantity.textContent = Number(row.remaining).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      stockQuantity.textContent = Number(row.remaining).toLocaleString('en-NG', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+      sizeDashboardNumber(stockQuantity, row.remaining);
       stockName.textContent = row.item;
 
       if (stockName.textContent === 'PKC') {
@@ -652,185 +809,570 @@ async function showStockLevels() {
   }
 }
 
-dateInput.valueAsDate = new Date;
-const showToday = dateInput.value;
+if (dateInput) {
+  dateInput.valueAsDate = new Date;
+  const showToday = dateInput.value;
 
-function updateDateLabel() {
-  if (dateInput.value === showToday) {
-    today.textContent = 'Today';
-  } else {
-    today.textContent = 'Showing';
-  }
-}
-dateInput.addEventListener('change', updateDateLabel)
-dateInput.addEventListener('change', showStockLevels);
-updateDateLabel();
-showStockLevels();
-
-async function showPeriodProduction(period) {
-  const selectedDate = dateInput.value;
-  const RawPeriods = await fetch('/api/dashboard_period?date=' + selectedDate);
-  const periods = await RawPeriods.json();
-  const production = periods[period].production;
-  const prodGrid = document.querySelector('.prod-grid');
-  prodGrid.innerHTML = '';
-
-  Object.entries(production).forEach(function([name, value]) {
-    if (name === 'oil_yield') {
-      return;
+  function updateDateLabel() {
+    if (dateInput.value === showToday) {
+      today.textContent = 'Today';
+    } else {
+      today.textContent = 'Showing';
     }
-    const prodCard = document.createElement('article');
-    const prodDetails = document.createElement('div');
-    const prodName = document.createElement('span');
-    const prodQuantity = document.createElement('strong');
-    const prodUnit = document.createElement('small');
-
-    prodCard.classList.add('stock-card');
-    prodDetails.classList.add('stock-details');
-    prodName.classList.add('stock-name');
-    prodQuantity.classList.add('stock-quantity');
-    prodUnit.classList.add('stock-unit');
-
-    prodQuantity.textContent = Number(value).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    prodName.textContent = name.replace('_', ' ');
-    prodUnit.textContent = 'kg';
-
-    prodQuantity.appendChild(prodUnit);
-    prodDetails.appendChild(prodName);
-    prodDetails.appendChild(prodQuantity);
-    prodCard.appendChild(prodDetails);
-    prodGrid.appendChild(prodCard);
-  })
-  const oilYield = document.querySelector('#oil-yield');
-  oilYield.textContent = Number(production.oil_yield).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-}
-showPeriodProduction('day');
-dateInput.addEventListener('change', function() {
-  showPeriodProduction('day')
-  showPeriodSales('day');
-  stockPanel.style.display = 'block';
-  weekBtn.classList.remove('active');
-  monthBtn.classList.remove('active');
-  if (dateInput.textContent === '') {
-    showStockLevels();
   }
-})
+  dateInput.addEventListener('change', updateDateLabel)
+  dateInput.addEventListener('change', showStockLevels);
+  updateDateLabel();
+  showStockLevels();
 
-const dayBtn = document.querySelector('.day-button');
-dayBtn.addEventListener('click', function() {
-  showPeriodProduction('day');
-  showPeriodSales('day');
-  dayBtn.classList.add('active');
-  weekBtn.classList.remove('active');
-  monthBtn.classList.remove('active');
-  stockPanel.style.display = 'block';
-});
-
-const weekBtn = document.querySelector('.week-button');
-weekBtn.addEventListener('click', function() {
-  showPeriodProduction('week');
-  showPeriodSales('week');
-  weekBtn.classList.add('active');
-  dayBtn.classList.remove('active');
-  monthBtn.classList.remove('active');
-  stockPanel.style.display = 'none';
-})
-
-const monthBtn = document.querySelector('.month-button');
-monthBtn.addEventListener('click', function() {
-  showPeriodProduction('month');
-  showPeriodSales('month');
-  monthBtn.classList.add('active');
-  dayBtn.classList.remove('active');
-  weekBtn.classList.remove('active');
-  stockPanel.style.display = 'none'
-})
-
-async function showPeriodSales(period) {
-  try {
+  async function showPeriodProduction(period) {
     const selectedDate = dateInput.value;
-    const response = await fetch('/api/dashboard_period?date=' + selectedDate);
-    const sales = await response.json();
-    const periodSales = sales[period].sales;
-    const salesArray = Object.entries(periodSales).map(function([product, details]) {
-      return {
-        product: product,
-        ...details
+    const RawPeriods = await fetch('/api/dashboard_period?date=' + selectedDate);
+    const periods = await RawPeriods.json();
+    const production = periods[period].production;
+    const prodGrid = document.querySelector('.prod-grid');
+    prodGrid.innerHTML = '';
+
+    Object.entries(production).forEach(function([name, value]) {
+      if (name === 'oil_yield') {
+        return;
       }
+      const prodCard = document.createElement('article');
+      const prodDetails = document.createElement('div');
+      const prodName = document.createElement('span');
+      const prodQuantity = document.createElement('strong');
+      const prodUnit = document.createElement('small');
+
+      prodCard.classList.add('stock-card');
+      prodDetails.classList.add('stock-details');
+      prodName.classList.add('stock-name');
+      prodQuantity.classList.add('stock-quantity');
+      prodUnit.classList.add('stock-unit');
+
+      prodQuantity.textContent = Number(value).toLocaleString('en-NG', {
+        minimumFractionDigits: 2, maximumFractionDigits: 2
+      });
+      sizeDashboardNumber(prodQuantity, value);
+      prodName.textContent = name.replace('_', ' ');
+      prodUnit.textContent = 'kg';
+
+      prodQuantity.appendChild(prodUnit);
+      prodDetails.appendChild(prodName);
+      prodDetails.appendChild(prodQuantity);
+      prodCard.appendChild(prodDetails);
+      prodGrid.appendChild(prodCard);
     })
-    const salesGrid = document.querySelector('#sales-grid');
-    salesGrid.innerHTML = "";
-    salesArray.forEach((row) => {
-      const salesCard = document.createElement('article');
-      const salesHeader = document.createElement('header');
-      const productName = document.createElement('h3');
-      const badge = document.createElement('span');
-      const cardBody = document.createElement('div');
-      const productIcon = document.createElement('span');
-      const salesDetails = document.createElement('div');
-      const salesRowOne = document.createElement('div');
-      const quantitySold = document.createElement('span');
-      const quantityValue = document.createElement('strong');
-      const salesUnitOne = document.createElement('small');
-      const salesRowTwo = document.createElement('div');
-      const avgPrice = document.createElement('span');
-      const avgPriceValue = document.createElement('strong');
-      const salesRowThree = document.createElement('div');
-      const total = document.createElement('span');
-      const totalValue = document.createElement('strong');
+    const oilYield = document.querySelector('#oil-yield');
+    oilYield.textContent = Number(production.oil_yield).toLocaleString('en-NG',
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      }) + '%';
+  }
+  async function showPeriodProfit(period) {
+    const profitList = document.querySelector('#profit-list');
+    const profitCaption = document.querySelector('#profit-caption');
+    if (!profitList) return;
 
-      salesCard.classList.add('sale-card');
-      salesHeader.classList.add('sale-head');
-      badge.classList.add('swatch');
-      cardBody.classList.add('sale-body');
-      productIcon.classList.add('sale-icon');
-      salesDetails.classList.add('sale-details');
-      salesRowOne.classList.add('sale-row');
-      salesRowTwo.classList.add('sale-row');
-      salesRowThree.classList.add('sale-row', 'total');
+    try {
+      const selectedDate = dateInput.value;
+      const response = await fetch('/api/dashboard_period?date=' + encodeURIComponent(selectedDate));
+      if (!response.ok) throw new Error('Could not load profit figures');
 
-      productName.textContent = row.product;
-      salesUnitOne.textContent = 'kg';
-      quantitySold.textContent = 'Qty sold'
-      quantityValue.textContent = Number(row.quantity_sold).toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      salesRowOne.append(quantitySold, quantityValue, salesUnitOne);
+      const periods = await response.json();
+      const profit = periods[period];
+      if (!profit) throw new Error('Profit data is missing for ' + period);
 
-      avgPrice.textContent = 'Avg price';
-      avgPriceValue.textContent =
-      Number(row.average_unit_price).toLocaleString('en-NG', {
+      const grossProfit = profit.period_gross_profit || {};
+      const currency = new Intl.NumberFormat('en-NG', {
         style: 'currency',
         currency: 'NGN',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
       });
-      salesRowTwo.append(avgPrice, avgPriceValue);
 
-      total.textContent = 'total';
-      totalValue.textContent = Number(row.total_sales).toLocaleString('en-NG', {
-        style: 'currency',
-        currency: 'NGN',
-        maximumFractionDigits: 0
+      profitList.innerHTML = '';
+      const cards = document.createElement('div');
+      cards.classList.add('profit-cards');
+
+      [{
+        name: 'PKO',
+        value: grossProfit.pko,
+        className: 'pko'
+      },
+        {
+          name: 'PKC',
+          value: grossProfit.pkc,
+          className: 'pkc'
+        }].forEach((product) => {
+          const card = document.createElement('article');
+          const badge = document.createElement('span');
+          const details = document.createElement('div');
+          const name = document.createElement('span');
+          const value = document.createElement('strong');
+
+          card.classList.add('profit-card', product.className);
+          badge.classList.add('profit-badge');
+          details.classList.add('profit-details');
+          name.classList.add('profit-label');
+          value.classList.add('profit-value');
+
+          badge.textContent = product.name;
+          name.textContent = product.name + ' gross profit';
+          value.textContent = currency.format(Number(product.value) || 0);
+
+          details.append(name, value);
+          card.append(badge, details);
+          cards.appendChild(card);
+        });
+
+      const netProfit = document.createElement('div');
+      const netLabel = document.createElement('span');
+      const netValue = document.createElement('strong');
+      const netAmount = Number(profit.total_net_profit) || 0;
+
+      netProfit.classList.add('net-profit');
+      netProfit.classList.toggle('negative', netAmount < 0);
+      netLabel.textContent = 'Total net profit';
+      netValue.textContent = currency.format(netAmount);
+      netProfit.append(netLabel, netValue);
+
+      profitList.append(cards, netProfit);
+      if (profitCaption) {
+        profitCaption.textContent = period.charAt(0).toUpperCase() + period.slice(1);
+      }
+    } catch (error) {
+      console.error(error);
+      profitList.innerHTML = '';
+      const message = document.createElement('p');
+      message.classList.add('profit-error');
+      message.textContent = 'Profit figures are unavailable.';
+      profitList.appendChild(message);
+    }
+  }
+
+  showPeriodProduction('day');
+  showPeriodProfit('day');
+  dateInput.addEventListener('change', function() {
+    showPeriodProduction('day')
+    showPeriodSales('day');
+    showPeriodProfit('day');
+    dashboardChecks('day');
+    stockPanel.style.display = 'block';
+    weekBtn.classList.remove('active');
+    monthBtn.classList.remove('active');
+    if (dateInput.textContent === '') {
+      showStockLevels();
+    }
+  })
+
+  const dayBtn = document.querySelector('.day-button');
+  dayBtn.addEventListener('click',
+    function() {
+      showPeriodProduction('day');
+      showPeriodSales('day');
+      showPeriodProfit('day');
+      dashboardChecks('day');
+      dayBtn.classList.add('active');
+      weekBtn.classList.remove('active');
+      monthBtn.classList.remove('active');
+      stockPanel.style.display = 'block';
+    });
+
+  const weekBtn = document.querySelector('.week-button');
+  weekBtn.addEventListener('click',
+    function() {
+      showPeriodProduction('week');
+      showPeriodSales('week');
+      showPeriodProfit('week');
+      dashboardChecks('week');
+      weekBtn.classList.add('active');
+      dayBtn.classList.remove('active');
+      monthBtn.classList.remove('active');
+      stockPanel.style.display = 'none';
+    })
+
+  const monthBtn = document.querySelector('.month-button');
+  monthBtn.addEventListener('click',
+    function() {
+      showPeriodProduction('month');
+      showPeriodSales('month');
+      showPeriodProfit('month');
+      dashboardChecks('month');
+      monthBtn.classList.add('active');
+      dayBtn.classList.remove('active');
+      weekBtn.classList.remove('active');
+      stockPanel.style.display = 'none'
+    })
+
+  async function showPeriodSales(period) {
+    try {
+      const selectedDate = dateInput.value;
+      const response = await fetch('/api/dashboard_period?date=' + selectedDate);
+      const sales = await response.json();
+      const periodSales = sales[period].sales;
+      const salesArray = Object.entries(periodSales).map(function([product, details]) {
+        return {
+          product: product,
+          ...details
+        }
+      })
+      const salesGrid = document.querySelector('#sales-grid');
+      salesGrid.innerHTML = "";
+      salesArray.forEach((row) => {
+        const salesCard = document.createElement('article');
+        const salesHeader = document.createElement('header');
+        const productName = document.createElement('h3');
+        const badge = document.createElement('span');
+        const cardBody = document.createElement('div');
+        const productIcon = document.createElement('span');
+        const salesDetails = document.createElement('div');
+        const salesRowOne = document.createElement('div');
+        const quantitySold = document.createElement('span');
+        const quantityValue = document.createElement('strong');
+        const salesUnitOne = document.createElement('small');
+        const salesRowTwo = document.createElement('div');
+        const avgPrice = document.createElement('span');
+        const avgPriceValue = document.createElement('strong');
+        const salesRowThree = document.createElement('div');
+        const total = document.createElement('span');
+        const totalValue = document.createElement('strong');
+
+        salesCard.classList.add('sale-card');
+        salesHeader.classList.add('sale-head');
+        badge.classList.add('swatch');
+        cardBody.classList.add('sale-body');
+        productIcon.classList.add('sale-icon');
+        salesDetails.classList.add('sale-details');
+        salesRowOne.classList.add('sale-row');
+        salesRowTwo.classList.add('sale-row');
+        salesRowThree.classList.add('sale-row', 'total');
+
+        productName.textContent = row.product;
+        salesUnitOne.textContent = 'kg';
+        quantitySold.textContent = 'Qty sold'
+        quantityValue.textContent = Number(row.quantity_sold).toLocaleString('en-NG', {
+          minimumFractionDigits: 2, maximumFractionDigits: 2
+        });
+        salesRowOne.append(quantitySold, quantityValue, salesUnitOne);
+
+        avgPrice.textContent = 'Avg price';
+        avgPriceValue.textContent =
+        Number(row.average_unit_price).toLocaleString('en-NG', {
+          style: 'currency',
+          currency: 'NGN',
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+        salesRowTwo.append(avgPrice, avgPriceValue);
+
+        total.textContent = 'total';
+        totalValue.textContent = Number(row.total_sales).toLocaleString('en-NG', {
+          style: 'currency',
+          currency: 'NGN',
+          maximumFractionDigits: 0
+        });
+        salesRowThree.append(total, totalValue);
+        if (row.product === 'PKO') {
+          salesCard.classList.add('pko');
+          badge.textContent = 'PKO';
+          productIcon.textContent = '💧'
+        } else {
+          salesCard.classList.add('pkc');
+          badge.textContent = 'PKC';
+          productIcon.textContent = '🟤'
+        }
+
+        salesDetails.append(salesRowOne, salesRowTwo, salesRowThree);
+        cardBody.append(productIcon, salesDetails);
+
+        salesHeader.append(badge, productName);
+        salesCard.append(salesHeader, cardBody);
+        salesGrid.appendChild(salesCard);
       });
-      salesRowThree.append(total, totalValue);
-      if (row.product === 'PKO') {
-        salesCard.classList.add('pko');
-        badge.textContent = 'PKO';
-        productIcon.textContent = '💧'
-      } else {
-        salesCard.classList.add('pkc');
-        badge.textContent = 'PKC';
-        productIcon.textContent = '🟤'
+    } catch (error) {
+      console.log(error);
+    }
+  }
+  showPeriodSales('day');
+
+  async function dashboardChecks(period) {
+    try {
+      const dashboardCheck =
+      document.querySelector('.dashboard-checks');
+      const selectedDate =
+      dateInput.value;
+
+      const response =
+      await fetch('/api/checks');
+
+      if (!response.ok) {
+        const problem =
+        await response.json();
+
+        alert(problem.err);
+        console.log(problem.err);
+        return;
       }
 
-      salesDetails.append(salesRowOne, salesRowTwo, salesRowThree);
-      cardBody.append(productIcon, salesDetails);
+      const checks =
+      await response.json();
 
-      salesHeader.append(badge, productName);
-      salesCard.append(salesHeader, cardBody);
-      salesGrid.appendChild(salesCard);
-    });
-  } catch (error) {
-    console.log(error);
+      const selected =
+      new Date(selectedDate + 'T00:00:00');
+
+      function displayCheckCount(count) {
+        dashboardCheck.textContent =
+        count +
+        (count === 1
+          ? ' check needs your attention': ' checks need your attention');
+        dashboardCheck.classList.toggle(
+          'has-checks', count > 0
+        );
+        dashboardCheck.classList.toggle(
+          'is-clear', count === 0
+        );
+        dashboardCheck.dataset.period = period;
+        dashboardCheck.dataset.date = selectedDate;
+      }
+
+      if (period === 'day') {
+
+        const theDay =
+        checks.filter((check) => {
+          return check.check_date ===
+          selectedDate;
+        });
+
+        displayCheckCount(theDay.length);
+
+      } else if (period === 'week') {
+
+        const weekStart =
+        new Date(selected);
+
+        weekStart.setDate(
+          selected.getDate() -
+          ((selected.getDay() + 6) % 7)
+        );
+
+        const weekEnd =
+        new Date(weekStart);
+
+        weekEnd.setDate(
+          weekStart.getDate() + 7
+        );
+
+        const thatWeek =
+        checks.filter((check) => {
+
+          const checkDate =
+          new Date(
+            check.check_date +
+            'T00:00:00'
+          );
+
+          return (
+            checkDate >= weekStart &&
+            checkDate < weekEnd
+          );
+        });
+
+        displayCheckCount(thatWeek.length);
+
+      } else if (period === 'month') {
+
+        const thatMonth =
+        checks.filter((check) => {
+
+          const checkDate =
+          new Date(
+            check.check_date +
+            'T00:00:00'
+          );
+
+          return (
+            checkDate.getFullYear() ===
+            selected.getFullYear() &&
+            checkDate.getMonth() ===
+            selected.getMonth()
+          );
+        });
+
+        displayCheckCount(thatMonth.length);
+      }
+
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  dashboardChecks('day');
+
+  const dashboardChecksLink =
+  document.querySelector('.dashboard-checks');
+
+  dashboardChecksLink.addEventListener('click', function() {
+    const period =
+    dashboardChecksLink.dataset.period || 'day';
+    const selectedDate =
+    dashboardChecksLink.dataset.date ||
+    dateInput.value;
+
+    window.location.href =
+    'checks.html?period=' +
+    encodeURIComponent(period) +
+    '&date=' +
+    encodeURIComponent(selectedDate);
+  });
+}
+
+function editForm() {
+  const record = JSON.parse(
+    sessionStorage.getItem('editRecord')
+  );
+  const kind = sessionStorage.getItem('editKind');
+
+  if (! record || ! kind) {
+    return;
+  }
+  if (kind === 'stock') {
+    stockDate.value =
+    record.count_date.slice(0, 10);
+    stockName.value = record.item_id;
+    received.value = record.received;
+    issued.value = record.issued;
+
+    inventoryForm.removeEventListener('submit', saveInventory);
+    inventoryForm.addEventListener('submit',
+      saveEdit);
+    inventoryForm.querySelector('button[type="submit"]').textContent =
+    'Save Inventory';
+
+  } else if (kind === 'production') {
+    productionDate.value =
+    record.production_date.slice(0, 10);
+    kernelUsed.value = record.kernel_used;
+    oilProduced.value = record.pko_produced;
+    pkcProduced.value = record.pkc_produced;
+    productionHours.value =
+    record.production_hours;
+    downTime.value = record.down_time;
+
+    productionForm.removeEventListener('submit',
+      saveProduction);
+    productionForm.addEventListener('submit',
+      saveEdit);
+    productionForm.querySelector('button[type="submit"]').textContent =
+    'Save Production';
+
+  } else if (kind === 'sales') {
+    salesDate.value =
+    record.sales_date.slice(0, 10);
+    customer.value = record.customer;
+    productSold.value = record.item_id;
+    salesQuantity.value =
+    record.quantity;
+    unitPrice.value = record.unit_price;
+
+    salesForm.removeEventListener('submit',
+      saveSale);
+    salesForm.addEventListener('submit',
+      saveEdit);
+    salesForm.querySelector('button[type="submit"]').textContent =
+    'Save Sales';
+
+  } else if (kind === 'purchases') {
+    purchaseDate.value =
+    record.purchase_date.slice(0, 10);
+    supplier.value = record.supplier;
+    materialSupplied.value =
+    record.item_id
+    quantitySupplied.value =
+    record.quantity_supplied;
+    unitCost.value = record.unit_cost;
+
+    purchaseForm.removeEventListener('submit',
+      savePurchases);
+    purchaseForm.addEventListener('submit',
+      saveEdit);
+    purchaseForm.querySelector('button[type="submit"]').textContent =
+    'Save Purchases';
+  }
+
+}
+
+async function saveEdit(event) {
+  event.preventDefault();
+  const record =
+  JSON.parse(sessionStorage.getItem('editRecord'));
+  const kind =
+  sessionStorage.getItem('editKind');
+
+  let updatedForm;
+
+  if (kind === 'stock') {
+
+    updatedForm = {
+      count_id: record.count_id,
+      count_date: stockDate.value,
+      item_id: stockName.value,
+      received: received.value,
+      issued: issued.value
+    };
+
+  } else if (kind === 'production') {
+
+    updatedForm = {
+      production_id: record.production_id,
+      production_date: productionDate.value,
+      kernel_used: kernelUsed.value,
+      pko_produced: oilProduced.value,
+      pkc_produced: pkcProduced.value,
+      production_hours: productionHours.value,
+      down_time: downTime.value
+    };
+
+  } else if (kind === 'sales') {
+
+    updatedForm = {
+      sale_id: record.sale_id,
+      sales_date: salesDate.value,
+      customer: customer.value,
+      item_id: productSold.value,
+      quantity: salesQuantity.value,
+      unit_price: unitPrice.value
+    };
+
+  } else if (kind === 'purchases') {
+    updatedForm = {
+      purchase_id: record.purchase_id,
+      purchase_date: purchaseDate.value,
+      supplier: supplier.value,
+      item_id: materialSupplied.value,
+      quantity_supplied: quantitySupplied.value,
+      unit_cost: unitCost.value
+    };
+  }
+
+  const response = await
+  fetch('/api/correction_edit', {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      kind: kind,
+      record: updatedForm
+    })
+  });
+  if (response.ok) {
+    alert('Edit saved successfully');
+    const checksReturnUrl =
+    sessionStorage.getItem('checksReturnUrl') || 'checks.html';
+    sessionStorage.removeItem('editRecord');
+    sessionStorage.removeItem('editKind');
+    sessionStorage.removeItem('checksReturnUrl');
+    window.location.href = checksReturnUrl;
   }
 }
-showPeriodSales('day');

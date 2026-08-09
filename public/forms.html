@@ -29,7 +29,8 @@
 
         <div class="field-row">
           <div class="field">
-            <label for="received">Received</label>
+            <label
+              for="received">Received (kg)</label>
             <input type="number" id="received" name="received" min="0" placeholder="0" required>
           </div>
 
@@ -39,7 +40,8 @@
           </div>
         </div>
 
-        <button type="submit">Save Entry</button>
+        <button
+          type="submit">Submit Inventory</button>
       </form>
     </section>
 
@@ -69,11 +71,14 @@
         </div>
 
         <div class="field">
-          <label for="expense-amount">Amount Spent</label>
+          <label
+            for="expense-amount">Amount
+            Spent (₦)</label>
           <input type="number" id="expense-amount" name="amount" min="0" placeholder="0" required>
         </div>
 
-        <button type="submit">Save Expense</button>
+        <button
+          type="submit">Submit Expense</button>
       </form>
     </section>
 
@@ -108,16 +113,17 @@
 
           <div class="field">
             <label for="production-hours">Production Hours</label>
-            <input type="number" id="production-hours" name="production-hours" min="0" placeholder="0" required>
+            <input type="text" id="production-hours" name="production-hours" inputmode="numeric" pattern="[0-9]+:[0-5][0-9]" placeholder="HH:MM" required>
           </div>
         </div>
 
         <div class="field">
           <label for="down-time">Down Time</label>
-          <input type="number" id="down-time" name="down-time" min="0" placeholder="0" required>
+          <input type="text" id="down-time" name="down-time" inputmode="numeric" pattern="[0-9]+:[0-5][0-9]" placeholder="HH:MM" required>
         </div>
 
-        <button type="submit">Save Production Entry</button>
+        <button
+          type="submit">Submit Production</button>
       </form>
     </section>
 
@@ -146,17 +152,21 @@
 
         <div class="field-row">
           <div class="field">
-            <label for="quantity-supplied">Quantity Supplied</label>
+            <label
+              for="quantity-supplied">Quantity
+              Supplied (kg)</label>
             <input type="number" id="quantity-supplied" name="quantity-supplied" min="0" placeholder="0" required>
           </div>
 
           <div class="field">
-            <label for="unit-cost">Unit Cost</label>
+            <label for="unit-cost">Unit
+              Cost(₦)</label>
             <input type="number" id="unit-cost" name="unit-cost" min="0" placeholder="0" required>
           </div>
         </div>
 
-        <button type="submit">Save Purchase</button>
+        <button
+          type="submit">Submit Purchase</button>
       </form>
     </section>
 
@@ -185,7 +195,9 @@
 
         <div class="field-row">
           <div class="field">
-            <label for="sales-quantity">Quantity</label>
+            <label
+              for="sales-quantity">Quantity
+              (kg)</label>
             <input type="number" id="sales-quantity" name="quantity" min="0" placeholder="0" required>
           </div>
 
@@ -195,13 +207,14 @@
           </div>
         </div>
 
-        <button type="submit">Save Sale</button>
+        <button
+          type="submit">Submit Sale</button>
       </form>
     </section>
 
     <section class="card" id="sales-data">
       <h2>SALES RECORD</h2>
-      <table>
+      <table class="data-table-view">
         <thead>
           <tr>
             <th>Date</th>
@@ -216,11 +229,32 @@
 
         </tbody>
       </table>
+      <div class="data-card-view data-record-page" id="sales-card-view">
+        <h2>SALES RECORD</h2>
+        <div class="data-filters">
+          <select class="data-item-filter" id="sales-item-filter">
+            <option value="">All Items</option>
+          </select>
+          <div class="data-date-filter">
+            <input type="date" id="sales-date-from" aria-label="Start date">
+            <span>-</span>
+            <input type="date" id="sales-date-to" aria-label="End date">
+          </div>
+        </div>
+        <div class="data-list-heading">
+          <span id="sales-record-count"></span>
+          <select class="data-sort" id="sales-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div class="data-record-list" id="sales-data-list"></div>
+        <button type="button" class="data-load-more" id="sales-load-more">Load more</button>
+      </div>
     </section>
 
     <section class="card" id="inventory-data">
-      <h2>INVENTORY RECORD</h2>
-      <table>
+      <table class="data-table-view">
         <thead>
           <tr>
             <th>Date & Time</th>
@@ -235,11 +269,35 @@
 
         </tbody>
       </table>
+      <div class="data-card-view data-record-page inventory-record-page">
+        <h2>INVENTORY RECORD</h2>
+        <div class="data-filters inventory-filters">
+          <select class="data-item-filter" id="inventory-item-filter">
+            <option value="">All Items</option>
+          </select>
+          <div class="data-date-filter inventory-date-filter">
+            <input class="data-date-from" type="date" id="inventory-date-from" aria-label="Start date">
+            <span>-</span>
+            <input class="data-date-to" type="date" id="inventory-date-to" aria-label="End date">
+          </div>
+        </div>
+        <div class="data-list-heading inventory-list-heading">
+          <span id="inventory-record-count"></span>
+          <select class="data-sort" id="inventory-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div class="data-record-list" id="inventory-data-list"></div>
+        <button type="button" id="inventory-load-more" class="data-load-more inventory-load-more">
+          Load more
+        </button>
+      </div>
     </section>
 
     <section class="card" id="purchases-data">
       <h2>PURCHASES RECORD</h2>
-      <table>
+      <table class="data-table-view">
         <thead>
           <tr>
             <th>Date & Time</th>
@@ -254,11 +312,33 @@
 
         </tbody>
       </table>
+      <div class="data-card-view data-record-page" id="purchases-card-view">
+        <h2>PURCHASES RECORD</h2>
+        <div class="data-filters">
+          <select class="data-item-filter" id="purchases-item-filter">
+            <option value="">All Items</option>
+          </select>
+          <div class="data-date-filter">
+            <input type="date" id="purchases-date-from" aria-label="Start date">
+            <span>-</span>
+            <input type="date" id="purchases-date-to" aria-label="End date">
+          </div>
+        </div>
+        <div class="data-list-heading">
+          <span id="purchases-record-count"></span>
+          <select class="data-sort" id="purchases-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div class="data-record-list" id="purchases-data-list"></div>
+        <button type="button" class="data-load-more" id="purchases-load-more">Load more</button>
+      </div>
     </section>
 
     <section class="card" id="production-data">
       <h2>PRODUCTION RECORD</h2>
-      <table>
+      <table class="data-table-view">
         <thead>
           <tr>
             <th>Date & Time</th>
@@ -275,11 +355,30 @@
 
         </tbody>
       </table>
+      <div class="data-card-view data-record-page" id="production-card-view">
+        <h2>PRODUCTION RECORD</h2>
+        <div class="data-filters no-item-filter">
+          <div class="data-date-filter">
+            <input type="date" id="production-date-from" aria-label="Start date">
+            <span>-</span>
+            <input type="date" id="production-date-to" aria-label="End date">
+          </div>
+        </div>
+        <div class="data-list-heading">
+          <span id="production-record-count"></span>
+          <select class="data-sort" id="production-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div class="data-record-list" id="production-data-list"></div>
+        <button type="button" class="data-load-more" id="production-load-more">Load more</button>
+      </div>
     </section>
 
     <section class="card" id="expenses-data">
       <h2>EXPENSES RECORD</h2>
-      <table>
+      <table class="data-table-view">
         <thead>
           <tr>
             <th>Date & Time</th>
@@ -292,9 +391,36 @@
 
         </tbody>
       </table>
+      <div class="data-card-view data-record-page" id="expenses-card-view">
+        <h2>EXPENSES RECORD</h2>
+        <div class="data-filters">
+          <select class="data-item-filter" id="expenses-category-filter">
+            <option value="">All Categories</option>
+            <option value="Expenses">Expenses</option>
+            <option value="Asset/Capital Expenditure">Asset/Capital Expenditure</option>
+          </select>
+          <div class="data-date-filter">
+            <input type="date" id="expenses-date-from" aria-label="Start date">
+            <span>-</span>
+            <input type="date" id="expenses-date-to" aria-label="End date">
+          </div>
+        </div>
+        <div class="data-list-heading">
+          <span id="expenses-record-count"></span>
+          <select class="data-sort" id="expenses-sort">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+          </select>
+        </div>
+        <div class="data-record-list" id="expenses-data-list"></div>
+        <button type="button" class="data-load-more" id="expenses-load-more">Load more</button>
+      </div>
     </section>
 
     <div class="card" id="dashboard">
+      <div class="dashboard-checks-wrap">
+        <p class="dashboard-checks"></p>
+      </div>
 
       <div class="datebar">
         <label for="dashboard-date"class="today">Showing</label>

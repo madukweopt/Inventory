@@ -45,7 +45,7 @@ app.get('/api/sales', function(req, res) {
 });
 
 app.get('/api/stock_counts', function(req, res) {
-  pool.query('SELECT items.name, stock_counts.count_date,  stock_counts.created_at,  stock_counts.received,    stock_counts.issued,               SUM(stock_counts.received - stock_counts.issued)               OVER (                       PARTITION BY stock_counts.item_id ORDER BY                  stock_counts.created_at) - (stock_counts.received - stock_counts.issued)                            AS opening_stock,                   SUM(                       stock_counts.received - stock_counts.issued)                           OVER ( PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.created_at DESC',
+  pool.query("SELECT stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.created_at DESC",
     function(err, result) {
       if (err) {
         console.log(err);
@@ -71,7 +71,7 @@ app.get('/api/purchases', function(req, res) {
 });
 
 app.get('/api/production', function(req, res) {
-  pool.query('SELECT production.created_at, production.kernel_used, production.pko_produced, production.pkc_produced, ROUND((production.pko_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pko_yield, ROUND((production.pkc_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pkc_yield, production.production_hours, production.down_time FROM production ORDER BY production.created_at DESC;',
+  pool.query("SELECT production.created_at, production.kernel_used, production.pko_produced, production.pkc_produced, ROUND((production.pko_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pko_yield, ROUND((production.pkc_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pkc_yield, to_char(production.production_hours, 'HH24:MI') AS production_hours, to_char(production.down_time, 'HH24:MI') AS down_time FROM production ORDER BY production.created_at DESC;",
     function(err, result) {
       if (err) {
         console.log(err)
@@ -163,16 +163,35 @@ app.post('/api/production', function(req, res) {
       err: 'Check your inputs and try again'
     });
   }
-  pool.query('INSERT INTO production ( production_date, kernel_used, pko_produced, pkc_produced, production_hours, down_time ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-    [production.production_date, production.kernel_used, production.pko_produced, production.pkc_produced, production.production_hours, production.down_time],
-    function(err, result) {
+  pool.query('SELECT production_id FROM production WHERE production_date = $1::date',
+    [production.production_date], function(err, existing) {
       if (err) {
-        console.log(err)
+        console.log(err);
         return res.status(500).json({
           err: 'Failed to submit. Internal server error'
-        })
+        });
       }
-      res.status(201).json(result.rows[0]);
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
+          err: 'A production report already exists for this date'
+        });
+      }
+      pool.query('INSERT INTO production ( production_date, kernel_used, pko_produced, pkc_produced, production_hours, down_time ) VALUES ($1, $2, $3, $4, $5::interval, $6::interval) RETURNING *',
+        [production.production_date, production.kernel_used, production.pko_produced, production.pkc_produced, production.production_hours, production.down_time],
+        function(err, result) {
+          if (err) {
+            console.log(err);
+            if (err.code === '23505') {
+              return res.status(409).json({
+                err: 'A production report already exists for this date'
+              });
+            }
+            return res.status(500).json({
+              err: 'Failed to submit. Internal server error'
+            });
+          }
+          res.status(201).json(result.rows[0]);
+        });
     });
 });
 
@@ -196,167 +215,166 @@ app.post('/api/expenses', function(req, res) {
     })
 })
 
-app.get('/api/average_cost', async function (req, res) {
-  try {
-    const RawPurchasesRecords = await pool.query(`
-      SELECT
-      items.item_id,
-      items.name,
-      items.item_type,
-      to_char(
-      purchases.purchase_date,
-      'YYYY-MM-DD'
-      ) AS date,
-      purchases.created_at,
-      purchases.quantity_supplied AS quantity,
-      purchases.quantity_supplied *
-      purchases.unit_cost AS value,
-      'in' AS type,
-      0 AS event_order
-      FROM purchases
-      INNER JOIN items
-      ON purchases.item_id = items.item_id
-      `);
+async function calculateCosts() {
+  const RawPurchasesRecords = await pool.query(`
+    SELECT
+    items.item_id,
+    items.name,
+    items.item_type,
+    to_char(
+    purchases.purchase_date,
+    'YYYY-MM-DD'
+    ) AS date,
+    purchases.created_at,
+    purchases.quantity_supplied AS quantity,
+    purchases.quantity_supplied *
+    purchases.unit_cost AS value,
+    'in' AS type,
+    0 AS event_order
+    FROM purchases
+    INNER JOIN items
+    ON purchases.item_id = items.item_id
+    `);
 
-    const purchases = RawPurchasesRecords.rows;
+  const purchases = RawPurchasesRecords.rows;
 
-    /*
+  /*
      * Raw materials and consumables issued for production.
      * Product dispatches are handled separately.
      */
-    const rawIssues = await pool.query(`
-      SELECT
-      items.item_id,
-      items.name,
-      items.item_type,
-      to_char(
-      stock_counts.count_date,
-      'YYYY-MM-DD'
-      ) AS date,
-      stock_counts.created_at,
-      stock_counts.issued AS quantity,
-      'out' AS type,
-      1 AS event_order
-      FROM stock_counts
-      INNER JOIN items
-      ON stock_counts.item_id = items.item_id
-      WHERE stock_counts.issued > 0
-      AND items.item_type IN (
-      'raw_material',
-      'consumable'
-      )
-      `);
+  const rawIssues = await pool.query(`
+    SELECT
+    items.item_id,
+    items.name,
+    items.item_type,
+    to_char(
+    stock_counts.count_date,
+    'YYYY-MM-DD'
+    ) AS date,
+    stock_counts.created_at,
+    stock_counts.issued AS quantity,
+    'out' AS type,
+    1 AS event_order
+    FROM stock_counts
+    INNER JOIN items
+    ON stock_counts.item_id = items.item_id
+    WHERE stock_counts.issued > 0
+    AND items.item_type IN (
+    'raw_material',
+    'consumable'
+    )
+    `);
 
-    const issues = rawIssues.rows;
+  const issues = rawIssues.rows;
 
-    const RawProduction = await pool.query(`
-      SELECT
-      to_char(
-      production.production_date,
-      'YYYY-MM-DD'
-      ) AS date,
-      production.created_at,
-      production.kernel_used,
-      production.pko_produced,
-      production.pkc_produced,
-      'produce' AS type,
-      2 AS event_order
-      FROM production
-      `);
+  const RawProduction = await pool.query(`
+    SELECT
+    to_char(
+    production.production_date,
+    'YYYY-MM-DD'
+    ) AS date,
+    production.created_at,
+    production.kernel_used,
+    production.pko_produced,
+    production.pkc_produced,
+    'produce' AS type,
+    2 AS event_order
+    FROM production
+    `);
 
-    const production = RawProduction.rows;
+  const production = RawProduction.rows;
 
-    /*
+  /*
      * Storekeeper's finished-product records.
      *
      * received = quantity put into finished-product stock
      * issued   = quantity dispatched or sold
      */
-    const RawProductStock = await pool.query(`
-      SELECT
-      items.item_id,
-      items.name,
-      items.item_type,
-      to_char(
-      stock_counts.count_date,
-      'YYYY-MM-DD'
-      ) AS date,
-      stock_counts.created_at,
-      stock_counts.received,
-      stock_counts.issued
-      FROM stock_counts
-      INNER JOIN items
-      ON stock_counts.item_id = items.item_id
-      WHERE items.item_type = 'product'
-      AND (
-      stock_counts.received > 0
-      OR stock_counts.issued > 0
-      )
-      `);
+  const RawProductStock = await pool.query(`
+    SELECT
+    items.item_id,
+    items.name,
+    items.item_type,
+    to_char(
+    stock_counts.count_date,
+    'YYYY-MM-DD'
+    ) AS date,
+    stock_counts.created_at,
+    stock_counts.received,
+    stock_counts.issued
+    FROM stock_counts
+    INNER JOIN items
+    ON stock_counts.item_id = items.item_id
+    WHERE items.item_type = 'product'
+    AND (
+    stock_counts.received > 0
+    OR stock_counts.issued > 0
+    )
+    `);
 
-    const productStock = RawProductStock.rows;
+  const productStock = RawProductStock.rows;
 
-    /*
+  /*
      * Group finished products received by date.
      */
-    const productReceiptsByDate = {};
+  const productReceiptsByDate = {};
 
-    productStock.forEach((item) => {
-      const quantityReceived = Number(item.received) || 0;
+  productStock.forEach((item) => {
+    const quantityReceived = Number(item.received) || 0;
 
-      if (quantityReceived <= 0) {
-        return;
-      }
+    if (quantityReceived <= 0) {
+      return;
+    }
 
-      if (!productReceiptsByDate[item.date]) {
-        productReceiptsByDate[item.date] = {};
-      }
+    if (!productReceiptsByDate[item.date]) {
+      productReceiptsByDate[item.date] = {};
+    }
 
-      if (!productReceiptsByDate[item.date][item.item_id]) {
-        productReceiptsByDate[item.date][item.item_id] = {
-          item_id: item.item_id,
-          name: item.name,
-          quantity: 0,
-          created_at: item.created_at
-        };
-      }
-
-      productReceiptsByDate[item.date][item.item_id]
-      .quantity += quantityReceived;
-    });
-
-    /*
-     * Create dispatch events for finished products.
-     */
-    const productDispatches = [];
-
-    productStock.forEach((item) => {
-      const quantityIssued = Number(item.issued) || 0;
-
-      if (quantityIssued <= 0) {
-        return;
-      }
-
-      productDispatches.push({
+    if (!productReceiptsByDate[item.date][item.item_id]) {
+      productReceiptsByDate[item.date][item.item_id] = {
         item_id: item.item_id,
         name: item.name,
-        item_type: item.item_type,
-        date: item.date,
-        created_at: item.created_at,
-        quantity: quantityIssued,
-        type: 'product_out',
-        event_order: 3
-      });
+        quantity: 0,
+        created_at: item.created_at
+      };
+    }
+
+    productReceiptsByDate[item.date][item.item_id]
+    .quantity += quantityReceived;
+  });
+
+  /*
+     * Create dispatch events for finished products.
+     */
+  const productDispatches = [];
+
+  productStock.forEach((item) => {
+    const quantityIssued = Number(item.issued) || 0;
+
+    if (quantityIssued <= 0) {
+      return;
+    }
+
+    productDispatches.push({
+      item_id: item.item_id,
+      name: item.name,
+      item_type: item.item_type,
+      date: item.date,
+      created_at: item.created_at,
+      quantity: quantityIssued,
+      type: 'product_out',
+      event_order: 3
     });
+  });
 
-    const events = [];
+  const events = [];
 
-    events.push(...purchases);
-    events.push(...issues);
-    events.push(...production);
-    events.push(...productDispatches);
+  events.push(...purchases);
+  events.push(...issues);
+  events.push(...production);
+  events.push(...productDispatches);
 
-    /*
+  /*
      * Same-day order:
      *
      * 0 = purchases
@@ -364,435 +382,444 @@ app.get('/api/average_cost', async function (req, res) {
      * 2 = production and finished-product receipt
      * 3 = product dispatch
      */
-    events.sort((a, b) => {
-      return (
-        a.date.localeCompare(b.date) ||
-        a.event_order - b.event_order ||
-        new Date(a.created_at) -
-        new Date(b.created_at)
-      );
-    });
+  events.sort((a, b) => {
+    return (
+      a.date.localeCompare(b.date) ||
+      a.event_order - b.event_order ||
+      new Date(a.created_at) -
+      new Date(b.created_at)
+    );
+  });
 
-    /*
+  /*
      * Raw-material and consumable inventory.
      */
-    const stock = {};
+  const stock = {};
 
-    /*
+  /*
      * Finished-product inventory.
      *
      * Each product keeps a running quantity and value.
      */
-    const finishedStock = {};
+  const finishedStock = {};
 
-    const output = [];
-    const dispatchOutput = [];
-    const issueCostByDate = {};
+  const output = [];
+  const dispatchOutput = [];
+  const issueCostByDate = {};
 
-    function avg(itemId) {
-      const stockName = stock[itemId];
+  function avg(itemId) {
+    const stockName = stock[itemId];
 
-      if (!stockName) {
+    if (!stockName) {
+      stock[itemId] = {
+        quantity: 0,
+        value: 0
+      };
+
+      return 0;
+    }
+
+    if (stockName.quantity === 0) {
+      return 0;
+    }
+
+    return stockName.value / stockName.quantity;
+  }
+
+  function finishedAvg(itemId) {
+    const product = finishedStock[itemId];
+
+    if (!product || product.quantity === 0) {
+      return 0;
+    }
+
+    return product.value / product.quantity;
+  }
+
+  function addFinishedProduct(receipt, productCost) {
+    if (!receipt || receipt.quantity <= 0) {
+      return 0;
+    }
+
+    const itemId = receipt.item_id;
+
+    if (!finishedStock[itemId]) {
+      finishedStock[itemId] = {
+        item_id: itemId,
+        name: receipt.name,
+        quantity: 0,
+        value: 0
+      };
+    }
+
+    finishedStock[itemId].quantity +=
+    receipt.quantity;
+
+    finishedStock[itemId].value +=
+    productCost;
+
+    return finishedAvg(itemId);
+  }
+
+  events.forEach((event) => {
+    if (event.type === 'in') {
+      const itemId = event.item_id;
+
+      if (!stock[itemId]) {
         stock[itemId] = {
           quantity: 0,
           value: 0
         };
-
-        return 0;
       }
 
-      if (stockName.quantity === 0) {
-        return 0;
-      }
+      const quantity = Number(event.quantity);
+      const value = Number(event.value);
 
-      return stockName.value / stockName.quantity;
-    }
+      stock[itemId].quantity += quantity;
+      stock[itemId].value += value;
 
-    function finishedAvg(itemId) {
-      const product = finishedStock[itemId];
+    } else if (event.type === 'out') {
+      const itemId = event.item_id;
 
-      if (!product || product.quantity === 0) {
-        return 0;
-      }
-
-      return product.value / product.quantity;
-    }
-
-    function addFinishedProduct(receipt, productCost) {
-      if (!receipt || receipt.quantity <= 0) {
-        return 0;
-      }
-
-      const itemId = receipt.item_id;
-
-      if (!finishedStock[itemId]) {
-        finishedStock[itemId] = {
-          item_id: itemId,
-          name: receipt.name,
+      if (!stock[itemId]) {
+        stock[itemId] = {
           quantity: 0,
           value: 0
         };
       }
 
-      finishedStock[itemId].quantity +=
-      receipt.quantity;
+      const quantity = Number(event.quantity);
+      const averageCost = avg(itemId);
+      const issueCost = averageCost * quantity;
 
-      finishedStock[itemId].value +=
-      productCost;
+      stock[itemId].quantity -= quantity;
+      stock[itemId].value -= issueCost;
 
-      return finishedAvg(itemId);
-    }
+      if (!issueCostByDate[event.date]) {
+        issueCostByDate[event.date] = {};
+      }
 
-    events.forEach((event) => {
-      if (event.type === 'in') {
-        const itemId = event.item_id;
+      if (!issueCostByDate[event.date][itemId]) {
+        issueCostByDate[event.date][itemId] = {
+          item_id: itemId,
+          name: event.name,
+          item_type: event.item_type,
+          quantity: 0,
+          cost: 0
+        };
+      }
 
-        if (!stock[itemId]) {
-          stock[itemId] = {
-            quantity: 0,
-            value: 0
-          };
-        }
+      issueCostByDate[event.date][itemId]
+      .quantity += quantity;
 
-        const quantity = Number(event.quantity);
-        const value = Number(event.value);
+      issueCostByDate[event.date][itemId]
+      .cost += issueCost;
 
-        stock[itemId].quantity += quantity;
-        stock[itemId].value += value;
+    } else if (event.type === 'produce') {
+      const dailyIssueCosts =
+      issueCostByDate[event.date] || {};
 
-      } else if (event.type === 'out') {
-        const itemId = event.item_id;
+      const materialsCosted =
+      Object.values(dailyIssueCosts);
 
-        if (!stock[itemId]) {
-          stock[itemId] = {
-            quantity: 0,
-            value: 0
-          };
-        }
-
-        const quantity = Number(event.quantity);
-        const averageCost = avg(itemId);
-        const issueCost = averageCost * quantity;
-
-        stock[itemId].quantity -= quantity;
-        stock[itemId].value -= issueCost;
-
-        if (!issueCostByDate[event.date]) {
-          issueCostByDate[event.date] = {};
-        }
-
-        if (!issueCostByDate[event.date][itemId]) {
-          issueCostByDate[event.date][itemId] = {
-            item_id: itemId,
-            name: event.name,
-            item_type: event.item_type,
-            quantity: 0,
-            cost: 0
-          };
-        }
-
-        issueCostByDate[event.date][itemId]
-        .quantity += quantity;
-
-        issueCostByDate[event.date][itemId]
-        .cost += issueCost;
-
-      } else if (event.type === 'produce') {
-        const dailyIssueCosts =
-        issueCostByDate[event.date] || {};
-
-        const materialsCosted =
-        Object.values(dailyIssueCosts);
-
-        /*
+      /*
          * There is currently one raw material.
          *
          * Its name is not hardcoded.
          */
-        const rawMaterial = materialsCosted.find(
-          (material) => {
-            return (
-              material.item_type === 'raw_material'
-            );
-          }
-        );
+      const rawMaterial = materialsCosted.find(
+        (material) => {
+          return (
+            material.item_type === 'raw_material'
+          );
+        }
+      );
 
-        /*
+      /*
          * The storekeeper's issued raw-material
          * quantity controls costing.
          */
-        const kernelIssued = rawMaterial
-        ? rawMaterial.quantity: 0;
+      const kernelIssued = rawMaterial
+      ? rawMaterial.quantity: 0;
 
-        const avgKernelCost =
-        rawMaterial && rawMaterial.quantity > 0
-        ? rawMaterial.cost /
-        rawMaterial.quantity: 0;
+      const avgKernelCost =
+      rawMaterial && rawMaterial.quantity > 0
+      ? rawMaterial.cost /
+      rawMaterial.quantity: 0;
 
-        const totalKernelCost = rawMaterial
-        ? rawMaterial.cost: 0;
+      const totalKernelCost = rawMaterial
+      ? rawMaterial.cost: 0;
 
-        /*
+      /*
          * The manager's kernel figure is retained
          * only for comparison.
          */
-        const managerKernelUsed =
-        Number(event.kernel_used) || 0;
+      const managerKernelUsed =
+      Number(event.kernel_used) || 0;
 
-        const kernelVariance =
-        managerKernelUsed - kernelIssued;
+      const kernelVariance =
+      managerKernelUsed - kernelIssued;
 
-        const kernelVariancePercentage =
-        kernelIssued > 0
-        ? (
-          kernelVariance /
-          kernelIssued
-        ) * 100: 0;
+      const kernelVariancePercentage =
+      kernelIssued > 0
+      ? (
+        kernelVariance /
+        kernelIssued
+      ) * 100: 0;
 
-        /*
+      /*
          * Includes every raw material and
          * consumable issued that day.
          */
-        const totalCost = materialsCosted.reduce(
-          (total, material) => {
-            return total + material.cost;
-          },
-          0
-        );
+      const totalCost = materialsCosted.reduce(
+        (total, material) => {
+          return total + material.cost;
+        },
+        0
+      );
 
-        /*
+      /*
          * Current cost-allocation rule.
          */
-        const pkoProductionCost =
-        totalCost * 0.75;
+      const pkoProductionCost =
+      totalCost * 0.75;
 
-        const pkcProductionCost =
-        totalCost * 0.25;
+      const pkcProductionCost =
+      totalCost * 0.25;
 
-        const managerPkoProduced =
-        Number(event.pko_produced) || 0;
+      const managerPkoProduced =
+      Number(event.pko_produced) || 0;
 
-        const managerPkcProduced =
-        Number(event.pkc_produced) || 0;
+      const managerPkcProduced =
+      Number(event.pkc_produced) || 0;
 
-        const dailyProductReceipts =
-        productReceiptsByDate[event.date] || {};
+      const dailyProductReceipts =
+      productReceiptsByDate[event.date] || {};
 
-        const productReceipts =
-        Object.values(dailyProductReceipts);
+      const productReceipts =
+      Object.values(dailyProductReceipts);
 
-        /*
+      /*
          * PKO and PKC remain named here because
          * your production table itself has fixed
          * pko_produced and pkc_produced columns.
          */
-        const pkoReceipt = productReceipts.find(
-          (product) => {
-            return (
-              product.name.trim().toUpperCase() ===
-              'PKO'
-            );
-          }
-        );
+      const pkoReceipt = productReceipts.find(
+        (product) => {
+          return (
+            product.name.trim().toUpperCase() ===
+            'PKO'
+          );
+        }
+      );
 
-        const pkcReceipt = productReceipts.find(
-          (product) => {
-            return (
-              product.name.trim().toUpperCase() ===
-              'PKC'
-            );
-          }
-        );
+      const pkcReceipt = productReceipts.find(
+        (product) => {
+          return (
+            product.name.trim().toUpperCase() ===
+            'PKC'
+          );
+        }
+      );
 
-        /*
+      /*
          * The storekeeper's received quantities
          * increase finished-product inventory.
          */
-        const pkoReceived = pkoReceipt
-        ? pkoReceipt.quantity: 0;
+      const pkoReceived = pkoReceipt
+      ? pkoReceipt.quantity: 0;
 
-        const pkcReceived = pkcReceipt
-        ? pkcReceipt.quantity: 0;
+      const pkcReceived = pkcReceipt
+      ? pkcReceipt.quantity: 0;
 
-        const pkoVariance =
-        managerPkoProduced - pkoReceived;
+      const pkoVariance =
+      managerPkoProduced - pkoReceived;
 
-        const pkcVariance =
-        managerPkcProduced - pkcReceived;
+      const pkcVariance =
+      managerPkcProduced - pkcReceived;
 
-        /*
+      /*
          * Add the day's products and allocated
          * production costs to the running stock.
          *
          * This creates the weighted-average tank
          * value.
          */
-        const pkoTankAverageCost =
-        addFinishedProduct(
-          pkoReceipt,
-          pkoProductionCost
-        );
+      const pkoTankAverageCost =
+      addFinishedProduct(
+        pkoReceipt,
+        pkoProductionCost
+      );
 
-        const pkcStockAverageCost =
-        addFinishedProduct(
-          pkcReceipt,
-          pkcProductionCost
-        );
+      const pkcStockAverageCost =
+      addFinishedProduct(
+        pkcReceipt,
+        pkcProductionCost
+      );
 
-        const materials =
-        materialsCosted.map((material) => {
-          return {
-            item_id: material.item_id,
-            name: material.name,
-            item_type: material.item_type,
-            quantity_issued:
-            material.quantity,
-            average_cost:
-            material.quantity > 0
-            ? material.cost /
-            material.quantity: 0,
-            total_cost: material.cost
-          };
-        });
+      const materials =
+      materialsCosted.map((material) => {
+        return {
+          item_id: material.item_id,
+          name: material.name,
+          item_type: material.item_type,
+          quantity_issued:
+          material.quantity,
+          average_cost:
+          material.quantity > 0
+          ? material.cost /
+          material.quantity: 0,
+          total_cost: material.cost
+        };
+      });
 
-        output.push({
-          production_date: event.date,
-          created_at: event.created_at,
+      output.push({
+        production_date: event.date,
+        created_at: event.created_at,
 
-          kernel_issued: kernelIssued,
-          manager_kernel_used:
-          managerKernelUsed,
-          kernel_variance: kernelVariance,
-          kernel_variance_percentage:
-          kernelVariancePercentage,
+        kernel_issued: kernelIssued,
+        manager_kernel_used:
+        managerKernelUsed,
+        kernel_variance: kernelVariance,
+        kernel_variance_percentage:
+        kernelVariancePercentage,
 
-          avg_kernel_cost: avgKernelCost,
-          total_kernel_cost: totalKernelCost,
+        avg_kernel_cost: avgKernelCost,
+        total_kernel_cost: totalKernelCost,
 
-          materials_costed: materials,
-          total_cost: totalCost,
+        materials_costed: materials,
+        total_cost: totalCost,
 
-          manager_pko_produced:
-          managerPkoProduced,
-          storekeeper_pko_received:
-          pkoReceived,
-          pko_variance: pkoVariance,
+        manager_pko_produced:
+        managerPkoProduced,
+        storekeeper_pko_received:
+        pkoReceived,
+        pko_variance: pkoVariance,
 
-          manager_pkc_produced:
-          managerPkcProduced,
-          storekeeper_pkc_received:
-          pkcReceived,
-          pkc_variance: pkcVariance,
+        manager_pkc_produced:
+        managerPkcProduced,
+        storekeeper_pkc_received:
+        pkcReceived,
+        pkc_variance: pkcVariance,
 
-          pko_production_cost:
-          pkoProductionCost,
-          pkc_production_cost:
-          pkcProductionCost,
+        pko_production_cost:
+        pkoProductionCost,
+        pkc_production_cost:
+        pkcProductionCost,
 
-          pko_daily_cost_per_kg:
-          pkoReceived > 0
-          ? pkoProductionCost /
-          pkoReceived: 0,
+        pko_daily_cost_per_kg:
+        pkoReceived > 0
+        ? pkoProductionCost /
+        pkoReceived: 0,
 
-          pkc_daily_cost_per_kg:
-          pkcReceived > 0
-          ? pkcProductionCost /
-          pkcReceived: 0,
+        pkc_daily_cost_per_kg:
+        pkcReceived > 0
+        ? pkcProductionCost /
+        pkcReceived: 0,
 
-          /*
+        /*
            * Weighted average after adding this
            * day's production to existing stock.
            */
-          pko_tank_average_cost:
-          pkoTankAverageCost,
+        pko_tank_average_cost:
+        pkoTankAverageCost,
 
-          pkc_stock_average_cost:
-          pkcStockAverageCost,
+        pkc_stock_average_cost:
+        pkcStockAverageCost,
 
-          receipt_status:
-          pkoReceipt && pkcReceipt
-          ? 'received': 'pending_receipt'
-        });
+        receipt_status:
+        pkoReceipt && pkcReceipt
+        ? 'received': 'pending_receipt'
+      });
 
-      } else if (event.type === 'product_out') {
-        const itemId = event.item_id;
-        const quantity = Number(event.quantity);
+    } else if (event.type === 'product_out') {
+      const itemId = event.item_id;
+      const quantity = Number(event.quantity);
 
-        if (!finishedStock[itemId]) {
-          finishedStock[itemId] = {
-            item_id: itemId,
-            name: event.name,
-            quantity: 0,
-            value: 0
-          };
-        }
+      if (!finishedStock[itemId]) {
+        finishedStock[itemId] = {
+          item_id: itemId,
+          name: event.name,
+          quantity: 0,
+          value: 0
+        };
+      }
 
-        /*
+      /*
          * The average is calculated before the
          * dispatch reduces the tank balance.
          */
-        const averageCost =
-        finishedAvg(itemId);
+      const averageCost =
+      finishedAvg(itemId);
 
-        const costOfDispatch =
-        averageCost * quantity;
+      const costOfDispatch =
+      averageCost * quantity;
 
-        finishedStock[itemId].quantity -=
-        quantity;
+      finishedStock[itemId].quantity -=
+      quantity;
 
-        finishedStock[itemId].value -=
-        costOfDispatch;
+      finishedStock[itemId].value -=
+      costOfDispatch;
 
-        dispatchOutput.push({
-          dispatch_date: event.date,
-          created_at: event.created_at,
-          item_id: itemId,
-          name: event.name,
-          quantity_dispatched: quantity,
-          weighted_average_cost:
-          averageCost,
-          cost_of_dispatch:
-          costOfDispatch,
-          remaining_quantity:
-          finishedStock[itemId].quantity,
-          remaining_value:
-          finishedStock[itemId].value
-        });
-      }
-    });
+      dispatchOutput.push({
+        dispatch_date: event.date,
+        created_at: event.created_at,
+        item_id: itemId,
+        name: event.name,
+        quantity_dispatched: quantity,
+        weighted_average_cost:
+        averageCost,
+        cost_of_dispatch:
+        costOfDispatch,
+        remaining_quantity:
+        finishedStock[itemId].quantity,
+        remaining_value:
+        finishedStock[itemId].value
+      });
+    }
+  });
 
-    const finishedStockBalance =
-    Object.values(finishedStock).map(
-      (product) => {
-        return {
-          item_id: product.item_id,
-          name: product.name,
-          quantity: product.quantity,
-          value: product.value,
-          weighted_average_cost:
-          product.quantity > 0
-          ? product.value /
-          product.quantity: 0
-        };
-      }
-    );
+  const finishedStockBalance =
+  Object.values(finishedStock).map(
+    (product) => {
+      return {
+        item_id: product.item_id,
+        name: product.name,
+        quantity: product.quantity,
+        value: product.value,
+        weighted_average_cost:
+        product.quantity > 0
+        ? product.value /
+        product.quantity: 0
+      };
+    }
+  );
 
-    res.status(200).json({
-      production_costs: output,
-      product_dispatch_costs:
-      dispatchOutput,
-      finished_stock:
-      finishedStockBalance
-    });
+  const costs = {
+    production_costs: output,
+    product_dispatch_costs:
+    dispatchOutput,
+    finished_stock:
+    finishedStockBalance
+  };
+  return costs;
 
-  } catch (error) {
-    console.log(error);
+}
 
+app.get('/api/average_cost', async function (req, res) {
+  try {
+    const costs = await calculateCosts();
+    res.status(200).json(costs);
+  }catch (error) {
+    console.log(error)
     res.status(500).json({
-      err: 'Could not calculate production cost'
+      err: 'Could not load production costs'
     });
   }
 });
+
+
+
 
 app.get('/api/dashboard', async function (req, res) {
   try {
@@ -849,173 +876,796 @@ app.get('/api/dashboard', async function (req, res) {
   }
 });
 
-app.get('/api/dashboard_period', async function(req, res) {
-  try {
-    const selectedDate = req.query.date;
-    const datesql = selectedDate ? '$1::date': 'CURRENT_DATE';
-    const param = selectedDate ? [selectedDate]: [];
+app.get('/api/dashboard_period',
+  async function(req, res) {
+    try {
+      const selectedDate = req.query.date;
+      const datesql = selectedDate ? '$1::date': 'CURRENT_DATE';
+      const param = selectedDate ? [selectedDate]: [];
 
-    const RawProduction = await pool.query(`
-      SELECT
-      'day' AS period,
-      COALESCE(SUM(production.kernel_used), 0) AS kernel_used,
-      COALESCE(SUM(production.pko_produced), 0) AS pko_produced,
-      COALESCE(SUM(production.pkc_produced), 0) AS pkc_produced,
-      COALESCE(
-      ROUND(
-      SUM(production.pko_produced) * 100.0 /
-      NULLIF(SUM(production.kernel_used), 0),
-      2
-      ),
-      0
-      ) AS oil_yield
-      FROM production
-      WHERE production.production_date = ${datesql}
+      const RawProduction = await pool.query(`
+        SELECT
+        'day' AS period,
+        COALESCE(SUM(production.kernel_used), 0) AS kernel_used,
+        COALESCE(SUM(production.pko_produced), 0) AS pko_produced,
+        COALESCE(SUM(production.pkc_produced), 0) AS pkc_produced,
+        COALESCE(
+        ROUND(
+        SUM(production.pko_produced) * 100.0 /
+        NULLIF(SUM(production.kernel_used), 0),
+        2
+        ),
+        0
+        ) AS oil_yield
+        FROM production
+        WHERE production.production_date = ${datesql}
 
-      UNION ALL
+        UNION ALL
 
-      SELECT
-      'week',
-      COALESCE(SUM(production.kernel_used), 0),
-      COALESCE(SUM(production.pko_produced), 0),
-      COALESCE(SUM(production.pkc_produced), 0),
-      COALESCE(
-      ROUND(
-      SUM(production.pko_produced) * 100.0 /
-      NULLIF(SUM(production.kernel_used), 0),
-      2
-      ),
-      0
-      )
-      FROM production
-      WHERE production.production_date >= date_trunc('week', ${datesql})
-      AND production.production_date <
-      date_trunc('week', ${datesql}) + INTERVAL '7 days'
+        SELECT
+        'week',
+        COALESCE(SUM(production.kernel_used), 0),
+        COALESCE(SUM(production.pko_produced), 0),
+        COALESCE(SUM(production.pkc_produced), 0),
+        COALESCE(
+        ROUND(
+        SUM(production.pko_produced) * 100.0 /
+        NULLIF(SUM(production.kernel_used), 0),
+        2
+        ),
+        0
+        )
+        FROM production
+        WHERE production.production_date >= date_trunc('week', ${datesql})
+        AND production.production_date <
+        date_trunc('week', ${datesql}) + INTERVAL '7 days'
 
-      UNION ALL
+        UNION ALL
 
-      SELECT
-      'month',
-      COALESCE(SUM(production.kernel_used), 0),
-      COALESCE(SUM(production.pko_produced), 0),
-      COALESCE(SUM(production.pkc_produced), 0),
-      COALESCE(
-      ROUND(
-      SUM(production.pko_produced) * 100.0 /
-      NULLIF(SUM(production.kernel_used), 0),
-      2
-      ),
-      0
-      )
-      FROM production
-      WHERE production.production_date >= date_trunc('month', ${datesql})
-      AND production.production_date <
-      date_trunc('month', ${datesql}) + INTERVAL '1 month'
-      `, param);
+        SELECT
+        'month',
+        COALESCE(SUM(production.kernel_used), 0),
+        COALESCE(SUM(production.pko_produced), 0),
+        COALESCE(SUM(production.pkc_produced), 0),
+        COALESCE(
+        ROUND(
+        SUM(production.pko_produced) * 100.0 /
+        NULLIF(SUM(production.kernel_used), 0),
+        2
+        ),
+        0
+        )
+        FROM production
+        WHERE production.production_date >= date_trunc('month', ${datesql})
+        AND production.production_date <
+        date_trunc('month', ${datesql}) + INTERVAL '1 month'
+        `, param);
 
-    const production = RawProduction.rows;
+      const production = RawProduction.rows;
 
-    const RawSales = await pool.query(`SELECT 'day' AS period,
-      items.name AS name,
-      COALESCE (SUM(sales.quantity), 0) AS quantity_sold,
-      COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0) AS average_unit_price,
-      COALESCE (SUM(sales.quantity * sales.unit_price), 0) AS total_sales
-      FROM items
-      LEFT JOIN sales
-      ON sales.item_id = items.item_id
-      AND sales.sales_date = ${datesql}
-      WHERE items.item_type = 'product'
-      GROUP BY items.name
+      const RawSales = await pool.query(`SELECT 'day' AS period,
+        items.name AS name,
+        COALESCE (SUM(sales.quantity), 0) AS quantity_sold,
+        COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0) AS average_unit_price,
+        COALESCE (SUM(sales.quantity * sales.unit_price), 0) AS total_sales
+        FROM items
+        LEFT JOIN sales
+        ON sales.item_id = items.item_id
+        AND sales.sales_date = ${datesql}
+        WHERE items.item_type = 'product'
+        GROUP BY items.name
 
-      UNION ALL
+        UNION ALL
 
-      SELECT 'week',
-      items.name,
-      COALESCE (SUM(sales.quantity), 0),
-      COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0),
-      COALESCE (SUM(sales.quantity * sales.unit_price), 0)
-      FROM items
-      LEFT JOIN sales ON sales.item_id = items.item_id
-      AND sales.sales_date >= date_trunc('week', ${datesql})
-      AND sales.sales_date < date_trunc('week', ${datesql}) + INTERVAL '7 days'
-      WHERE items.item_type = 'product'
-      GROUP BY items.name
+        SELECT 'week',
+        items.name,
+        COALESCE (SUM(sales.quantity), 0),
+        COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0),
+        COALESCE (SUM(sales.quantity * sales.unit_price), 0)
+        FROM items
+        LEFT JOIN sales ON sales.item_id = items.item_id
+        AND sales.sales_date >= date_trunc('week', ${datesql})
+        AND sales.sales_date < date_trunc('week', ${datesql}) + INTERVAL '7 days'
+        WHERE items.item_type = 'product'
+        GROUP BY items.name
 
-      UNION ALL
+        UNION ALL
 
-      SELECT 'month',
-      items.name,
-      COALESCE (SUM(sales.quantity), 0),
-      COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0),
-      COALESCE (SUM(sales.quantity * sales.unit_price), 0)
-      FROM items
-      LEFT JOIN sales ON sales.item_id = items.item_id
-      AND sales.sales_date >= date_trunc('month', ${datesql})
-      AND sales.sales_date < date_trunc('month', ${datesql}) + '1 month'
-      WHERE items.item_type = 'product'
-      GROUP BY items.name
-      `, param);
-    const sales = RawSales.rows;
+        SELECT 'month',
+        items.name,
+        COALESCE (SUM(sales.quantity), 0),
+        COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0),
+        COALESCE (SUM(sales.quantity * sales.unit_price), 0)
+        FROM items
+        LEFT JOIN sales ON sales.item_id = items.item_id
+        AND sales.sales_date >= date_trunc('month', ${datesql})
+        AND sales.sales_date < date_trunc('month', ${datesql}) + '1 month'
+        WHERE items.item_type = 'product'
+        GROUP BY items.name
+        `, param);
+      const sales = RawSales.rows;
 
-    const rawExpenses = await pool.query(`SELECT 'day' AS period,
-      COALESCE (SUM(expenses.amount_spent), 0) AS total_spent
-      FROM expenses WHERE
-      expenses.category = 'Expense'
-      AND expenses.expense_date = ${datesql}
+      const rawExpenses = await pool.query(`SELECT 'day' AS period,
+        COALESCE (SUM(expenses.amount_spent), 0) AS total_spent
+        FROM expenses WHERE
+        expenses.category IN ('Expense', 'Expenses')
+        AND expenses.expense_date = ${datesql}
 
-      UNION ALL
+        UNION ALL
 
-      SELECT 'week',
-      COALESCE(SUM(expenses.amount_spent), 0)
-      FROM expenses
-      WHERE
-      expenses.category = 'Expense'
-      AND expenses.expense_date >= date_trunc('week', ${datesql})
-      AND expenses.expense_date < date_trunc('week', ${datesql}) + INTERVAL '7 days'
+        SELECT 'week',
+        COALESCE(SUM(expenses.amount_spent), 0)
+        FROM expenses
+        WHERE
+        expenses.category IN ('Expense', 'Expenses')
+        AND expenses.expense_date >= date_trunc('week', ${datesql})
+        AND expenses.expense_date < date_trunc('week', ${datesql}) + INTERVAL '7 days'
 
-      UNION ALL
+        UNION ALL
 
-      SELECT 'month',
-      COALESCE(SUM(expenses.amount_spent), 0)
-      FROM expenses
-      WHERE
-      expenses.category = 'Expense'
-      AND expenses.expense_date >= date_trunc('month', ${datesql})
-      AND expenses.expense_date < date_trunc('month', ${datesql}) + INTERVAL '1 month'`, param);
-    const expenses = rawExpenses.rows;
+        SELECT 'month',
+        COALESCE(SUM(expenses.amount_spent), 0)
+        FROM expenses
+        WHERE
+        expenses.category IN ('Expense', 'Expenses')
+        AND expenses.expense_date >= date_trunc('month', ${datesql})
+        AND expenses.expense_date < date_trunc('month', ${datesql}) + INTERVAL '1 month'`, param);
+      const expenses = rawExpenses.rows;
 
-    const output = {};
+      const output = {};
 
-    production.forEach((row) => {
-      output[row.period] = {
-        production: {
-          kernel_used: Number(row.kernel_used),
-          pko_produced: Number(row.pko_produced),
-          pkc_produced: Number(row.pkc_produced),
-          oil_yield: Number(row.oil_yield)
-        },
-        sales: {},
-        expenses: {}
+      production.forEach((row) => {
+        output[row.period] = {
+          production: {
+            kernel_used: Number(row.kernel_used),
+            pko_produced: Number(row.pko_produced),
+            pkc_produced: Number(row.pkc_produced),
+            oil_yield: Number(row.oil_yield)
+          },
+          sales: {},
+          expenses: {}
+        }
+      });
+      sales.forEach((row) => {
+        output[row.period].sales[row.name] = {
+          quantity_sold: Number(row.quantity_sold),
+          average_unit_price: Number(row.average_unit_price),
+          total_sales: Number(row.total_sales)
+        }
+      });
+
+      expenses.forEach((row) => {
+        output[row.period].expenses = {
+          total_expenses: Number(row.total_spent)
+        };
+      });
+
+      const costs = await calculateCosts();
+      const dispatchPeriods = calculateDispatchPeriods(costs.product_dispatch_costs, selectedDate);
+      output.day.cost_of_goods_sold =
+      dispatchPeriods.day;
+
+      output.week.cost_of_goods_sold =
+      dispatchPeriods.week;
+
+      output.month.cost_of_goods_sold =
+      dispatchPeriods.month;
+
+      const periodGrossProfit = {};
+      for (let period in output) {
+        const pkcPeriodSales = output[period].sales.PKC.total_sales;
+        const pkoPeriodSales = output[period].sales.PKO.total_sales;
+        const periodExpenses = output[period].expenses.total_expenses;
+        const pkoPeriodCost = output[period].cost_of_goods_sold.pko;
+        const pkcPeriodCost = output[period].cost_of_goods_sold.pkc;
+        const pkoGrossProfit = pkoPeriodSales - pkoPeriodCost;
+        const pkcGrossProfit = pkcPeriodSales - pkcPeriodCost;
+        periodGrossProfit[period] = {
+          pko: pkoGrossProfit,
+          pkc: pkcGrossProfit
+        };
+        output[period].period_gross_profit = periodGrossProfit[period];
+        const totalNetProfit = (pkoGrossProfit + pkcGrossProfit) - periodExpenses;
+        output[period].total_net_profit = totalNetProfit;
       }
-    });
-    sales.forEach((row) => {
-      output[row.period].sales[row.name] = {
-        quantity_sold: Number(row.quantity_sold),
-        average_unit_price: Number(row.average_unit_price),
-        total_sales: Number(row.total_sales)
-      }
-    });
+      res.status(200).json(output);
+    }catch (error) {
+      console.log(error)
+      res.status(500).json({
+        err: 'Failed to load dashboard period data'
+      });
+    }
+  });
 
-    expenses.forEach((row) => {
-      output[row.period].expenses = {
-        total_expenses: Number(row.total_spent)
-      };
-    });
-    res.status(200).json(output);
-  }catch (error) {
-    console.log(error)
-    res.status(500).json({
-      err: 'Failed to load dashboard period data'
+function calculateDispatchPeriods(productDispatchCosts,
+  selectedDate) {
+  const selected = new Date(selectedDate+ 'T00:00:00');
+  const weekStart = new Date(selected);
+  weekStart.setDate(selected.getDate() - (selected.getDay() + 6) % 7);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 7);
+
+  const dispatchPeriods = {
+    day: {
+      pko: 0,
+      pkc: 0
+    },
+    week: {
+      pko: 0,
+      pkc: 0
+    },
+    month: {
+      pko: 0,
+      pkc: 0
+    }
+  }
+  productDispatchCosts.forEach((dispatch) => {
+    const product = String(dispatch.name).trim().toLowerCase();
+    if (product !== 'pko' && product !== 'pkc') {
+      return;
+    }
+    const dispatchDate = new Date(dispatch.dispatch_date + 'T00:00:00');
+    const dispatchCost = Number(dispatch.cost_of_dispatch) || 0;
+
+    if (dispatch.dispatch_date === selectedDate) {
+      dispatchPeriods.day[product] += dispatchCost;
+    }
+    if (dispatchDate >= weekStart && dispatchDate < weekEnd) {
+      dispatchPeriods.week[product] += dispatchCost;
+    }
+    if (dispatchDate.getFullYear() === selected.getFullYear() && dispatchDate.getMonth() === selected.getMonth()) {
+      dispatchPeriods.month[product] += dispatchCost;
+    }
+  });
+  return dispatchPeriods;
+}
+
+async function calculateChecks() {
+  const checks = [];
+  const pkoProduction = await
+  pool.query(`SELECT 'PKO' AS item,
+    to_char(COALESCE(sc.count_date,
+    production.production_date), 'YYYY-MM-DD') AS check_date,
+    'pko_received vs produced' AS check_type,
+    COALESCE (sc.received, 0) AS
+    storekeeper_says,
+    COALESCE (production.pko_produced, 0)
+    AS manager_says,
+    COALESCE (sc.received, 0) -
+    COALESCE (production.pko_produced, 0) AS
+    difference,
+    'production' AS related_source
+
+    FROM
+    (SELECT
+    stock_counts.count_date,
+    SUM(stock_counts.received) AS received
+    FROM stock_counts
+    INNER JOIN items
+    ON
+    stock_counts.item_id = items.item_id
+    WHERE items.name = 'PKO'
+    GROUP BY
+    stock_counts.count_date) AS sc
+    FULL OUTER JOIN production
+    ON production.production_date =
+    sc.count_date
+    WHERE COALESCE (sc.received, 0) <>
+    COALESCE (production.pko_produced, 0)`);
+  pkoProduction.rows.forEach((row) => {
+    checks.push({
+      check_date: row.check_date,
+      item: row.item,
+      check_type: row.check_type,
+      storekeeper_says:
+      row.storekeeper_says,
+      manager_says:
+      row.manager_says,
+      difference: row.difference
     })
+  });
+
+  const pkcProduction = await
+  pool.query(`SELECT 'PKC' AS item, to_char(COALESCE
+    (sc.count_date, pr.production_date),
+    'YYYY-MM-DD') AS check_date,
+    'pkc_received vs produced' AS check_type,
+    COALESCE (sc.received, 0)
+    AS storekeeper_says,
+    COALESCE(pr.pkc_produced, 0) AS manager_says,
+    COALESCE(sc.received, 0) -
+    COALESCE(pr.pkc_produced, 0) AS
+    difference,
+    'production' AS related_source
+    FROM
+    (SELECT stock_counts.count_date,
+    SUM(stock_counts.received) AS received
+    FROM items
+    INNER JOIN stock_counts ON
+    stock_counts.item_id = items.item_id
+    WHERE
+    items.name = 'PKC'
+    GROUP BY stock_counts.count_date) AS sc
+    FULL OUTER JOIN production pr
+    ON pr.production_date = sc.count_date
+    WHERE COALESCE(sc.received, 0)
+    <> COALESCE(pr.pkc_produced, 0)`)
+  pkcProduction.rows.forEach((row) => {
+    checks.push({
+      check_date: row.check_date,
+      item: row.item,
+      check_type: row.check_type,
+      storekeeper_says:
+      row.storekeeper_says,
+      manager_says:
+      row.manager_says,
+      difference: row.difference
+    })
+  });
+
+  const kernelUsage = await
+  pool.query(`SELECT 'P Kernel' AS item, to_char(COALESCE
+    (sc.count_date, pr.production_date),
+    'YYYY-MM-DD') AS check_date,
+    'kernel_issued vs used' AS check_type,
+    COALESCE (sc.issued, 0)
+    AS storekeeper_says,
+    COALESCE(pr.kernel_used, 0) AS manager_says,
+    COALESCE(sc.issued, 0) -
+    COALESCE(pr.kernel_used, 0) AS
+    difference,
+    'production' AS related_source
+    FROM
+    (SELECT stock_counts.count_date,
+    SUM(stock_counts.issued) AS
+    issued
+    FROM items
+    INNER JOIN stock_counts ON
+    stock_counts.item_id = items.item_id
+    WHERE
+    items.name = 'P Kernel'
+    GROUP BY stock_counts.count_date) AS sc
+    FULL OUTER JOIN production pr
+    ON pr.production_date = sc.count_date
+    WHERE COALESCE(sc.issued, 0)
+    <> COALESCE(pr.kernel_used, 0)`)
+  kernelUsage.rows.forEach((row) => {
+    checks.push({
+      check_date: row.check_date,
+      item: row.item,
+      check_type: row.check_type,
+      storekeeper_says:
+      row.storekeeper_says,
+      manager_says:
+      row.manager_says,
+      difference: row.difference
+    })
+  });
+
+  const kernelPurchased = await
+  pool.query(`SELECT
+    'P Kernel' AS item,
+    to_char(
+    COALESCE(sc.count_date, pu.purchase_date),
+    'YYYY-MM-DD'
+    ) AS check_date,
+    'kernel_received vs purchased' AS check_type,
+    COALESCE(sc.received, 0)
+    AS storekeeper_says,
+    COALESCE(pu.purchased, 0)
+    AS manager_says,
+    COALESCE(sc.received, 0) -
+    COALESCE(pu.purchased, 0)
+    AS difference,
+    'purchases' AS related_source
+    FROM (
+    SELECT
+    stock_counts.count_date,
+    SUM(stock_counts.received) AS received
+    FROM stock_counts
+    INNER JOIN items
+    ON stock_counts.item_id = items.item_id
+    WHERE items.name = 'P Kernel'
+    GROUP BY stock_counts.count_date
+    ) AS sc
+    FULL OUTER JOIN (
+    SELECT
+    purchases.purchase_date,
+    SUM(purchases.quantity_supplied) AS purchased
+    FROM purchases
+    INNER JOIN items
+    ON purchases.item_id = items.item_id
+    WHERE items.name = 'P Kernel'
+    GROUP BY purchases.purchase_date
+    ) AS pu
+    ON pu.purchase_date = sc.count_date
+    WHERE
+    COALESCE(sc.received, 0) <>
+    COALESCE(pu.purchased, 0)`);
+
+  kernelPurchased.rows.forEach((row) => {
+    checks.push({
+      check_date: row.check_date,
+      item: row.item,
+      check_type: row.check_type,
+      storekeeper_says:
+      row.storekeeper_says,
+      manager_says:
+      row.manager_says,
+      difference: row.difference
+    });
+  });
+
+  const pkoSold = await pool.query(`SELECT
+    'PKO' AS item,
+    to_char(
+    COALESCE(sc.count_date, sa.sales_date),
+    'YYYY-MM-DD'
+    ) AS check_date,
+    'pko_issued vs sold' AS check_type,
+    COALESCE(sc.issued, 0)
+    AS storekeeper_says,
+    COALESCE(sa.sold, 0)
+    AS manager_says,
+    COALESCE(sc.issued, 0) -
+    COALESCE(sa.sold, 0)
+    AS difference,
+    'sales' AS related_source
+    FROM (
+    SELECT
+    stock_counts.count_date,
+    SUM(stock_counts.issued) AS issued
+    FROM stock_counts
+    INNER JOIN items
+    ON stock_counts.item_id = items.item_id
+    WHERE items.name = 'PKO'
+    GROUP BY stock_counts.count_date
+    ) AS sc
+    FULL OUTER JOIN (
+    SELECT
+    sales.sales_date,
+    SUM(sales.quantity) AS sold
+    FROM sales
+    INNER JOIN items
+    ON sales.item_id = items.item_id
+    WHERE items.name = 'PKO'
+    GROUP BY sales.sales_date
+    ) AS sa
+    ON sa.sales_date = sc.count_date
+    WHERE
+    COALESCE(sc.issued, 0) <>
+    COALESCE(sa.sold, 0)`);
+  pkoSold.rows.forEach((row) => {
+    checks.push({
+      check_date: row.check_date,
+      item: row.item,
+      check_type: row.check_type,
+      storekeeper_says:
+      row.storekeeper_says,
+      manager_says:
+      row.manager_says,
+      difference: row.difference
+    })
+  });
+
+  const pkcSold = await pool.query(`SELECT
+    'PKC' AS item,
+    to_char(
+    COALESCE(sc.count_date, sa.sales_date),
+    'YYYY-MM-DD'
+    ) AS check_date,
+    'pkc_issued vs sold' AS check_type,
+    COALESCE(sc.issued, 0)
+    AS storekeeper_says,
+    COALESCE(sa.sold, 0)
+    AS manager_says,
+    COALESCE(sc.issued, 0) -
+    COALESCE(sa.sold, 0)
+    AS difference,
+    'sales' AS related_source
+    FROM (
+    SELECT
+    stock_counts.count_date,
+    SUM(stock_counts.issued) AS issued
+    FROM stock_counts
+    INNER JOIN items
+    ON stock_counts.item_id = items.item_id
+    WHERE items.name = 'PKC'
+    GROUP BY stock_counts.count_date
+    ) AS sc
+    FULL OUTER JOIN (
+    SELECT
+    sales.sales_date,
+    SUM(sales.quantity) AS sold
+    FROM sales
+    INNER JOIN items
+    ON sales.item_id = items.item_id
+    WHERE items.name = 'PKC'
+    GROUP BY sales.sales_date
+    ) AS sa
+    ON sa.sales_date = sc.count_date
+    WHERE
+    COALESCE(sc.issued, 0) <>
+    COALESCE(sa.sold, 0)`)
+  pkcSold.rows.forEach((row) => {
+    checks.push({
+      check_date: row.check_date,
+      item: row.item,
+      check_type: row.check_type,
+      storekeeper_says:
+      row.storekeeper_says,
+      manager_says:
+      row.manager_says,
+      difference: row.difference
+    });
+  });
+  checks.sort((first, second) => {
+    const dateOrder = first.check_date.localeCompare(second.check_date);
+    return dateOrder || first.item.localeCompare(second.item);
+  });
+  return checks;
+}
+
+app.get('/api/checks',
+  async function(req, res) {
+    try {
+      const checks = await
+      calculateChecks();
+      res.status(200).json(checks);
+
+    } catch (error) {
+      console.log(error);
+      res.status(500).json({
+        err: 'Could not load checks'
+      })
+    }
+  })
+
+app.get('/api/correction', async function(req,
+  res) {
+  try {
+    const correctionFor = req.query;
+    const stockAndRelated = {};
+    const stockData = await
+    pool.query(`SELECT stock_counts.*,
+      items.name,
+      to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date
+      FROM stock_counts
+      INNER JOIN items
+      ON
+      stock_counts.item_id = items.item_id
+      WHERE items.name = $1 AND
+      stock_counts.count_date = $2::date
+      ORDER BY stock_counts.created_at`, [
+        correctionFor.item,
+        correctionFor.date]);
+
+    stockAndRelated['stock_record'] =
+    stockData.rows;
+
+    let related;
+    if (correctionFor.related_source ===
+      'production') {
+      related = await
+      pool.query(`SELECT *,
+        to_char(production_date, 'YYYY-MM-DD') AS production_date,
+        to_char(production_hours, 'HH24:MI') AS production_hours,
+        to_char(down_time, 'HH24:MI') AS down_time
+        FROM production
+        WHERE
+        production.production_date
+        = $1::date`, [correctionFor.date]);
+
+      stockAndRelated['related_record'] =
+      related.rows;
+    } else if
+      (correctionFor.related_source ===
+      'purchases') {
+      related = await
+      pool.query(`SELECT purchases.*,
+        items.name,
+        to_char(purchases.purchase_date, 'YYYY-MM-DD') AS purchase_date FROM
+        purchases
+        INNER JOIN items
+        ON purchases.item_id =
+        items.item_id
+        WHERE items.name = $1
+        AND
+        purchases.purchase_date =
+        $2::date ORDER BY
+        purchases.created_at`,
+        [correctionFor.item,
+          correctionFor.date]);
+
+      stockAndRelated['related_record'] =
+      related.rows;
+    } else if (correctionFor.related_source === 'sales') {
+      related = await pool.query(`SELECT sales.*,
+        items.name,
+        to_char(sales.sales_date, 'YYYY-MM-DD') AS sales_date FROM
+        sales
+        INNER JOIN items
+        ON sales.item_id =
+        items.item_id
+        WHERE items.name = $1
+        AND
+        sales.sales_date =
+        $2::date ORDER BY
+        sales.created_at`,
+        [correctionFor.item,
+          correctionFor.date])
+
+      stockAndRelated['related_record'] =
+      related.rows;
+    } else {
+      return res.status(400).json({
+        err: 'Invalid related source'
+      });
+    }
+
+    return res.status(200).json(stockAndRelated);
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      err: 'Could not load correction data'
+    });
   }
 })
+
+app.patch('/api/correction_edit', async function(req, res) {
+  try {
+    const kind = req.body.kind;
+    const record = req.body.record;
+
+    let updated;
+
+    if (kind === 'stock') {
+
+      updated = await pool.query(
+        `UPDATE stock_counts
+        SET count_date = $1::date,
+        item_id = $2,
+        received = $3,
+        issued = $4
+        WHERE count_id = $5
+        RETURNING *`,
+        [
+          record.count_date,
+          record.item_id,
+          record.received,
+          record.issued,
+          record.count_id
+        ]
+      );
+
+    } else if (kind === 'production') {
+
+      updated = await pool.query(
+        `UPDATE production
+        SET production_date = $1::date,
+        kernel_used = $2,
+        pko_produced = $3,
+        pkc_produced = $4,
+        production_hours = $5::interval,
+        down_time = $6::interval
+        WHERE production_id = $7
+        RETURNING *`,
+        [
+          record.production_date,
+          record.kernel_used,
+          record.pko_produced,
+          record.pkc_produced,
+          record.production_hours,
+          record.down_time,
+          record.production_id
+        ]
+      );
+
+    } else if (kind === 'sales') {
+
+      updated = await pool.query(
+        `UPDATE sales
+        SET sales_date = $1::date,
+        customer = $2,
+        item_id = $3,
+        quantity = $4,
+        unit_price = $5
+        WHERE sale_id = $6
+        RETURNING *`,
+        [
+          record.sales_date,
+          record.customer,
+          record.item_id,
+          record.quantity,
+          record.unit_price,
+          record.sale_id
+        ]
+      );
+
+    } else if (kind === 'purchases') {
+
+      updated = await pool.query(
+        `UPDATE purchases
+        SET purchase_date = $1::date,
+        supplier = $2,
+        item_id = $3,
+        quantity_supplied = $4,
+        unit_cost = $5
+        WHERE purchase_id = $6
+        RETURNING *`,
+        [
+          record.purchase_date,
+          record.supplier,
+          record.item_id,
+          record.quantity_supplied,
+          record.unit_cost,
+          record.purchase_id
+        ]
+      );
+
+    } else {
+
+      return res.status(400).json({
+        err: 'Invalid record type'
+      });
+    }
+
+    return res.status(200).json(updated.rows[0]);
+
+  } catch (error) {
+    console.log(error);
+
+    return res.status(500).json({
+      err: 'Could not update record'
+    });
+  }
+});
+
+app.delete('/api/correction_delete', async function(req, res) {
+  try {
+    const kind = req.body.kind;
+    const record = req.body.record;
+    let deleted;
+
+    if (kind === 'stock') {
+      deleted = await pool.query(
+        'DELETE FROM stock_counts WHERE count_id = $1 RETURNING *',
+        [record.count_id]
+      );
+    } else if (kind === 'production') {
+      deleted = await pool.query(
+        'DELETE FROM production WHERE production_id = $1 RETURNING *',
+        [record.production_id]
+      );
+    } else if (kind === 'sales') {
+      deleted = await pool.query(
+        'DELETE FROM sales WHERE sale_id = $1 RETURNING *',
+        [record.sale_id]
+      );
+    } else if (kind === 'purchases') {
+      deleted = await pool.query(
+        'DELETE FROM purchases WHERE purchase_id = $1 RETURNING *',
+        [record.purchase_id]
+      );
+    } else {
+      return res.status(400).json({
+        err: 'Invalid record type'
+      });
+    }
+
+    if (deleted.rowCount === 0) {
+      return res.status(404).json({
+        err: 'Record was not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Record deleted successfully'
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      err: 'Could not delete record'
+    });
+  }
+});

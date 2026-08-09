@@ -5,7 +5,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background: #f2f4f7;
+  background: #f7f3e8;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   color: #1f2937;
 }
@@ -51,6 +51,40 @@ body {
 
 #dashboard .show{
   display: block;
+}
+
+#dashboard .dashboard-checks-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 18px;
+}
+
+#dashboard .dashboard-checks {
+  margin: 0;
+  padding: 10px 18px;
+  border: 1px solid #cfe0d2;
+  border-radius: 999px;
+  background: #eaf4ec;
+  color: #14532d;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: center;
+  box-shadow: 0 3px 10px rgba(20, 83, 45, 0.08);
+  cursor: pointer;
+}
+
+#dashboard .dashboard-checks.has-checks {
+  border-color: #f0b8b8;
+  background: #fde8e8;
+  color: #991b1b;
+  box-shadow: 0 3px 10px rgba(153, 27, 27, 0.08);
+}
+
+#dashboard .dashboard-checks.is-clear {
+  border-color: #b9d8c0;
+  background: #e7f5ea;
+  color: #14532d;
 }
 
 
@@ -217,6 +251,14 @@ body {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.stock-quantity.number-medium {
+  font-size: clamp(0.78rem, 6cqi, 16px);
+}
+
+.stock-quantity.number-small {
+  font-size: clamp(0.68rem, 5cqi, 13px);
 }
 
 .date-caption {
@@ -427,6 +469,110 @@ body {
   color: #14532d;
 }
 
+#dashboard .profit-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+#dashboard .profit-card {
+  container-type: inline-size;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 12px;
+  background: #fff;
+  border: 1px solid #e9e3d7;
+  border-radius: 16px;
+  box-shadow: 0 3px 10px rgba(63, 51, 29, 0.04);
+}
+
+#dashboard .profit-badge {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  border-radius: 9px;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+}
+
+#dashboard .profit-card.pko .profit-badge {
+  background: #e8a60c;
+}
+
+#dashboard .profit-card.pkc .profit-badge {
+  background: #60320f;
+}
+
+#dashboard .profit-details {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+
+#dashboard .profit-label {
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+
+#dashboard .profit-value {
+  overflow: hidden;
+  color: #14532d;
+  font-size: clamp(0.82rem, 6cqi, 1.05rem);
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#dashboard .net-profit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  background: #eef7ee;
+  border: 1px solid #cfe5d2;
+  border-radius: 12px;
+  color: #14532d;
+}
+
+#dashboard .net-profit span {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+#dashboard .net-profit strong {
+  font-size: 1.08rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+#dashboard .net-profit.negative {
+  background: #fff1f0;
+  border-color: #f0cfcb;
+  color: #a12c24;
+}
+
+#dashboard .profit-error {
+  margin: 0;
+  padding: 12px;
+  color: #a12c24;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  #dashboard .profit-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 #dashboard .profit-list {
   background: #fff;
   border-radius: 10px;
@@ -470,7 +616,7 @@ body {
 
   @media (max-width: 600px) {
   .card {
-    padding: 1.5rem 0rem;
+    padding: 1.5rem 1rem;
     border-radius: 8px;
   }
 
@@ -587,3 +733,208 @@ tbody
   tr:nth-child(even){
   background: #f8f8f8;
   }
+
+
+#inventory-data {
+  height: auto;
+  min-height: 100vh;
+  overflow: visible;
+  padding: 0;
+  background: #eef1f4;
+}
+
+.inventory-record-page {
+  min-height: 100vh;
+  padding: 0 16px 32px;
+}
+
+.inventory-record-page > h2 {
+  margin: 0 -16px 14px;
+  padding: 18px 16px;
+  background: #064e3b;
+  color: #fff;
+}
+
+.inventory-filters {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) 2fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.inventory-filters > select,
+.inventory-date-filter {
+  border: 1px solid #d8dde3;
+  border-radius: 9px;
+  background: #fff;
+}
+
+.inventory-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+}
+
+.inventory-date-filter input {
+  min-width: 0;
+  padding: 8px 3px;
+  border: 0;
+  font-size: 0.78rem;
+}
+
+.inventory-list-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+}
+
+.inventory-list-heading select {
+  width: auto;
+  padding: 7px;
+  border: 0;
+  background: transparent;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+#inventory-data-list {
+  display: grid;
+  gap: 12px;
+}
+
+.inventory-record-card {
+  padding: 14px 14px 15px;
+  border-left: 4px solid #15803d;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(31, 41, 55, 0.12);
+}
+
+.inventory-record-card.pko {
+  border-left-color: #f59e0b;
+}
+
+.inventory-record-card.pkc {
+  border-left-color: #2563eb;
+}
+
+.inventory-record-header {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 0.78rem;
+}
+
+.inventory-record-header strong {
+  color: #14532d;
+  text-align: right;
+}
+
+.inventory-record-header small {
+  padding: 4px 7px;
+  border-radius: 6px;
+  background: #f3f4f6;
+}
+
+.inventory-record-values {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding-top: 12px;
+}
+
+.inventory-card-value {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 10px;
+  border-right: 1px solid #e5e7eb;
+}
+
+.inventory-card-value:first-child {
+  padding-left: 0;
+}
+
+.inventory-card-value:last-child {
+  padding-right: 0;
+  border-right: 0;
+}
+
+.inventory-card-value span,
+.inventory-card-value small {
+  color: #6b7280;
+  font-size: 0.7rem;
+}
+
+.inventory-card-value strong {
+  overflow: hidden;
+  font-size: clamp(0.78rem, 4vw, 1.05rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-card-value.received span {
+  color: #15803d;
+}
+
+.inventory-card-value.issued span {
+  color: #dc2626;
+}
+
+.inventory-card-value.closing span {
+  color: #2563eb;
+}
+
+.inventory-load-more {
+  margin-top: 14px;
+  background: transparent;
+  color: #14532d;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 600px) {
+  .inventory-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-record-header {
+    grid-template-columns: auto auto 1fr;
+    gap: 8px;
+  }
+
+  .inventory-record-header small {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .inventory-record-values {
+    grid-template-columns: repeat(4, minmax(72px, 1fr));
+    overflow-x: auto;
+  }
+}
+
+
+/* Responsive data views */
+.data-card-view {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .data-table-view,
+  #sales-data > h2,
+  #purchases-data > h2,
+  #production-data > h2,
+  #expenses-data > h2 {
+    display: none;
+  }
+
+  .data-card-view {
+    display: block;
+  }
+}
