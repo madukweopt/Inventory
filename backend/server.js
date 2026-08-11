@@ -59,7 +59,19 @@ app.get('/api/stock_counts', function(req, res) {
 
 app.get('/api/purchases', function(req, res) {
   pool.query(
-    'SELECT purchases.created_at, purchases.supplier, purchases.quantity_supplied, items.name, purchases.unit_cost, purchases.quantity_supplied * purchases.unit_cost AS total_cost FROM purchases INNER JOIN items ON purchases.item_id = items.item_id ORDER BY purchases.created_at',
+    `SELECT
+    purchases.purchase_id,
+    to_char(purchases.purchase_date, 'YYYY-MM-DD') AS purchase_date,
+    purchases.created_at,
+    purchases.supplier,
+    purchases.quantity_supplied,
+    items.name, purchases.unit_cost,
+    purchases.quantity_supplied *
+    purchases.unit_cost AS total_cost
+    FROM purchases INNER JOIN items ON
+    purchases.item_id = items.item_id
+    ORDER BY purchases.purchase_date
+    DESC, purchases.created_at DESC`,
     function(err, result) {
       if (err) {
         console.log(err.message);

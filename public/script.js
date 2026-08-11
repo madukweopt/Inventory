@@ -134,10 +134,12 @@ async function loadSalesDropdown() {
   }
 }
 
-async function loadPurchasesDropdown() {
+async function
+loadPurchasesDropdown(select =
+  materialSupplied) {
   try {
 
-    if (!materialSupplied) {
+    if (!select) {
       return;
     }
     const response = await fetch('/api/items');
@@ -149,7 +151,7 @@ async function loadPurchasesDropdown() {
       const option = document.createElement('option');
       option.value = inventory.item_id;
       option.textContent = inventory.name;
-      materialSupplied.appendChild(option);
+      select.appendChild(option);
     });
   } catch (err) {
     console.error('could Not load items:', err);
@@ -579,54 +581,239 @@ async function loadInventoryData() {
   }
 }
 
-async function loadPurchasesData() {
-  try {
-    const purchasesDataBody = document.querySelector('#purchases-data-body');
-    const response = await fetch('/api/purchases');
-    if (response.status === 500) {
-      const problem = await response.json();
-      alert(problem.err);
-      return;
-    }
-    if (!response.ok) {
-      alert('Request failed' + ' ' + response.statusText);
-      return;
-    }
-    const purchasesList = await response.json();
-    purchasesDataBody.innerHTML = '';
-    purchasesList.forEach(purchase => {
-      const row = document.createElement('tr');
-      const submittedAt = new Date(purchase.created_at);
-      const formatedDate = submittedAt.toLocaleDateString('en-NG', {
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit'
-      }).replace(/\//g, '-');
-      const formatedTime = submittedAt.toLocaleTimeString('en-NG', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-      const dateAndTime = formatedDate + ' ' + formatedTime;
-      const cells = [
-        dateAndTime,
-        purchase.supplier,
-        purchase.name,
-        purchase.quantity_supplied,
-        purchase.unit_cost,
-        purchase.total_cost
-      ];
 
-      cells.forEach((value) => {
-        const td = document.createElement('td');
-        td.textContent = value;
-        row.appendChild(td);
-      });
-      purchasesDataBody.appendChild(row)
+
+
+
+
+function formatDate(dateValue) {
+  return new Date(
+    dateValue.slice(0, 10) + 'T00:00:00'
+  ).toLocaleDateString('en-NG', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
     });
-  } catch (error) {
-    console.error(error.message)
-    alert('Something went Wrong' + ' ' + error.message);
-  };
+}
+
+function formatSubmitted(createdAt) {
+  return new Date(createdAt).toLocaleString('en-NG', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  });
+}
+
+function createCard(date, createdAt,
+  itemName, id) {
+  const card =
+  document.createElement('article');
+  const header = document.createElement('div');
+  const body = document.createElement('div');
+  const item = document.createElement('span')
+  const displayDate =
+  document.createElement('span');
+  const submittedAt =
+  document.createElement('span');
+  const idNum =
+  document.createElement('span');
+
+  card.classList.add('data-record-card');
+  header.classList.add('data-record-header');
+  body.classList.add('data-record-values');
+
+  item.textContent = itemName;
+  idNum.textContent = '#P' + id;
+  submittedAt.textContent =
+  formatSubmitted(createdAt);
+  displayDate.textContent =
+  formatDate(date);
+
+  header.append(displayDate,
+    submittedAt, item, idNum);
+
+  card.append(header, body);
+  return {
+    card: card,
+    body: body
+  }
+}
+
+function formatNumber(value) {
+  return '₦' + Number(value).toLocaleString('en-NG')
+}
+
+function createCardValues(label, value,
+  unit) {
+  const box = document.createElement('div');
+  const labelName =
+  document.createElement('span');
+  const nameOrValue =
+  document.createElement('strong');
+  const unitValue =
+  document.createElement('small');
+
+
+  nameOrValue.textContent = value;
+  labelName.textContent = label;
+
+  box.append(labelName, nameOrValue,
+    unitValue);
+  if (unitValue !== undefined) {
+    unitValue.textContent = unit;
+    box.appendChild(unitValue);
+  }
+  return box;
+}
+
+async function loadPurchasesData() {
+  const response = await
+  fetch('/api/purchases');
+  if (response.status === 500) {
+    const problem = await response.json();
+    alert(problem.err);
+    return;
+  }
+  if (!response.ok) {
+    alert('Request failed' + ' ' + response.statusText);
+    return;
+  }
+  const purchasesList = await response.json();
+  await renderPurchasesCard(purchasesList)
+  renderPurchasesTable(purchasesList);
+}
+
+async function renderPurchasesCard(purchasesList) {
+
+  const dataList =
+  document.querySelector('#purchases-data-list');
+
+  function displayPurchases(list) {
+    dataList.replaceChildren();
+    list.forEach((row) => {
+      const card =
+      createCard(row.purchase_date,
+        row.created_at, row.name,
+        row.purchase_id);
+
+      card.card.classList.add(
+        row.name.toLowerCase().replaceAll(' ', '-')
+      );
+
+      const unit = row.name === 'Diesel' ?
+      'L': 'kg';
+
+      const unitLabel = row.name ===
+      'Diesel' ? '/L': '/kg';
+
+      const supplierBox =
+      createCardValues('Supplier',
+        row.supplier);
+
+      const quantityBox =
+      createCardValues('Qty Supplied',
+        Number(row.quantity_supplied).toLocaleString('en-NG'),
+        unit);
+
+      const unitBox =
+      createCardValues('Unit cost',
+        formatNumber(row.unit_cost) +
+        unitLabel);
+
+      const totalBox =
+      createCardValues('Total',
+        formatNumber(row.total_cost));
+
+      card.body.append(supplierBox,
+        quantityBox, unitBox, totalBox);
+
+      dataList.appendChild(card.card);
+    });
+  }
+  displayPurchases(purchasesList);
+
+  const purchasesFilter =
+  document.querySelector('#purchases-item-filter');
+  if (purchasesFilter.options.length === 1) {
+    await loadPurchasesDropdown(purchasesFilter);
+  }
+  purchasesFilter.addEventListener('change',
+    function() {
+      const selectedItem =
+      purchasesFilter.options[purchasesFilter.selectedIndex].textContent
+      let filteredList;
+      if (selectedItem === '' ||
+        selectedItem === 'All Items') {
+        filteredList = purchasesList;
+
+      } else {
+        filteredList = purchasesList.filter((item) => {
+          return item.name ===
+          selectedItem;
+        });
+      } displayPurchases(filteredList);
+    })
+
+  const dateFrom =
+  document.querySelector('#purchases-date-from');
+  const dateTo =
+  document.querySelector('#purchases-date-to');
+
+  function filterDate() {
+    dataList.replaceChildren();
+    let filtered;
+    if (dateFrom.value === '' ||
+      dateTo.value === '') {
+      filtered = purchasesList;
+    } else {
+      filtered = purchasesList.filter((row) => {
+        return row.purchase_date >=
+        dateFrom.value &&
+        row.purchase_date <=
+        dateTo.value;
+      });
+    }
+    displayPurchases(filtered);
+  }
+  dateFrom.addEventListener('change',
+    filterDate);
+  dateTo.addEventListener('change',
+    filterDate);
+}
+
+
+
+
+function renderPurchasesTable(purchasesList) {
+  const purchasesDataBody = document.querySelector('#purchases-data-body');
+  purchasesDataBody.innerHTML = '';
+  purchasesList.forEach(purchase => {
+    const row = document.createElement('tr');
+    const submittedAt =
+    formatSubmitted(purchase.created_at);
+    const displayDate =
+    formatDate(purchase.purchase_date);
+
+    const cells = [
+      displayDate,
+      purchase.supplier,
+      purchase.name,
+      purchase.quantity_supplied,
+      purchase.unit_cost,
+      purchase.total_cost,
+      submittedAt
+    ];
+
+    cells.forEach((value) => {
+      const td = document.createElement('td');
+      td.textContent = value;
+      row.appendChild(td);
+    });
+    purchasesDataBody.appendChild(row)
+  });
 };
 
 async function loadProductionData() {
