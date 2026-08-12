@@ -643,7 +643,7 @@ function createCard(date, createdAt,
 }
 
 function formatNumber(value) {
-  return '₦' + Number(value).toLocaleString('en-NG')
+  return Number(value).toLocaleString('en-NG')
 }
 
 function createCardValues(label, value,
@@ -655,7 +655,6 @@ function createCardValues(label, value,
   document.createElement('strong');
   const unitValue =
   document.createElement('small');
-
 
   nameOrValue.textContent = value;
   labelName.textContent = label;
@@ -686,104 +685,172 @@ async function loadPurchasesData() {
   renderPurchasesTable(purchasesList);
 }
 
-async function renderPurchasesCard(purchasesList) {
+function displayCards(list, config,
+  htmlDataList) {
+  htmlDataList.replaceChildren();
+  list.forEach((row) => {
+    const card =
+    createCard(config.date(row),
+      config.createdAt(row),
+      config.item(row),
+      config.id(row));
 
-  const dataList =
-  document.querySelector('#purchases-data-list');
+    card.card.classList.add(
+      config.item(row).toLowerCase().replaceAll(' ', '-')
+    );
 
-  function displayPurchases(list) {
-    dataList.replaceChildren();
-    list.forEach((row) => {
-      const card =
-      createCard(row.purchase_date,
-        row.created_at, row.name,
-        row.purchase_id);
+    config.field.forEach((field) => {
+      const box = createCardValues(field.label,
+        field.value(row), field.unit?
+        field.unit(row): undefined)
+      card.body.appendChild(box);
+    });
 
-      card.card.classList.add(
-        row.name.toLowerCase().replaceAll(' ', '-')
-      );
 
-      const unit = row.name === 'Diesel' ?
-      'L': 'kg';
 
-      const unitLabel = row.name ===
-      'Diesel' ? '/L': '/kg';
+    htmlDataList.appendChild(card.card);
+  });
+}
 
-      const supplierBox =
-      createCardValues('Supplier',
-        row.supplier);
-
-      const quantityBox =
-      createCardValues('Qty Supplied',
-        Number(row.quantity_supplied).toLocaleString('en-NG'),
-        unit);
-
-      const unitBox =
-      createCardValues('Unit cost',
-        formatNumber(row.unit_cost) +
-        unitLabel);
-
-      const totalBox =
-      createCardValues('Total',
-        formatNumber(row.total_cost));
-
-      card.body.append(supplierBox,
-        quantityBox, unitBox, totalBox);
-
-      dataList.appendChild(card.card);
+function filterDate(record, config,
+  htmlDataList, dateFrom, dateTo) {
+  htmlDataList.replaceChildren();
+  let filtered;
+  if (dateFrom.value === '' ||
+    dateTo.value === '') {
+    filtered = record;
+  } else {
+    filtered = record.filter((row) => {
+      return config.date(row) >=
+      dateFrom.value &&
+      config.date(row) <=
+      dateTo.value;
     });
   }
-  displayPurchases(purchasesList);
+  displayCards(filtered,
+    config, htmlDataList);
+}
+
+function sortNewest(record, config, htmlSelect, htmlDataList) {
+
+  let sorted;
+  if (htmlSelect.value ===
+    'newest') {
+    sorted = record.sort((a, b)=> {
+      return new Date(config.date(b))
+      -
+      new Date (config.date(a))
+    });
+  } else {
+    sorted = record.sort((a,
+      b) => {
+      return new Date(config.date(a))
+      - new Date(config.date(b));
+    });
+  } displayCards(sorted,
+    config, htmlDataList);
+}
+
+function filterByItems(record, config,
+  filterElement, htmlDataList) {
+
+  const selectedItem =
+  filterElement.options[filterElement.selectedIndex].textContent
+  let filteredList;
+  if (selectedItem === '' ||
+    selectedItem === 'All Items') {
+    filteredList = record;
+
+  } else {
+    filteredList = record.filter((item) => {
+      return config.item(item) ===
+      selectedItem;
+    });
+  } displayCards(filteredList,
+    config, htmlDataList);
+}
+
+async function renderPurchasesCard(purchasesList) {
+  const htmlDataList =
+  document.querySelector('#purchases-data-list');
 
   const purchasesFilter =
   document.querySelector('#purchases-item-filter');
-  if (purchasesFilter.options.length === 1) {
-    await loadPurchasesDropdown(purchasesFilter);
-  }
-  purchasesFilter.addEventListener('change',
-    function() {
-      const selectedItem =
-      purchasesFilter.options[purchasesFilter.selectedIndex].textContent
-      let filteredList;
-      if (selectedItem === '' ||
-        selectedItem === 'All Items') {
-        filteredList = purchasesList;
-
-      } else {
-        filteredList = purchasesList.filter((item) => {
-          return item.name ===
-          selectedItem;
-        });
-      } displayPurchases(filteredList);
-    })
 
   const dateFrom =
   document.querySelector('#purchases-date-from');
   const dateTo =
   document.querySelector('#purchases-date-to');
 
-  function filterDate() {
-    dataList.replaceChildren();
-    let filtered;
-    if (dateFrom.value === '' ||
-      dateTo.value === '') {
-      filtered = purchasesList;
-    } else {
-      filtered = purchasesList.filter((row) => {
-        return row.purchase_date >=
-        dateFrom.value &&
-        row.purchase_date <=
-        dateTo.value;
-      });
-    }
-    displayPurchases(filtered);
-  }
-  dateFrom.addEventListener('change',
-    filterDate);
-  dateTo.addEventListener('change',
-    filterDate);
-}
+  const purchasesSelect =
+  document.querySelector('#purchases-sort');
 
+  const purchasesConfig = {
+    date: row => row.purchase_date,
+    createdAt: row => row.created_at,
+    item: row => row.name,
+    id: row => row.purchase_id,
+    field: [{
+      label: 'Supplier',
+      value: row => row.supplier
+    },
+      {
+        label: 'Qty Supplied',
+        value: row =>
+        formatNumber(row.quantity_supplied),
+        unit: row => row.name ===
+        'Diesel'? 'L': 'kg'
+      },
+      {
+        label: 'Unit Cost',
+        value: row =>
+        '₦' + formatNumber(row.unit_cost),
+        unit: row => row.name ===
+        'Diesel' ? '/L': '/kg'
+      },
+      {
+        label: 'Total',
+        value: row =>
+        '₦' +
+        formatNumber(row.total_cost),
+      }]
+  }
+
+  displayCards(purchasesList,
+    purchasesConfig,
+    htmlDataList);
+
+  if (purchasesFilter.options.length === 1) {
+    await loadPurchasesDropdown(purchasesFilter);
+  }
+
+  purchasesFilter.addEventListener('change',
+    () => {
+      filterByItems(purchasesList,
+        purchasesConfig, purchasesFilter, htmlDataList)
+    });
+
+  dateFrom.addEventListener('change',
+    () => {
+      filterDate(purchasesList,
+        purchasesConfig, htmlDataList,
+        dateFrom, dateTo);
+    });
+
+  dateTo.addEventListener('change',
+    () => {
+      filterDate(purchasesList,
+        purchasesConfig, htmlDataList,
+        dateFrom, dateTo);
+    });
+
+  purchasesSelect.addEventListener('change',
+    () => {
+      sortNewest(purchasesList,
+        purchasesConfig, purchasesSelect,
+        htmlDataList);
+    });
+}
 
 
 

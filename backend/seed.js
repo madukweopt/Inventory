@@ -1,10 +1,13 @@
 require("dotenv").config();
+const {
+  Pool
+} = require('pg');
 
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  connectionString: 'postgresql://neondb_owner:npg_QYnhfgZ2k4xN@ep-lively-king-ab2zzg6a-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require',
-  ssl: { rejectUnauthorized: false }
+const pool = new Pool( {
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 // ---------- small helpers ----------
@@ -102,9 +105,15 @@ async function seed() {
   const endDate = new Date();
   endDate.setHours(0, 0, 0, 0);
 
-  let counts = { purchases: 0, production: 0, sales: 0, expenses: 0, stock: 0 };
+  let counts = {
+    purchases: 0,
+    production: 0,
+    sales: 0,
+    expenses: 0,
+    stock: 0
+  };
 
-  for (let dayNumber = 0; ; dayNumber++) {
+  for (let dayNumber = 0;; dayNumber++) {
     const day = addDays(startDate, dayNumber);
 
     if (day > endDate) {
@@ -164,7 +173,7 @@ async function seed() {
       const pkcProduced = Math.round(kernelUsed * (randomInt(430, 470) / 1000));
       const hours = formatDuration(randomInt(360, 570));
       const downTime = chance(30) ?
-      formatDuration(randomInt(30, 120)) : '00:00';
+      formatDuration(randomInt(30, 120)): '00:00';
       const dieselUsed = randomInt(80, 130);
 
       await pool.query(
@@ -187,7 +196,7 @@ async function seed() {
 
     // --- 4. PKO sales ---
     if (pkoStock > 1500 && chance(55)) {
-      const salesToday = chance(25) ? 2 : 1;
+      const salesToday = chance(25) ? 2: 1;
 
       for (let n = 0; n < salesToday; n++) {
         if (pkoStock < 1000) {
@@ -241,12 +250,26 @@ async function seed() {
     }
 
     // --- 7. store keeper's evening count, derived from the day's events ---
-    const dailyMovements = [
-      { name: 'P Kernel', received: kernelIn, issued: kernelOut },
-      { name: 'PKO', received: pkoIn, issued: pkoOut },
-      { name: 'PKC', received: pkcIn, issued: pkcOut },
-      { name: 'Diesel', received: dieselIn, issued: dieselOut }
-    ];
+    const dailyMovements = [{
+      name: 'P Kernel',
+      received: kernelIn,
+      issued: kernelOut
+    },
+      {
+        name: 'PKO',
+        received: pkoIn,
+        issued: pkoOut
+      },
+      {
+        name: 'PKC',
+        received: pkcIn,
+        issued: pkcOut
+      },
+      {
+        name: 'Diesel',
+        received: dieselIn,
+        issued: dieselOut
+      }];
 
     for (const movement of dailyMovements) {
       if (movement.received === 0 && movement.issued === 0) {
