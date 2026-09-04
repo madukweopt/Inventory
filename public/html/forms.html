@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Forms and Records</title>
+        <link rel="stylesheet" href="/css/navigation.css" />
+        <link rel="stylesheet" href="/css/app.css" />
+    </head>
+    <body>
+        <nav class="main-menu">
+            <button type="button" class="menu-btn">☰ Menu</button>
+
+            <div class="submenuAndBtn">
+                <div class="nav-brand">
+                    <img src="/images/logo.png" alt="" />
+                    <div>
+                        <strong>SOMAD</strong
+                        ><span>AGRO-OIL PROCESSING LIMITED</span
+                        ><small>Staff Portal</small>
+                    </div>
+                    <button
+                        type="button"
+                        class="nav-close"
+                        aria-label="Close menu"
+                    >
+                        ×
+                    </button>
+                </div>
+                <p class="nav-label">Main</p>
+                <button
+                    type="button"
+                    class="submenu-button active"
+                    id="dashboard-btn"
+                >
+                    Dashboard
+                </button>
+
+                <button type="button" class="submenu-button first">
+                    Forms
+                </button>
+
+                <div class="submenu-one">
+                    <a href="/forms.html#inventory-form">Inventory Report </a>
+                    <a href="/forms.html#purchases-form">Purchases Report </a>
+                    <a href="/forms.html#sales-form"> Sales Report </a>
+                    <a href="/forms.html#production-form">Production Report</a>
+                    <a href="/forms.html#expenses-form">Expenses Report</a>
+                </div>
+
+                <button type="button" class="submenu-button second">
+                    Data
+                </button>
+
+                <div class="submenu-two">
+                    <a href="/forms.html#inventory-data">Inventory Data </a>
+                    <a href="/forms.html#purchases-data">Purchases Data </a>
+                    <a href="/forms.html#sales-data">Sales Data </a>
+                    <a href="/forms.html#production-data">Production Data</a>
+                    <a href="/forms.html#expenses-data">Expenses Data</a>
+                </div>
+
+                <p class="nav-label">Business</p>
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="customers-button"
+                >
+                    Customers
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="employees-button"
+                >
+                    Employees
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="suppliers-button"
+                >
+                    Suppliers
+                </button>
+
+                <p class="nav-label">System</p>
+                <button type="button" class="submenu-button">
+                    Notification
+                </button>
+
+                <button type="button" class="submenu-button">Settings</button>
+
+                <button type="button" class="submenu-button">Prices</button>
+
+                <button type="button" class="submenu-button">
+                    Company details
+                </button>
+                <div class="nav-account">
+                    <span class="nav-avatar">●</span
+                    ><span
+                        ><small>Logged in as</small
+                        ><strong class="login-role"></strong
+                    ></span>
+                    ><b>⌄</b>
+                </div>
+                <button type="button" class="nav-logout">
+                    ↪ <span>Logout</span>
+                </button>
+            </div>
+        </nav>
+        <main class="page">
+            <section class="card">
+                <h2>Stock Inventory</h2>
+                <p class="form-description">
+                    Enter details of stock received and issued. Fill this form
+                    for each stock
+                </p>
+                <form id="inventory-form">
+                    <div class="field">
+                        <label for="stock-date">Date</label>
+                        <input
+                            type="date"
+                            id="stock-date"
+                            name="date"
+                            required
+                        />
+                    </div>
+
+                    <div class="field">
+                        <label for="stock-name">Stock Name</label>
+                        <select id="stock-name" name="stock-name" required>
+                            <option value="" disabled selected>
+                                Select a stock
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="received">
+                                Received (<span class="inventory-entry-unit"
+                                    >kg</span
+                                >)
+                            </label>
+                            <input
+                                type="number"
+                                id="received"
+                                name="received"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label for="issued">
+                                Issued (<span class="inventory-entry-unit"
+                                    >kg</span
+                                >)
+                            </label>
+                            <input
+                                type="number"
+                                id="issued"
+                                name="issued"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <button type="submit">Submit Inventory</button>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Expenses Report</h2>
+                <p class="form-description">
+                    Fill this form for each expense incurred
+                </p>
+                <form id="expenses-form">
+                    <div class="field">
+                        <label for="expense-date">Date</label>
+                        <input
+                            type="date"
+                            id="expense-date"
+                            name="date"
+                            required
+                        />
+                    </div>
+
+                    <div class="field">
+                        <label for="expense-category">Category</label>
+                        <select id="expense-category" name="category" required>
+                            <option value="" disabled selected>
+                                Select a category
+                            </option>
+                            <option value="Expenses">Expenses</option>
+                            <option value="Asset/Capital Expenditure">
+                                Asset/Capital Expenditure
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="expense-description">Description</label>
+                        <textarea
+                            id="expense-description"
+                            name="description"
+                            rows="2"
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div class="field">
+                        <label for="expense-amount">Amount Spent (₦)</label>
+                        <input
+                            type="number"
+                            id="expense-amount"
+                            name="amount"
+                            min="0"
+                            placeholder="0"
+                            required
+                        />
+                    </div>
+
+                    <button type="submit">Submit Expense</button>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Production Report</h2>
+                <p class="form-description">
+                    Provide details of the day's production
+                </p>
+                <form id="production-form">
+                    <div class="field">
+                        <label for="production-date">Date</label>
+                        <input
+                            type="date"
+                            id="production-date"
+                            name="date"
+                            required
+                        />
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="kernel-used">Kernel Used (kg)</label>
+                            <input
+                                type="number"
+                                id="kernel-used"
+                                name="kernel-used"
+                                min="0"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label for="oil-produced">Oil Produced (kg)</label>
+                            <input
+                                type="number"
+                                id="oil-produced"
+                                name="oil-produced"
+                                min="0"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="pkc-produced">PKC Produced (kg)</label>
+                            <input
+                                type="number"
+                                id="pkc-produced"
+                                name="pkc-produced"
+                                min="0"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label for="production-hours"
+                                >Production Hours</label
+                            >
+                            <input
+                                type="text"
+                                id="production-hours"
+                                name="production-hours"
+                                inputmode="numeric"
+                                pattern="[0-9]+:[0-5][0-9]"
+                                placeholder="HH:MM"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="down-time">Down Time</label>
+                        <input
+                            type="text"
+                            id="down-time"
+                            name="down-time"
+                            inputmode="numeric"
+                            pattern="[0-9]+:[0-5][0-9]"
+                            placeholder="HH:MM"
+                            required
+                        />
+                    </div>
+
+                    <button type="submit">Submit Production</button>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Inventory Purchases</h2>
+                <p class="form-description">
+                    Record details of inventory purchases. Fill this form for
+                    each purchase.
+                </p>
+                <form id="purchases-form">
+                    <div class="field">
+                        <label for="purchase-date">Date</label>
+                        <input
+                            type="date"
+                            id="purchase-date"
+                            name="date"
+                            required
+                        />
+                    </div>
+
+                    <div class="field">
+                        <label for="supplier">Supplier</label>
+                        <select name="supplier" id="supplier" required>
+                            <option value="" disabled selected>
+                                Select a supplier
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="material-supplied">Material Supplied</label>
+                        <select
+                            id="material-supplied"
+                            name="material-supplied"
+                            required
+                        >
+                            <option value="" disabled selected>
+                                Select a material
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="quantity-supplied"
+                                >Quantity Supplied (<span
+                                    class="purchase-entry-unit"
+                                    >kg</span
+                                >)</label
+                            >
+                            <input
+                                type="number"
+                                id="quantity-supplied"
+                                name="quantity-supplied"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label for="unit-cost">
+                                Unit Cost (₦/<span class="purchase-entry-unit"
+                                    >kg</span
+                                >)
+                            </label>
+                            <input
+                                type="number"
+                                id="unit-cost"
+                                name="unit-cost"
+                                min="0"
+                                step="0.01"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <button type="submit">Submit Purchase</button>
+                </form>
+            </section>
+
+            <section class="card">
+                <h2>Sales Report</h2>
+                <p class="form-description">
+                    Record details of sales transactions. Fill this form for
+                    each product sold.
+                </p>
+                <form id="sales-form">
+                    <div class="field">
+                        <label for="sales-date">Date</label>
+                        <input
+                            type="date"
+                            id="sales-date"
+                            name="date"
+                            required
+                        />
+                    </div>
+
+                    <div class="field">
+                        <label for="customer">Customer</label>
+                        <select name="customer" id="customer" required>
+                            <option value="" disabled selected>
+                                Select a customer
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field">
+                        <label for="product-sold">Product Sold</label>
+                        <select id="product-sold" name="product-sold" required>
+                            <option value="" disabled selected>
+                                Select a product
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="field-row">
+                        <div class="field">
+                            <label for="sales-quantity">Quantity (kg)</label>
+                            <input
+                                type="number"
+                                id="sales-quantity"
+                                name="quantity"
+                                min="0"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label for="unit-price">Unit Price</label>
+                            <input
+                                type="number"
+                                id="unit-price"
+                                name="unit-price"
+                                min="0"
+                                placeholder="0"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <button type="submit">Submit Sale</button>
+                </form>
+            </section>
+
+            <section class="card" id="sales-data">
+                <h2>SALES RECORD</h2>
+                <table class="data-table-view">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Item</th>
+                            <th>Quantity (kg)</th>
+                            <th>Unit Price (₦)</th>
+                            <th>Total (₦)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-data-body"></tbody>
+                </table>
+                <div
+                    class="data-card-view data-record-page inventory-record-page"
+                    id="sales-card-view"
+                >
+                    <h2>SALES RECORD</h2>
+                    <div class="data-filters inventory-filters">
+                        <select class="data-item-filter" id="sales-item-filter">
+                            <option value="">All Items</option>
+                        </select>
+                        <div class="data-date-filter inventory-date-filter">
+                            <input
+                                type="date"
+                                id="sales-date-from"
+                                aria-label="Start date"
+                            />
+                            <span>-</span>
+                            <input
+                                type="date"
+                                id="sales-date-to"
+                                aria-label="End date"
+                            />
+                        </div>
+                    </div>
+                    <div class="data-list-heading inventory-list-heading">
+                        <span id="sales-record-count"></span>
+                        <select class="data-sort" id="sales-sort">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                        </select>
+                    </div>
+                    <div class="data-record-list" id="sales-data-list"></div>
+                    <button
+                        type="button"
+                        class="data-load-more inventory-load-more"
+                        id="sales-load-more"
+                    >
+                        Load more
+                    </button>
+                </div>
+            </section>
+
+            <section class="card" id="inventory-data">
+                <table class="data-table-view">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Item</th>
+                            <th>Opening Stock (kg)</th>
+                            <th>Received (kg)</th>
+                            <th>Issued (kg)</th>
+                            <th>Closing Stock</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventory-data-body"></tbody>
+                </table>
+                <div
+                    class="data-card-view data-record-page inventory-record-page"
+                >
+                    <h2>INVENTORY RECORD</h2>
+                    <div class="data-filters inventory-filters">
+                        <select
+                            class="data-item-filter"
+                            id="inventory-item-filter"
+                        >
+                            <option value="">All Items</option>
+                        </select>
+                        <div class="data-date-filter inventory-date-filter">
+                            <input
+                                class="data-date-from"
+                                type="date"
+                                id="inventory-date-from"
+                                aria-label="Start date"
+                            />
+                            <span>-</span>
+                            <input
+                                class="data-date-to"
+                                type="date"
+                                id="inventory-date-to"
+                                aria-label="End date"
+                            />
+                        </div>
+                    </div>
+                    <div class="data-list-heading inventory-list-heading">
+                        <span id="inventory-record-count"></span>
+                        <select class="data-sort" id="inventory-sort">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                        </select>
+                    </div>
+                    <div
+                        class="data-record-list"
+                        id="inventory-data-list"
+                    ></div>
+                    <button
+                        type="button"
+                        id="inventory-load-more"
+                        class="data-load-more inventory-load-more"
+                    >
+                        Load more
+                    </button>
+                </div>
+            </section>
+
+            <section class="card" id="purchases-data">
+                <h2>PURCHASES RECORD</h2>
+                <table class="data-table-view">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Supplier</th>
+                            <th>Item</th>
+                            <th>Quantity Supplied (kg)</th>
+                            <th>Unit-cost (₦)</th>
+                            <th>Total Cost (₦)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchases-data-body"></tbody>
+                </table>
+                <div
+                    class="data-card-view data-record-page"
+                    id="purchases-card-view"
+                >
+                    <h2>PURCHASES RECORD</h2>
+                    <div class="data-filters">
+                        <select
+                            class="data-item-filter"
+                            id="purchases-item-filter"
+                        >
+                            <option value="">All Items</option>
+                        </select>
+                        <div class="data-date-filter">
+                            <input
+                                type="date"
+                                id="purchases-date-from"
+                                aria-label="Start date"
+                            />
+                            <span>-</span>
+                            <input
+                                type="date"
+                                id="purchases-date-to"
+                                aria-label="End date"
+                            />
+                        </div>
+                    </div>
+                    <div class="data-list-heading">
+                        <span id="purchases-record-count"></span>
+                        <select class="data-sort" id="purchases-sort">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                        </select>
+                    </div>
+                    <div
+                        class="data-record-list"
+                        id="purchases-data-list"
+                    ></div>
+                    <button
+                        type="button"
+                        class="data-load-more"
+                        id="purchases-load-more"
+                    >
+                        Load more
+                    </button>
+                </div>
+            </section>
+
+            <section class="card" id="production-data">
+                <h2>PRODUCTION RECORD</h2>
+                <table class="data-table-view">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Kernel Used (kg)</th>
+                            <th>PKO-produced (kg)</th>
+                            <th>PKC Produced (kg)</th>
+                            <th>PKO yield</th>
+                            <th>PKC yield</th>
+                            <th>Production Hours</th>
+                            <th>Down Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="production-data-body"></tbody>
+                </table>
+                <div
+                    class="data-card-view data-record-page inventory-record-page"
+                    id="production-card-view"
+                >
+                    <h2>PRODUCTION RECORD</h2>
+                    <div class="data-filters no-item-filter">
+                        <div class="data-date-filter">
+                            <input
+                                type="date"
+                                id="production-date-from"
+                                aria-label="Start date"
+                            />
+                            <span>-</span>
+                            <input
+                                type="date"
+                                id="production-date-to"
+                                aria-label="End date"
+                            />
+                        </div>
+                    </div>
+                    <div class="data-list-heading">
+                        <span id="production-record-count"></span>
+                        <select class="data-sort" id="production-sort">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                        </select>
+                    </div>
+                    <div
+                        class="data-record-list"
+                        id="production-data-list"
+                    ></div>
+                    <button
+                        type="button"
+                        class="data-load-more inventory-load-more"
+                        id="production-load-more"
+                    >
+                        Load more
+                    </button>
+                </div>
+            </section>
+
+            <section class="card" id="expenses-data">
+                <h2>EXPENSES RECORD</h2>
+                <table class="data-table-view">
+                    <thead>
+                        <tr>
+                            <th>Date & Time</th>
+                            <th>Category</th>
+                            <th>Description</th>
+                            <th>Amount Spent (₦)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenses-data-body"></tbody>
+                </table>
+                <div
+                    class="data-card-view data-record-page inventory-record-page"
+                    id="expenses-card-view"
+                >
+                    <h2>EXPENSES RECORD</h2>
+                    <div class="data-filters inventory-filters">
+                        <select
+                            class="data-item-filter"
+                            id="expenses-category-filter"
+                        >
+                            <option value="">All Categories</option>
+                            <option value="Expenses">Expenses</option>
+                            <option value="Asset/Capital Expenditure">
+                                Asset/Capital Expenditure
+                            </option>
+                        </select>
+                        <div class="data-date-filter inventory-date-filter">
+                            <input
+                                type="date"
+                                id="expenses-date-from"
+                                aria-label="Start date"
+                            />
+                            <span>-</span>
+                            <input
+                                type="date"
+                                id="expenses-date-to"
+                                aria-label="End date"
+                            />
+                        </div>
+                    </div>
+                    <div class="data-list-heading inventory-list-heading">
+                        <span id="expenses-record-count"></span>
+                        <select class="data-sort" id="expenses-sort">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                        </select>
+                    </div>
+                    <div class="data-record-list" id="expenses-data-list"></div>
+                    <button
+                        type="button"
+                        class="data-load-more inventory-load-more"
+                        id="expenses-load-more"
+                    >
+                        Load more
+                    </button>
+                </div>
+            </section>
+
+            <section id="customers" class="card">
+                <div class="header">
+                    <h1>Customers</h1>
+                    <button id="add-customer">+ Add Customer</button>
+                    <p>Manage customers and view their purchase summary.</p>
+                </div>
+                <div>
+                    <input
+                        type="search"
+                        id="customer-search"
+                        placeholder=" Search by name"
+                    />
+                </div>
+                <div>
+                    <label for="sort">Sort by:</label>
+                    <select id="sort-customers">
+                        <option value="">Name</option>
+                        <option value="">Oldest</option>
+                        <option value="">Most Recent</option>
+                        <option value="">Highest Value</option>
+                    </select>
+                </div>
+                <div class="customer-cards"></div>
+            </section>
+
+            <section id="customer-addition" class="card">
+                <h2>Add Customer</h2>
+                <p>Create a new customer profile</p>
+                <form id="customer-form">
+                    <label for="name">Customer Name</label>
+                    <input
+                        type="text"
+                        id="customer-name"
+                        required
+                        placeholder="Enter customer name"
+                    />
+                    <label for="customer-phone">Phone Number</label>
+                    <input
+                        type="tel"
+                        id="customer-phone"
+                        required
+                        placeholder="Enter phone number"
+                    />
+                    <label for="customer-address">Address/Location</label>
+                    <input
+                        type="text"
+                        id="customer-address"
+                        required
+                        placeholder="Enter address"
+                    />
+                    <label for="customer-email">Email Address</label>
+                    <input
+                        type="email"
+                        id="customer-email"
+                        placeholder="Email address"
+                    />
+                    <label for="note">Note (Optional)</label>
+                    <input
+                        type="text"
+                        id="customer-note"
+                        placeholder="Add any other additional note about this cus...."
+                    />
+                    <button type="button" id="cancel-button">Cancel</button>
+                    <button type="submit" id="submit-button">Submit</button>
+                </form>
+            </section>
+
+            <section id="suppliers" class="card">
+                <div class="header">
+                    <h1>Suppliers</h1>
+                    <button id="add-supplier">+ Add Supplier</button>
+                    <p>Manage suppliers and view their purchase summary.</p>
+                </div>
+                <div>
+                    <input
+                        type="search"
+                        id="supplier-search"
+                        placeholder=" Search by name"
+                    />
+                </div>
+                <div>
+                    <label for="sort">Sort by:</label>
+                    <select id="sort-suppliers">
+                        <option value="">Name</option>
+                        <option value="">Oldest</option>
+                        <option value="">Most Recent</option>
+                        <option value="">Highest Value</option>
+                    </select>
+                </div>
+                <div class="supplier-cards"></div>
+            </section>
+            <section id="supplier-addition" class="card">
+                <h2>Add Supplier</h2>
+                <p>Create a new supplier profile</p>
+                <form id="supplier-form">
+                    <label for="name">Supplier Name</label>
+                    <input
+                        type="text"
+                        id="supplier-name"
+                        required
+                        placeholder="Enter supplier name"
+                    />
+                    <label for="supplier-phone">Phone Number</label>
+                    <input
+                        type="tel"
+                        id="supplier-phone"
+                        required
+                        placeholder="Enter phone number"
+                    />
+                    <label for="supplier-address">Address/Location</label>
+                    <input
+                        type="text"
+                        id="supplier-address"
+                        required
+                        placeholder="Enter address"
+                    />
+                    <label for="supplier-email">Email Address</label>
+                    <input
+                        type="email"
+                        id="supplier-email"
+                        placeholder="Email address"
+                    />
+                    <label for="note">Note (Optional)</label>
+                    <input
+                        type="text"
+                        id="supplier-note"
+                        placeholder="Add any other additional note about this su...."
+                    />
+                    <button type="button" id="cancel-button">Cancel</button>
+                    <button type="submit" id="submit-button">Submit</button>
+                </form>
+            </section>
+        </main>
+        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+        <script>
+            eruda.init();
+        </script>
+        <script src="/js/navigation.js"></script>
+        <script src="/js/forms.js"></script>
+    </body>
+</html>

@@ -54,6 +54,7 @@ function formatDuration(totalMinutes) {
 
 const kernelSuppliers = ['Amaonyeze', 'Chuks', 'Mighty Farms', 'Ngozi Traders'];
 const dieselSuppliers = ['D.G Energy', 'Rainoil Depot'];
+const electricitySuppliers = ['NEPA Prepaid'];
 const pkoCustomers = ['Poloud Limited', 'Emeka', 'Chigozirim', 'Poulin Oil Limited'];
 const pkcCustomers = ['Benjamin', 'Iheanyi', 'Udo Farms'];
 
@@ -76,6 +77,18 @@ const capitalExpenses = [
 // ---------- the simulation ----------
 
 async function seed() {
+  console.log('Adding Electricity to items...');
+
+  await pool.query(`
+    INSERT INTO items (name, item_type)
+    SELECT 'Electricity', 'consumable'
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM items
+      WHERE LOWER(TRIM(name)) = 'electricity'
+    )
+  `);
+
   console.log('Reading items...');
 
   const itemsResult = await pool.query('SELECT item_id, name FROM items');
@@ -85,8 +98,96 @@ async function seed() {
     itemId[item.name] = item.item_id;
   });
 
-  if (!itemId['PKO'] || !itemId['PKC'] || !itemId['P Kernel'] || !itemId['Diesel']) {
-    console.error('Items table must contain PKO, PKC, P Kernel and Diesel.');
+  if (!itemId['PKO'] || !itemId['PKC'] || !itemId['P Kernel'] || !itemId['Diesel'] || !itemId['Electricity']) {
+    console.error('Items table must contain PKO, PKC, P Kernel, Diesel and Electricity.');
+    await pool.end();
+    return;
+  }
+
+  console.log('Preparing customers...');
+
+  const customerNames = [...new Set([...pkoCustomers, ...pkcCustomers])];
+
+  for (const customerName of customerNames) {
+    await pool.query(
+      `INSERT INTO customers (name)
+      SELECT $1
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM customers
+        WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+      )`,
+      [customerName]
+    );
+  }
+
+  const customersResult = await pool.query(
+    'SELECT customer_id, name FROM customers'
+  );
+  const customerId = {};
+
+  customersResult.rows.forEach(function(customer) {
+    customerId[customer.name] = customer.customer_id;
+  });
+
+  const pkoCustomerIds = pkoCustomers.map(name => customerId[name]);
+  const pkcCustomerIds = pkcCustomers.map(name => customerId[name]);
+
+  if(pkoCustomerIds.some(id => !id) || pkcCustomerIds.some(id => !id)) {
+    console.error('Could not prepare all test customers.');
+    await pool.end();
+    return;
+  }
+
+  console.log('Preparing suppliers...');
+
+  const supplierNames = [
+    ...new Set([
+      ...kernelSuppliers,
+      ...dieselSuppliers,
+      ...electricitySuppliers
+    ])
+  ];
+
+  for (const supplierName of supplierNames) {
+    await pool.query(
+      `INSERT INTO suppliers (name)
+      SELECT $1
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM suppliers
+        WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+      )`,
+      [supplierName]
+    );
+  }
+
+  const suppliersResult = await pool.query(
+    'SELECT supplier_id, name FROM suppliers'
+  );
+  const supplierId = {};
+
+  suppliersResult.rows.forEach(function(supplierRecord) {
+    supplierId[supplierRecord.name.trim().toLowerCase()] =
+      supplierRecord.supplier_id;
+  });
+
+  const kernelSupplierIds = kernelSuppliers.map(
+    name => supplierId[name.trim().toLowerCase()]
+  );
+  const dieselSupplierIds = dieselSuppliers.map(
+    name => supplierId[name.trim().toLowerCase()]
+  );
+  const electricitySupplierIds = electricitySuppliers.map(
+    name => supplierId[name.trim().toLowerCase()]
+  );
+
+  if(
+    kernelSupplierIds.some(id => !id) ||
+    dieselSupplierIds.some(id => !id) ||
+    electricitySupplierIds.some(id => !id)
+  ) {
+    console.error('Could not prepare all test suppliers.');
     await pool.end();
     return;
   }
@@ -100,10 +201,10 @@ async function seed() {
   let pkoStock = 0;
   let pkcStock = 0;
   let dieselStock = 0;
+  let electricityStock = 0;
 
   const startDate = new Date(2026, 3, 1); // 1 April 2026
-  const endDate = new Date();
-  endDate.setHours(0, 0, 0, 0);
+  const endDate = new Date(2026, 7, 31); // 31 August 2026
 
   let counts = {
     purchases: 0,
@@ -135,6 +236,8 @@ async function seed() {
     let pkcOut = 0;
     let dieselIn = 0;
     let dieselOut = 0;
+    let electricityIn = 0;
+    let electricityOut = 0;
 
     // --- 1. buy kernel when stock is low ---
     if (kernelStock < 7000) {
@@ -142,8 +245,8 @@ async function seed() {
       const unitCost = randomInt(145, 168);
 
       await pool.query(
-        'INSERT INTO purchases (purchase_date, supplier, item_id, quantity_supplied, unit_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-        [dateText, randomChoice(kernelSuppliers), itemId['P Kernel'], quantity, unitCost, stampAt(day, 7, 30)]
+        'INSERT INTO purchases (purchase_date, supplier_id, item_id, quantity_supplied, unit_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [dateText, randomChoice(kernelSupplierIds), itemId['P Kernel'], quantity, unitCost, stampAt(day, 7, 30)]
       );
 
       kernelStock = kernelStock + quantity;
@@ -157,8 +260,8 @@ async function seed() {
       const unitCost = randomInt(1650, 1780);
 
       await pool.query(
-        'INSERT INTO purchases (purchase_date, supplier, item_id, quantity_supplied, unit_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-        [dateText, randomChoice(dieselSuppliers), itemId['Diesel'], quantity, unitCost, stampAt(day, 8, 10)]
+        'INSERT INTO purchases (purchase_date, supplier_id, item_id, quantity_supplied, unit_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [dateText, randomChoice(dieselSupplierIds), itemId['Diesel'], quantity, unitCost, stampAt(day, 8, 10)]
       );
 
       dieselStock = dieselStock + quantity;
@@ -166,15 +269,32 @@ async function seed() {
       counts.purchases++;
     }
 
+    // --- buy prepaid electricity when low ---
+    if (electricityStock < 900) {
+      const quantity = randomInt(20, 40) * 100;
+      const unitCost = randomInt(180, 240);
+
+      await pool.query(
+        'INSERT INTO purchases (purchase_date, supplier_id, item_id, quantity_supplied, unit_cost, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [dateText, randomChoice(electricitySupplierIds), itemId['Electricity'], quantity, unitCost, stampAt(day, 8, 20)]
+      );
+
+      electricityStock = electricityStock + quantity;
+      electricityIn = electricityIn + quantity;
+      counts.purchases++;
+    }
+
     // --- 3. production ---
-    if (kernelStock >= 2500 && chance(92)) {
+    if (kernelStock >= 2500) {
       const kernelUsed = Math.min(kernelStock, randomInt(25, 40) * 100);
       const pkoProduced = Math.round(kernelUsed * (randomInt(465, 530) / 1000));
       const pkcProduced = Math.round(kernelUsed * (randomInt(430, 470) / 1000));
       const hours = formatDuration(randomInt(360, 570));
       const downTime = chance(30) ?
       formatDuration(randomInt(30, 120)): '00:00';
-      const dieselUsed = randomInt(80, 130);
+      const useElectricity = chance(60);
+      const electricityUsed = useElectricity ? randomInt(180, 320) : 0;
+      const dieselUsed = useElectricity ? 0 : randomInt(80, 130);
 
       await pool.query(
         'INSERT INTO production (production_date, kernel_used, pko_produced, pkc_produced, production_hours, down_time, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)',
@@ -185,11 +305,13 @@ async function seed() {
       pkoStock = pkoStock + pkoProduced;
       pkcStock = pkcStock + pkcProduced;
       dieselStock = dieselStock - dieselUsed;
+      electricityStock = electricityStock - electricityUsed;
 
       kernelOut = kernelOut + kernelUsed;
       pkoIn = pkoIn + pkoProduced;
       pkcIn = pkcIn + pkcProduced;
       dieselOut = dieselOut + dieselUsed;
+      electricityOut = electricityOut + electricityUsed;
 
       counts.production++;
     }
@@ -207,8 +329,8 @@ async function seed() {
         const unitPrice = randomInt(1450, 1820);
 
         await pool.query(
-          'INSERT INTO sales (sales_date, customer, item_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-          [dateText, randomChoice(pkoCustomers), itemId['PKO'], quantity, unitPrice, stampAt(day, randomInt(10, 15), randomInt(0, 59))]
+          'INSERT INTO sales (sales_date, customer_id, item_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+          [dateText, randomChoice(pkoCustomerIds), itemId['PKO'], quantity, unitPrice, stampAt(day, randomInt(10, 15), randomInt(0, 59))]
         );
 
         pkoStock = pkoStock - quantity;
@@ -223,8 +345,8 @@ async function seed() {
       const unitPrice = randomInt(195, 265);
 
       await pool.query(
-        'INSERT INTO sales (sales_date, customer, item_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
-        [dateText, randomChoice(pkcCustomers), itemId['PKC'], quantity, unitPrice, stampAt(day, randomInt(10, 15), randomInt(0, 59))]
+        'INSERT INTO sales (sales_date, customer_id, item_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+        [dateText, randomChoice(pkcCustomerIds), itemId['PKC'], quantity, unitPrice, stampAt(day, randomInt(10, 15), randomInt(0, 59))]
       );
 
       pkcStock = pkcStock - quantity;
@@ -269,13 +391,14 @@ async function seed() {
         name: 'Diesel',
         received: dieselIn,
         issued: dieselOut
+      },
+      {
+        name: 'Electricity',
+        received: electricityIn,
+        issued: electricityOut
       }];
 
     for (const movement of dailyMovements) {
-      if (movement.received === 0 && movement.issued === 0) {
-        continue;
-      }
-
       await pool.query(
         'INSERT INTO stock_counts (count_date, item_id, received, issued, created_at) VALUES ($1, $2, $3, $4, $5)',
         [dateText, itemId[movement.name], movement.received, movement.issued, stampAt(day, 18, randomInt(0, 40))]

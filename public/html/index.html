@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Somad Agro-oil Processing Limited</title>
+        <link rel="stylesheet" href="/css/navigation.css" />
+        <link rel="stylesheet" href="/css/app.css" />
+    </head>
+    <body>
+        <main class="page">
+            <div class="card show" id="dashboard">
+                <div class="dashboard-checks-wrap">
+                    <p class="dashboard-checks"></p>
+                </div>
+
+                <div class="datebar">
+                    <label for="dashboard-date" class="today">Showing</label>
+                    <input type="date" id="dashboard-date" />
+                </div>
+
+                <div class="tabs" id="period-tabs">
+                    <button class="tab day-button" data-period="day">
+                        <span class="tab-name">Day</span>
+                    </button>
+                    <button class="tab week-button" data-period="week">
+                        <span class="tab-name">Week</span>
+                        <span class="tab-range" id="range-week"></span>
+                    </button>
+                    <button class="tab month-button" data-period="month">
+                        <span class="tab-name">Month</span>
+                        <span class="tab-range" id="range-month"></span>
+                    </button>
+                </div>
+
+                <div class="panel" id="stock-panel">
+                    <div class="panel-head">
+                        <span class="panel-title">Stock Levels</span>
+                        <span class="panel-caption" id="stock-caption"></span>
+                    </div>
+                    <div class="stock-grid" id="stock-grid"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <span class="panel-title">Production</span>
+                        <span
+                            class="panel-caption"
+                            id="production-caption"
+                        ></span>
+                    </div>
+                    <div class="prod-grid" id="production-grid"></div>
+                    <div class="yield-row">
+                        <span class="yield-label">Oil yield</span>
+                        <span class="yield-val" id="oil-yield">—</span>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <span class="panel-title">Sales</span>
+                        <span class="panel-caption" id="sales-caption"></span>
+                    </div>
+                    <div class="sales-grid" id="sales-grid"></div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-head">
+                        <span class="panel-title">Profit</span>
+                        <span class="panel-caption" id="profit-caption"></span>
+                    </div>
+                    <div class="profit-list" id="profit-list"></div>
+                </div>
+            </div>
+        </main>
+
+        <nav class="main-menu">
+            <button type="button" class="menu-btn">☰ Menu</button>
+
+            <div class="submenuAndBtn">
+                <div class="nav-brand">
+                    <img src="/images/logo.png" alt="" />
+                    <div>
+                        <strong>SOMAD</strong
+                        ><span>AGRO-OIL PROCESSING LIMITED</span
+                        ><small>Staff Portal</small>
+                    </div>
+                    <button
+                        type="button"
+                        class="nav-close"
+                        aria-label="Close menu"
+                    >
+                        ×
+                    </button>
+                </div>
+                <p class="nav-label">Main</p>
+                <button
+                    type="button"
+                    class="submenu-button active"
+                    id="dashboard-btn"
+                >
+                    Dashboard
+                </button>
+
+                <button type="button" class="submenu-button first">
+                    Forms
+                </button>
+
+                <div class="submenu-one">
+                    <a href="/forms.html#inventory-form">Inventory Report </a>
+                    <a href="/forms.html#purchases-form">Purchases Report </a>
+                    <a href="/forms.html#sales-form"> Sales Report </a>
+                    <a href="/forms.html#production-form">Production Report</a>
+                    <a href="/forms.html#expenses-form">Expenses Report</a>
+                </div>
+
+                <button type="button" class="submenu-button second">
+                    Data
+                </button>
+
+                <div class="submenu-two">
+                    <a href="/forms.html#inventory-data">Inventory Data </a>
+                    <a href="/forms.html#purchases-data">Purchases Data </a>
+                    <a href="/forms.html#sales-data">Sales Data </a>
+                    <a href="/forms.html#production-data">Production Data</a>
+                    <a href="/forms.html#expenses-data">Expenses Data</a>
+                </div>
+
+                <p class="nav-label">Business</p>
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="customers-button"
+                >
+                    Customers
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="employees-button"
+                >
+                    Employees
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="suppliers-button"
+                >
+                    Suppliers
+                </button>
+
+                <p class="nav-label">System</p>
+                <button type="button" class="submenu-button">
+                    Notification
+                </button>
+
+                <button type="button" class="submenu-button">Settings</button>
+
+                <button type="button" class="submenu-button">Prices</button>
+
+                <button type="button" class="submenu-button">
+                    Company details
+                </button>
+                <div class="nav-account">
+                    <span class="nav-avatar">●</span
+                    ><span
+                        ><small>Logged in as</small
+                        ><strong class="login-role"></strong></span
+                    ><b>⌄</b>
+                </div>
+                <button type="button" class="nav-logout">
+                    ↪ <span>Logout</span>
+                </button>
+            </div>
+        </nav>
+
+        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+        <script>
+            eruda.init();
+        </script>
+        <script src="/js/navigation.js"></script>
+        <script src="/js/dashboard.js"></script>
+    </body>
+</html>
