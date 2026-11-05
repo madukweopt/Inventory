@@ -2,6 +2,7 @@ const dateInput=document.querySelector("#dashboard-date");
 const today=document.querySelector(".today");
 const stockPanel=document.querySelector("#stock-panel");
 
+// Adjusts dashboard number sizing to fit long values.
 function sizeDashboardNumber(element,value) {
 	const digits=Math.trunc(Math.abs(Number(value))).toString().length;
 	if(digits>=7) {
@@ -11,6 +12,7 @@ function sizeDashboardNumber(element,value) {
 	}
 }
 
+// Loads and displays stock levels.
 async function showStockLevels() {
 	try {
 		const selectedDate=dateInput.value;
@@ -19,6 +21,7 @@ async function showStockLevels() {
 		const stockGrid=document.querySelector(".stock-grid");
 		stockGrid.innerHTML="";
 
+		// Processes each entry in the collection.
 		stockLevels.forEach(row => {
 			const stockCard=document.createElement("article");
 			const stockBadge=document.createElement("span");
@@ -57,6 +60,7 @@ async function showStockLevels() {
 				stockBadge.textContent="DL";
 				stockUnit.textContent="L";
 			} else if(stockName.textContent==="Electricity") {
+				stockCard.classList.add("electricity");
 				stockBadge.textContent="EL";
 				stockUnit.textContent="kWh";
 			}
@@ -85,6 +89,7 @@ if(dateInput) {
 	dateInput.valueAsDate=new Date();
 	const showToday=dateInput.value;
 
+	// Updates date label.
 	function updateDateLabel() {
 		if(dateInput.value===showToday) {
 			today.textContent="Today";
@@ -97,7 +102,10 @@ if(dateInput) {
 	updateDateLabel();
 	showStockLevels();
 
+	// Loads and displays period production.
 	async function showPeriodProduction(period) {
+		const user=await window.currentUserPromise;
+		if(!user||user.role==='storekeeper') return;
 		const selectedDate=dateInput.value;
 		const RawPeriods=await fetch(
 			"/api/dashboard_period?date="+selectedDate
@@ -107,6 +115,7 @@ if(dateInput) {
 		const prodGrid=document.querySelector(".prod-grid");
 		prodGrid.innerHTML="";
 
+		// Processes each entry in the collection.
 		Object.entries(production).forEach(function([name,value]) {
 			if(name==="oil_yield") {
 				return;
@@ -144,7 +153,10 @@ if(dateInput) {
 				maximumFractionDigits: 2
 			})+"%";
 	}
+	// Loads and displays period profit.
 	async function showPeriodProfit(period) {
+		const user=await window.currentUserPromise;
+		if(!user||user.role!=='admin') return;
 		const profitList=document.querySelector("#profit-list");
 		const profitCaption=document.querySelector("#profit-caption");
 		if(!profitList) return;
@@ -184,6 +196,7 @@ if(dateInput) {
 					value: grossProfit.pkc,
 					className: "pkc"
 				}
+			// Processes each entry in the collection.
 			].forEach(product => {
 				const card=document.createElement("article");
 				const badge=document.createElement("span");
@@ -234,6 +247,7 @@ if(dateInput) {
 
 	showPeriodProduction("day");
 	showPeriodProfit("day");
+	// Handles change events from dateInput.
 	dateInput.addEventListener("change",function() {
 		showPeriodProduction("day");
 		showPeriodSales("day");
@@ -248,6 +262,7 @@ if(dateInput) {
 	});
 
 	const dayBtn=document.querySelector(".day-button");
+	// Handles click events from dayBtn.
 	dayBtn.addEventListener("click",function() {
 		showPeriodProduction("day");
 		showPeriodSales("day");
@@ -260,6 +275,7 @@ if(dateInput) {
 	});
 
 	const weekBtn=document.querySelector(".week-button");
+	// Handles click events from weekBtn.
 	weekBtn.addEventListener("click",function() {
 		showPeriodProduction("week");
 		showPeriodSales("week");
@@ -268,10 +284,13 @@ if(dateInput) {
 		weekBtn.classList.add("active");
 		dayBtn.classList.remove("active");
 		monthBtn.classList.remove("active");
-		stockPanel.style.display="none";
+		stockPanel.style.display=
+			document.documentElement.dataset.userRole==='storekeeper'?
+				"block":"none";
 	});
 
 	const monthBtn=document.querySelector(".month-button");
+	// Handles click events from monthBtn.
 	monthBtn.addEventListener("click",function() {
 		showPeriodProduction("month");
 		showPeriodSales("month");
@@ -280,17 +299,23 @@ if(dateInput) {
 		monthBtn.classList.add("active");
 		dayBtn.classList.remove("active");
 		weekBtn.classList.remove("active");
-		stockPanel.style.display="none";
+		stockPanel.style.display=
+			document.documentElement.dataset.userRole==='storekeeper'?
+				"block":"none";
 	});
 
+	// Loads and displays period sales.
 	async function showPeriodSales(period) {
 		try {
+			const user=await window.currentUserPromise;
+			if(!user||user.role==='storekeeper') return;
 			const selectedDate=dateInput.value;
 			const response=await fetch(
 				"/api/dashboard_period?date="+selectedDate
 			);
 			const sales=await response.json();
 			const periodSales=sales[period].sales;
+			// Transforms collection entries into the required output shape.
 			const salesArray=Object.entries(periodSales).map(function([
 				product,
 				details
@@ -302,6 +327,7 @@ if(dateInput) {
 			});
 			const salesGrid=document.querySelector("#sales-grid");
 			salesGrid.innerHTML="";
+			// Processes each entry in the collection.
 			salesArray.forEach(row => {
 				const salesCard=document.createElement("article");
 				const salesHeader=document.createElement("header");
@@ -386,8 +412,11 @@ if(dateInput) {
 	}
 	showPeriodSales("day");
 
+	// Loads and displays dashboard checks.
 	async function dashboardChecks(period) {
 		try {
+			const user=await window.currentUserPromise;
+			if(!user||user.role!=='admin') return;
 			const dashboardCheck=document.querySelector(".dashboard-checks");
 			const selectedDate=dateInput.value;
 
@@ -405,6 +434,7 @@ if(dateInput) {
 
 			const selected=new Date(selectedDate+"T00:00:00");
 
+			// Displays check count in the interface.
 			function displayCheckCount(count) {
 				dashboardCheck.textContent=
 					count+
@@ -418,6 +448,7 @@ if(dateInput) {
 			}
 
 			if(period==="day") {
+				// Keeps collection entries that match the current condition.
 				const theDay=checks.filter(check => {
 					return check.check_date===selectedDate;
 				});
@@ -434,6 +465,7 @@ if(dateInput) {
 
 				weekEnd.setDate(weekStart.getDate()+7);
 
+				// Keeps collection entries that match the current condition.
 				const thatWeek=checks.filter(check => {
 					const checkDate=new Date(check.check_date+"T00:00:00");
 
@@ -442,6 +474,7 @@ if(dateInput) {
 
 				displayCheckCount(thatWeek.length);
 			} else if(period==="month") {
+				// Keeps collection entries that match the current condition.
 				const thatMonth=checks.filter(check => {
 					const checkDate=new Date(check.check_date+"T00:00:00");
 
@@ -462,6 +495,7 @@ if(dateInput) {
 
 	const dashboardChecksLink=document.querySelector(".dashboard-checks");
 
+	// Handles click events from dashboardChecksLink.
 	dashboardChecksLink.addEventListener("click",function() {
 		const period=dashboardChecksLink.dataset.period||"day";
 		const selectedDate=

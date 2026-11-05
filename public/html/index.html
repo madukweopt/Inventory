@@ -41,7 +41,7 @@
                     <div class="stock-grid" id="stock-grid"></div>
                 </div>
 
-                <div class="panel">
+                <div class="panel" id="production-panel">
                     <div class="panel-head">
                         <span class="panel-title">Production</span>
                         <span
@@ -56,7 +56,7 @@
                     </div>
                 </div>
 
-                <div class="panel">
+                <div class="panel" id="sales-panel">
                     <div class="panel-head">
                         <span class="panel-title">Sales</span>
                         <span class="panel-caption" id="sales-caption"></span>
@@ -64,7 +64,7 @@
                     <div class="sales-grid" id="sales-grid"></div>
                 </div>
 
-                <div class="panel">
+                <div class="panel" id="profit-panel">
                     <div class="panel-head">
                         <span class="panel-title">Profit</span>
                         <span class="panel-caption" id="profit-caption"></span>
@@ -160,9 +160,21 @@
 
                 <button type="button" class="submenu-button">Prices</button>
 
-                <button type="button" class="submenu-button">
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="company-details-button"
+                >
                     Company details
                 </button>
+				<button
+					type="button"
+					class="submenu-button"
+					id="manage-users-button"
+					hidden
+				>
+					Create User
+				</button>
                 <div class="nav-account">
                     <span class="nav-avatar">●</span
                     ><span
@@ -176,10 +188,7 @@
             </div>
         </nav>
 
-        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-        <script>
-            eruda.init();
-        </script>
+		<script src="/js/debug-tools.js"></script>
         <script src="/js/navigation.js"></script>
         <script src="/js/dashboard.js"></script>
     </body>

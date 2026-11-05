@@ -6,7 +6,7 @@ const {
 const pool = new Pool( {
   connectionString: process.env.DATABASE_URL,
   ssl: {
-    rejectUnauthorized: false
+    rejectUnauthorized: true
   }
 });
 
@@ -16,20 +16,24 @@ function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+// Returns a random entry from the supplied list.
 function randomChoice(list) {
   return list[randomInt(0, list.length - 1)];
 }
 
+// Returns whether a percentage-based random check succeeds.
 function chance(percent) {
   return randomInt(1, 100) <= percent;
 }
 
+// Returns a copy of a date shifted by the requested number of days.
 function addDays(date, days) {
   const result = new Date(date.getTime());
   result.setDate(result.getDate() + days);
   return result;
 }
 
+// Formats a date value as YYYY-MM-DD.
 function formatDate(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -37,12 +41,14 @@ function formatDate(date) {
   return year + '-' + month + '-' + day;
 }
 
+// Builds an ISO timestamp for a specific time on a given date.
 function stampAt(date, hour, minute) {
   const stamp = new Date(date.getTime());
   stamp.setHours(hour, minute, randomInt(0, 59), 0);
   return stamp.toISOString();
 }
 
+// Formats a duration in minutes as HH:MM.
 function formatDuration(totalMinutes) {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
@@ -94,6 +100,7 @@ async function seed() {
   const itemsResult = await pool.query('SELECT item_id, name FROM items');
   const itemId = {};
 
+  // Processes each entry in the collection.
   itemsResult.rows.forEach(function (item) {
     itemId[item.name] = item.item_id;
   });
@@ -126,13 +133,17 @@ async function seed() {
   );
   const customerId = {};
 
+  // Builds a customer-name lookup for the seeded records.
   customersResult.rows.forEach(function(customer) {
     customerId[customer.name] = customer.customer_id;
   });
 
+  // Converts the PKO customer names to their database IDs.
   const pkoCustomerIds = pkoCustomers.map(name => customerId[name]);
+  // Converts the PKC customer names to their database IDs.
   const pkcCustomerIds = pkcCustomers.map(name => customerId[name]);
 
+  // Checks that every seeded customer was assigned an ID.
   if(pkoCustomerIds.some(id => !id) || pkcCustomerIds.some(id => !id)) {
     console.error('Could not prepare all test customers.');
     await pool.end();
@@ -167,24 +178,31 @@ async function seed() {
   );
   const supplierId = {};
 
+  // Builds a normalized supplier-name lookup for the seeded records.
   suppliersResult.rows.forEach(function(supplierRecord) {
     supplierId[supplierRecord.name.trim().toLowerCase()] =
       supplierRecord.supplier_id;
   });
 
   const kernelSupplierIds = kernelSuppliers.map(
+    // Converts each kernel supplier name to its database ID.
     name => supplierId[name.trim().toLowerCase()]
   );
   const dieselSupplierIds = dieselSuppliers.map(
+    // Converts each diesel supplier name to its database ID.
     name => supplierId[name.trim().toLowerCase()]
   );
   const electricitySupplierIds = electricitySuppliers.map(
+    // Converts each electricity supplier name to its database ID.
     name => supplierId[name.trim().toLowerCase()]
   );
 
   if(
+    // Checks for a missing kernel supplier ID.
     kernelSupplierIds.some(id => !id) ||
+    // Checks for a missing diesel supplier ID.
     dieselSupplierIds.some(id => !id) ||
+    // Checks for a missing electricity supplier ID.
     electricitySupplierIds.some(id => !id)
   ) {
     console.error('Could not prepare all test suppliers.');

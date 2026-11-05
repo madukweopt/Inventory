@@ -4,6 +4,7 @@ const query=new URLSearchParams(window.location.search);
 const selectedPeriod=query.get('period')||'day';
 const selectedDate=query.get('date')||new Date().toISOString().slice(0,10);
 
+// Filters check records using the current date controls.
 function filterChecks(checks) {
 	const selected=new Date(selectedDate+'T00:00:00');
 
@@ -16,6 +17,7 @@ function filterChecks(checks) {
 		const weekEnd=new Date(weekStart);
 		weekEnd.setDate(weekStart.getDate()+7);
 
+		// Keeps collection entries that match the current condition.
 		return checks.filter((check) => {
 			const checkDate=
 				new Date(check.check_date+'T00:00:00');
@@ -25,6 +27,7 @@ function filterChecks(checks) {
 	}
 
 	if(selectedPeriod==='month') {
+		// Keeps collection entries that match the current condition.
 		return checks.filter((check) => {
 			const checkDate=
 				new Date(check.check_date+'T00:00:00');
@@ -34,11 +37,13 @@ function filterChecks(checks) {
 		});
 	}
 
+	// Keeps collection entries that match the current condition.
 	return checks.filter((check) => {
 		return check.check_date===selectedDate;
 	});
 }
 
+// Returns the user-facing labels for a check type.
 function checkLabels(checkType) {
 	const labels={
 		pko_received_vs_produced: {
@@ -80,6 +85,7 @@ function checkLabels(checkType) {
 	};
 }
 
+// Formats a date value as YYYY-MM-DD.
 function formatDate(value) {
 	return new Intl.DateTimeFormat('en-GB',{
 		day: 'numeric',
@@ -88,12 +94,14 @@ function formatDate(value) {
 	}).format(new Date(value+'T00:00:00'));
 }
 
+// Formats a signed or unsigned quantity for display.
 function formatQuantity(value,showSign) {
 	const number=Number(value)||0;
 	const sign=showSign&&number>0? '+':'';
 	return sign+number.toLocaleString('en-GB')+' kg';
 }
 
+// Creates a summary card for an inventory check.
 function createCheckCard(check) {
 	const labels=checkLabels(check.check_type);
 	const difference=Number(check.difference)||0;
@@ -137,6 +145,7 @@ function createCheckCard(check) {
 			formatQuantity(difference,true)]
 	];
 
+	// Processes each entry in the collection.
 	rows.forEach(([label,value],index) => {
 		const row=document.createElement('div');
 		const rowLabel=document.createElement('span');
@@ -155,6 +164,7 @@ function createCheckCard(check) {
 		['Correct','correct'],
 		['Explain','explain'],
 		['Escalate','escalate']
+	// Processes each entry in the collection.
 	].forEach(([label,className]) => {
 		const button=document.createElement('button');
 		button.type='button';
@@ -162,6 +172,7 @@ function createCheckCard(check) {
 		button.textContent=label;
 
 		if(className==='correct') {
+			// Handles click events from button.
 			button.addEventListener('click',async () => {
 				try {
 					await openCorrection(check);
@@ -181,6 +192,7 @@ function createCheckCard(check) {
 	return card;
 }
 
+// Loads and displays checks.
 async function showChecks() {
 	try {
 		const response=await fetch('/api/checks');
@@ -205,6 +217,7 @@ async function showChecks() {
 			return;
 		}
 
+		// Processes each entry in the collection.
 		checks.forEach((check) => {
 			checksList.appendChild(createCheckCard(check));
 		});
@@ -221,6 +234,7 @@ async function showChecks() {
 
 showChecks();
 
+// Opens the correction view and renders its related records.
 async function openCorrection(check) {
 	const type=String(check.check_type||'').replaceAll(' ','_');
 	const source=check.related_source||
@@ -237,6 +251,7 @@ async function openCorrection(check) {
 
 	const data=await response.json();
 	const labels=checkLabels(type);
+	// Runs the callback required by the surrounding operation.
 	const make=(tag,className,text) => {
 		const element=document.createElement(tag);
 		if(className) element.className=className;
@@ -265,9 +280,11 @@ async function openCorrection(check) {
 	if(check.item==='P Kernel') badge.classList.add('kernel');
 	back.type='button';
 	back.setAttribute('aria-label','Back to checks');
+	// Handles click events from back.
 	back.addEventListener('click',function() {
 		window.location.reload();
 	});
+	// Handles click events from heading.
 	heading.addEventListener('click',function() {
 		window.location.reload();
 	});
@@ -279,6 +296,7 @@ async function openCorrection(check) {
 		check.manager_says],
 		['Difference',
 			Math.abs(Number(check.difference)||0)]
+	// Processes each entry in the collection.
 	].forEach(([label,value],index) => {
 		const row=make('div','correction-summary-row');
 		if(index===2) row.classList.add('difference');
@@ -287,6 +305,7 @@ async function openCorrection(check) {
 		values.appendChild(row);
 	});
 
+	// Handles the record values operation.
 	function recordValues(record,
 		kind) {
 		if(kind==='stock') return [
@@ -328,6 +347,7 @@ async function openCorrection(check) {
 		];
 	}
 
+	// Handles the add record operation.
 	function addRecord(record,kind) {
 		const names={
 			stock: 'Stock count \u2014 '+check.item,
@@ -350,6 +370,7 @@ async function openCorrection(check) {
 		const recordActions=make('div','correction-record-actions');
 		const arrow=make('span','correction-record-arrow','\u203a');
 
+		// Processes each entry in the collection.
 		recordValues(record,kind).forEach(([label,value,quantity]) => {
 			const detail=make('span');
 			detail.append(make('small','',label),make('strong','',
@@ -357,10 +378,12 @@ async function openCorrection(check) {
 			details.appendChild(detail);
 		});
 		edit.type='button';
+		// Handles click events from edit.
 		edit.addEventListener('click',(e) => {
 			editCheck(record,kind);
 		});
 		deleteButton.type='button';
+		// Handles click events from deleteButton.
 		deleteButton.addEventListener('click',async function() {
 			const confirmed=window.confirm(
 				'Are you sure you want to delete this record?'
@@ -393,7 +416,9 @@ async function openCorrection(check) {
 		recordList.appendChild(card);
 	}
 
+	// Processes each entry in the collection.
 	(data.stock_record||[]).forEach(record => addRecord(record,'stock'));
+	// Processes each entry in the collection.
 	(data.related_record||[]).forEach(record => addRecord(record,source));
 	if(!recordList.children.length) {
 		recordList.appendChild(make('p','correction-empty',
@@ -412,6 +437,7 @@ async function openCorrection(check) {
 	window.scrollTo(0,0);
 }
 
+// Stores a correction record and opens its edit form.
 function editCheck(record,kind) {
 	const formFields={
 		stock:

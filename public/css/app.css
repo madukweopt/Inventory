@@ -16,6 +16,7 @@ body {
   gap: 2rem;
   max-width: 720px;
   margin: 0 auto;
+	padding-top: 68px;
 }
 
 .card {
@@ -114,9 +115,288 @@ body {
   margin: 0 0 18px;
 }
 
+/* Company details page */
+#company-details.card {
+  height: auto;
+  min-height: 100vh;
+  border-radius: 0;
+  background: #f7f3e8;
+  box-shadow: none;
+  padding-top: 76px;
+}
+
+#company-details .company-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+#company-details .company-page-heading h1 {
+  margin: 0;
+  color: #173f2b;
+  font-size: 1.55rem;
+}
+
+#company-details .company-page-heading p {
+  margin: 4px 0 0;
+  color: #68736c;
+  font-size: 0.78rem;
+}
+
+#company-details #edit-company {
+  width: auto;
+  margin: 0;
+  border-radius: 7px;
+  background: #17663a;
+  padding: 10px 15px;
+  font-size: 0.78rem;
+}
+
+#company-details #company-form {
+  display: grid;
+  gap: 16px;
+}
+
+#company-details .company-logo-panel,
+#company-details .company-information-group {
+  border: 1px solid #dfe7df;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(23,102,58,.07);
+}
+
+#company-details .company-logo-panel {
+  display: grid;
+  grid-template-columns: 150px minmax(0,1fr) 48px;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(110deg,#edf6ef,#f8fbf8);
+}
+
+#company-details .company-logo-preview {
+  display: grid;
+  width: 150px;
+  height: 104px;
+  overflow: hidden;
+  place-items: center;
+  border-radius: 12px;
+  background: #fff;
+}
+
+#company-details .company-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#company-details .company-logo-preview span {
+  font-size: 2.4rem;
+}
+
+#company-details .company-logo-control {
+  display: grid;
+  gap: 5px;
+}
+
+#company-details .company-logo-control label {
+  color: #26362c;
+  font-size: .83rem;
+  font-weight: 800;
+}
+
+#company-details .company-logo-control small {
+  color: #68736c;
+  font-size: .69rem;
+}
+
+#company-details #company-logo {
+  width: 100%;
+  height: auto;
+  margin: 5px 0 0;
+  border: 1px solid #d5ddd6;
+  border-radius: 8px;
+  background: #fff;
+  padding: 7px;
+  font-size: .72rem;
+}
+
+#company-details #company-logo::file-selector-button {
+  margin-right: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #e7f3e8;
+  padding: 8px 11px;
+  color: #17663a;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#company-details #remove-company-logo {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  place-items: center;
+  border: 1px solid #f3c6c6;
+  border-radius: 9px;
+  background: #fff0f0;
+  padding: 0;
+  color: #d33;
+}
+
+#company-details :is(#company-logo,#remove-company-logo):disabled {
+  opacity: .48;
+  cursor: default;
+}
+
+#company-details .company-information-group {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+#company-details .company-information-group h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 4px;
+  color: #087444;
+  font-size: 1rem;
+  text-align: left;
+}
+
+#company-details .company-information-group label {
+  display: grid;
+  grid-template-columns: minmax(145px,.7fr) minmax(0,1.6fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 50px;
+  margin: 0;
+  border: 1px solid #e1e6e2;
+  border-radius: 9px;
+  background: #fff;
+  padding: 8px 12px;
+}
+
+#company-details .company-information-group label > span {
+  color: #68736c;
+  font-size: .73rem;
+}
+
+#company-details .company-information-group :is(input,textarea) {
+  width: 100%;
+  height: auto;
+  min-height: 32px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  padding: 6px 8px;
+  color: #202b25;
+  font: inherit;
+  font-size: .8rem;
+  box-shadow: none;
+  resize: vertical;
+}
+
+#company-details .company-information-group :is(input,textarea):disabled {
+  opacity: 1;
+  -webkit-text-fill-color: #202b25;
+}
+
+#company-details #company-form.is-editing .company-information-group :is(input,textarea) {
+  border-color: #b9d2bf;
+  background: #fbfdfb;
+}
+
+#company-details #company-form.is-editing .company-information-group :is(input,textarea):focus {
+  border-color: #17663a;
+  box-shadow: 0 0 0 3px rgba(23,102,58,.1);
+}
+
+#company-details .company-address-group label {
+  grid-template-columns: 1fr;
+  gap: 3px;
+}
+
+#company-details .company-form-actions {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 12px;
+}
+
+#company-details .company-form-actions[hidden] {
+  display: none;
+}
+
+#company-details .company-form-actions button {
+  width: 100%;
+  margin: 0;
+  border-radius: 7px;
+  padding: 11px;
+  font-size: .78rem;
+}
+
+#company-details #cancel-company-edit {
+  border: 1px solid #ccd6ce;
+  background: #fff;
+  color: #314039;
+}
+
 @media (max-width: 600px) {
-  #dashboard .dashboard-checks-wrap {
-    padding-top: 52px;
+  #company-details.card {
+    padding: 72px 14px 28px;
+  }
+
+  #company-details .company-page-heading h1 {
+    font-size: 1.25rem;
+  }
+
+  #company-details .company-page-heading p {
+    font-size: .66rem;
+  }
+
+  #company-details #edit-company {
+    padding: 9px 10px;
+    font-size: .7rem;
+  }
+
+  #company-details .company-logo-panel {
+    grid-template-columns: 104px minmax(0,1fr) 40px;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  #company-details .company-logo-preview {
+    width: 104px;
+    height: 88px;
+  }
+
+  #company-details #remove-company-logo {
+    width: 38px;
+    height: 42px;
+  }
+
+  #company-details .company-information-group {
+    padding: 12px;
+  }
+
+  #company-details .company-information-group label {
+    grid-template-columns: minmax(112px,.8fr) minmax(0,1.45fr);
+    gap: 8px;
+    padding: 7px 9px;
+  }
+
+  #company-details .company-information-group label > span {
+    font-size: .65rem;
+  }
+
+  #company-details .company-information-group :is(input,textarea) {
+    font-size: .7rem;
   }
 }
 
@@ -276,7 +556,7 @@ body {
   display: flex;
   gap: 9px;
   align-items: center;
-  margin: 10px;
+	margin: 0;
 }
 
 #dashboard .stock-badge {
@@ -297,6 +577,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 5px;
+	min-width: 0;
 }
 
 .stock-name {
@@ -331,6 +612,16 @@ body {
   color: #777777;
   font-size: 12px;
   font-weight: 400;
+	flex-shrink: 0;
+}
+
+#dashboard .stock-card.electricity .stock-quantity {
+	font-size: clamp(0.72rem, 5.5cqi, 15px);
+}
+
+#dashboard .stock-card.electricity .stock-unit {
+	margin-left: 2px;
+	font-size: 10px;
 }
 
 #dashboard .swatch {
@@ -782,8 +1073,8 @@ button:hover {
 
 
 
-/* Customer addition form */
-#customer-addition.card {
+/* Customer and supplier addition forms */
+:is(#customer-addition, #supplier-addition, #employee-addition).card {
   height: auto;
   min-height: 100vh;
   border-radius: 0;
@@ -792,7 +1083,7 @@ button:hover {
   padding-top: 76px;
 }
 
-#customer-addition > h2 {
+:is(#customer-addition, #supplier-addition, #employee-addition) > h2 {
   position: relative;
   margin: 0 0 4px 68px;
   color: #172b21;
@@ -801,7 +1092,7 @@ button:hover {
   text-align: left;
 }
 
-#customer-addition > h2::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) > h2::before {
   content: "";
   position: absolute;
   left: -68px;
@@ -816,13 +1107,13 @@ button:hover {
   font-size: 1.7rem;
 }
 
-#customer-addition > p {
+:is(#customer-addition, #supplier-addition, #employee-addition) > p {
   margin: 0 0 26px 68px;
   color: #68726c;
   font-size: 0.88rem;
 }
 
-#customer-addition #customer-form {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) {
   border: 1px solid #e1e7e1;
   border-radius: 14px;
   background: #fff;
@@ -830,7 +1121,7 @@ button:hover {
   box-shadow: 0 5px 18px rgba(28, 62, 42, 0.1);
 }
 
-#customer-addition #customer-form label {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label {
   position: relative;
   display: block;
   margin: 0 0 8px 54px;
@@ -839,7 +1130,7 @@ button:hover {
   font-weight: 700;
 }
 
-#customer-addition #customer-form label::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label::before {
   position: absolute;
   left: -54px;
   top: 0;
@@ -855,33 +1146,33 @@ button:hover {
   font-weight: 500;
 }
 
-#customer-addition #customer-form label:nth-of-type(1)::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label:nth-of-type(1)::before {
   content: "";
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2z'/%3E%3C/svg%3E");
 }
 
-#customer-addition #customer-form label:nth-of-type(2)::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label:nth-of-type(2)::before {
   content: "";
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'/%3E%3C/svg%3E");
 }
 
-#customer-addition #customer-form label:nth-of-type(3)::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label:nth-of-type(3)::before {
   content: "";
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z'/%3E%3Ccircle cx='12' cy='10' r='2.5'/%3E%3C/svg%3E");
 }
 
-#customer-addition #customer-form label:nth-of-type(4)::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label:nth-of-type(4)::before {
   content: "";
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='m3 7 9 6 9-6'/%3E%3C/svg%3E");
 }
 
-#customer-addition #customer-form label:nth-of-type(5)::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label:nth-of-type(5)::before {
   content: "";
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='4' width='14' height='17' rx='2'/%3E%3Cpath d='M9 2v4M15 2v4M9 10h6M9 14h6M9 18h4'/%3E%3C/svg%3E");
 }
 
-#customer-addition #customer-form label[for="name"]::after,
-#customer-addition #customer-form label[for="customer-phone"]::after {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) label[for="name"]::after,
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) :is(label[for="customer-phone"], label[for="supplier-phone"], label[for="employee-phone"])::after {
   content: "Required";
   display: inline-block;
   margin-left: 8px;
@@ -894,7 +1185,7 @@ button:hover {
   vertical-align: middle;
 }
 
-#customer-addition #customer-form input {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) input {
   width: calc(100% - 54px);
   height: 46px;
   margin: 0 0 24px 54px;
@@ -907,19 +1198,19 @@ button:hover {
   box-shadow: none;
 }
 
-#customer-addition #customer-form input:focus {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) input:focus {
   border-color: #77a98a;
   box-shadow: 0 0 0 3px rgba(23, 102, 58, 0.1);
 }
 
-#customer-addition #customer-form #customer-note {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) :is(#customer-note, #supplier-note, #employee-note) {
   height: 82px;
   margin-bottom: 28px;
   padding-top: 13px;
   padding-bottom: 44px;
 }
 
-#customer-addition #customer-form button {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) button {
   display: inline-flex;
   width: calc(50% - 10px);
   min-height: 46px;
@@ -932,21 +1223,21 @@ button:hover {
   font-weight: 750;
 }
 
-#customer-addition #customer-form #cancel-button {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) #cancel-button {
   margin-right: 10px;
   border: 1px solid #cfd8d1;
   background: #fff;
   color: #29382f;
 }
 
-#customer-addition #customer-form #cancel-button:hover,
-#customer-addition #customer-form #cancel-button:focus,
-#customer-addition #customer-form #cancel-button:active {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) #cancel-button:hover,
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) #cancel-button:focus,
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) #cancel-button:active {
   background: #f1f4f1;
   color: #29382f;
 }
 
-#customer-addition #customer-form button[type="submit"] {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) button[type="submit"] {
   width: calc(50% - 10px);
   margin: 0;
   border: 1px solid #17663a;
@@ -955,48 +1246,112 @@ button:hover {
   box-shadow: 0 3px 8px rgba(23, 102, 58, 0.16);
 }
 
-#customer-addition #customer-form button[type="submit"]::before {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) button[type="submit"]::before {
   content: "▣";
   margin-right: 8px;
   font-size: 0.95rem;
 }
 
-#customer-addition #customer-form button[type="submit"]:hover,
-#customer-addition #customer-form button[type="submit"]:focus,
-#customer-addition #customer-form button[type="submit"]:active {
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) button[type="submit"]:hover,
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) button[type="submit"]:focus,
+:is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) button[type="submit"]:active {
   background: #0f4f2b;
   color: #fff;
 }
 
+/* Employee form field icons */
+#employee-addition #employee-form label:nth-of-type(1)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(2)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='8' r='4'/%3E%3Cpath d='M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2z'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(3)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3z'/%3E%3Ccircle cx='12' cy='13' r='4'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(4)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 2 .7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(5)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z'/%3E%3Ccircle cx='12' cy='10' r='2.5'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(6)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='14' rx='2'/%3E%3Cpath d='m3 7 9 6 9-6'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(7)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='7' width='16' height='13' rx='2'/%3E%3Cpath d='M9 7V4h6v3M4 12h16M10 12v2h4v-2'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(8)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M8 9h8M8 12h8M11 9v8l5-5'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-form label:nth-of-type(9)::before {
+  content: "";
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h9l3 3v15H6z'/%3E%3Cpath d='M14 3v4h4M9 11h6M9 15h6'/%3E%3C/svg%3E");
+}
+
+#employee-addition #employee-photo {
+  height: auto;
+  min-height: 46px;
+  padding: 7px;
+}
+
+#employee-addition #employee-photo::file-selector-button {
+  margin-right: 10px;
+  border: 0;
+  border-radius: 6px;
+  background: #e7f3e8;
+  padding: 8px 11px;
+  color: #17663a;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @media (max-width: 600px) {
-  #customer-addition.card {
+  :is(#customer-addition, #supplier-addition, #employee-addition).card {
     padding: 72px 16px 28px;
   }
 
-  #customer-addition > h2 {
+  :is(#customer-addition, #supplier-addition, #employee-addition) > h2 {
     margin-left: 58px;
     font-size: 1.3rem;
   }
 
-  #customer-addition > h2::before {
+  :is(#customer-addition, #supplier-addition, #employee-addition) > h2::before {
     left: -58px;
     width: 46px;
     height: 46px;
     font-size: 1.45rem;
   }
 
-  #customer-addition > p {
+  :is(#customer-addition, #supplier-addition, #employee-addition) > p {
     margin-left: 58px;
     font-size: 0.76rem;
   }
 
-  #customer-addition #customer-form {
+  :is(#customer-addition, #supplier-addition, #employee-addition) :is(#customer-form, #supplier-form, #employee-form) {
     padding: 22px 14px 16px;
   }
 }
 
 /* Customer page heading and controls */
-:is(#customers, #suppliers).card {
+:is(#customers, #suppliers, #employees).card {
   height: auto;
   min-height: 100vh;
   border-radius: 0;
@@ -1005,7 +1360,7 @@ button:hover {
   padding-top: 76px;
 }
 
-:is(#customers, #suppliers) > .header {
+:is(#customers, #suppliers, #employees) > .header {
   display: grid;
   grid-template-columns: 54px minmax(0, 1fr) auto;
   grid-template-rows: auto auto;
@@ -1014,7 +1369,7 @@ button:hover {
   margin-bottom: 20px;
 }
 
-:is(#customers, #suppliers) > .header::before {
+:is(#customers, #suppliers, #employees) > .header::before {
   content: "";
   display: grid;
   width: 50px;
@@ -1029,7 +1384,7 @@ button:hover {
   font-size: 1.6rem;
 }
 
-:is(#customers, #suppliers) > .header h1 {
+:is(#customers, #suppliers, #employees) > .header h1 {
   grid-column: 2;
   grid-row: 1;
   align-self: end;
@@ -1039,7 +1394,7 @@ button:hover {
   line-height: 1.1;
 }
 
-:is(#customers, #suppliers) > .header p {
+:is(#customers, #suppliers, #employees) > .header p {
   grid-column: 2;
   grid-row: 2;
   align-self: start;
@@ -1049,7 +1404,7 @@ button:hover {
   line-height: 1.35;
 }
 
-:is(#customers, #suppliers) > .header button {
+:is(#customers, #suppliers, #employees) > .header button {
   width: auto;
   grid-column: 3;
   grid-row: 1 / 3;
@@ -1064,21 +1419,21 @@ button:hover {
   box-shadow: 0 3px 8px rgba(23, 102, 58, 0.18);
 }
 
-:is(#customers, #suppliers) > .header button:hover,
-:is(#customers, #suppliers) > .header button:focus,
-:is(#customers, #suppliers) > .header button:active {
+:is(#customers, #suppliers, #employees) > .header button:hover,
+:is(#customers, #suppliers, #employees) > .header button:focus,
+:is(#customers, #suppliers, #employees) > .header button:active {
   background: #0f4f2b;
   color: #fff;
 }
 
-:is(#customers, #suppliers) > div:nth-of-type(2) {
+:is(#customers, #suppliers, #employees) > div:nth-of-type(2) {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   margin-bottom: 14px;
 }
 
-:is(#customers, #suppliers) > div:nth-of-type(2)::before {
+:is(#customers, #suppliers, #employees) > div:nth-of-type(2)::before {
   content: "⌕";
   position: absolute;
   z-index: 1;
@@ -1090,7 +1445,7 @@ button:hover {
   pointer-events: none;
 }
 
-:is(#customers, #suppliers) :is(#customer-search, #supplier-search) {
+:is(#customers, #suppliers, #employees) :is(#customer-search, #supplier-search, #employee-search) {
   height: 46px;
   margin: 0;
   border: 1px solid #d4ddd5;
@@ -1102,7 +1457,7 @@ button:hover {
   box-shadow: none;
 }
 
-:is(#customers, #suppliers) :is(#customer-search, #supplier-search):focus {
+:is(#customers, #suppliers, #employees) :is(#customer-search, #supplier-search, #employee-search):focus {
   border-color: #73a884;
   box-shadow: 0 0 0 3px rgba(23, 102, 58, 0.1);
 }
@@ -1121,7 +1476,7 @@ button:hover {
   font-weight: 700;
 }
 
-:is(#customers, #suppliers) :is(#sort-customers, #sort-suppliers) {
+:is(#customers, #suppliers, #employees) :is(#sort-customers, #sort-suppliers) {
   width: auto;
   min-width: 126px;
   height: 38px;
@@ -1136,30 +1491,30 @@ button:hover {
 }
 
 @media (max-width: 600px) {
-  :is(#customers, #suppliers).card {
+  :is(#customers, #suppliers, #employees).card {
     padding: 72px 16px 28px;
   }
 
-  :is(#customers, #suppliers) > .header {
+  :is(#customers, #suppliers, #employees) > .header {
     grid-template-columns: 46px minmax(0, 1fr) auto;
     column-gap: 9px;
   }
 
-  :is(#customers, #suppliers) > .header::before {
+  :is(#customers, #suppliers, #employees) > .header::before {
     width: 42px;
     height: 42px;
     font-size: 1.35rem;
   }
 
-  :is(#customers, #suppliers) > .header h1 {
+  :is(#customers, #suppliers, #employees) > .header h1 {
     font-size: 1.25rem;
   }
 
-  :is(#customers, #suppliers) > .header p {
+  :is(#customers, #suppliers, #employees) > .header p {
     font-size: 0.66rem;
   }
 
-  :is(#customers, #suppliers) > .header button {
+  :is(#customers, #suppliers, #employees) > .header button {
     padding: 9px 10px;
     font-size: 0.7rem;
   }
@@ -1167,13 +1522,13 @@ button:hover {
 }
 
 /* Customer partner cards */
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) {
   display: grid;
   gap: 14px;
   margin-top: 20px;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article {
   overflow: hidden;
   border: 1px solid #dfe7df;
   border-radius: 12px;
@@ -1181,7 +1536,7 @@ button:hover {
   box-shadow: 0 3px 10px rgba(23, 102, 58, 0.08);
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child {
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) auto;
   align-items: center;
@@ -1189,7 +1544,7 @@ button:hover {
   padding: 15px 14px 12px;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:first-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:first-child {
   display: grid;
   width: 44px;
   height: 44px;
@@ -1200,44 +1555,44 @@ button:hover {
   font-size: 1.55rem;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) {
   display: flex;
   min-width: 0;
   flex-direction: column;
   gap: 3px;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) > span {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) > span {
   overflow-wrap: anywhere;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) > span:first-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) > span:first-child {
   color: #173f2b;
   font-size: 1rem;
   font-weight: 750;
   line-height: 1.2;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(2),
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(3) {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(2),
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(3) {
   color: #58645d;
   font-size: 0.76rem;
   line-height: 1.3;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(2):not(:empty)::before {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(2):not(:empty)::before {
   content: "☎";
   margin-right: 7px;
   color: #34493d;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(3):not(:empty)::before {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(2) > span:nth-child(3):not(:empty)::before {
   content: "⌖";
   margin-right: 7px;
   color: #34493d;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(3) {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(3) {
   display: flex;
   min-width: 104px;
   flex-direction: column;
@@ -1249,18 +1604,18 @@ button:hover {
   text-align: center;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(3) span {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(3) span {
   color: #5d685f;
   font-size: 0.68rem;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(3) strong {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(3) strong {
   color: #17663a;
   font-size: 0.82rem;
   white-space: nowrap;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0 14px;
@@ -1269,7 +1624,7 @@ button:hover {
   padding: 10px 0;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) > div {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) > div {
   display: flex;
   min-width: 0;
   flex-direction: column;
@@ -1278,28 +1633,28 @@ button:hover {
   text-align: center;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) > div + div {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) > div + div {
   border-left: 1px solid #dfe6df;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) span {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) span {
   color: #68736c;
   font-size: 0.64rem;
   line-height: 1.2;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) strong {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) strong {
   overflow-wrap: anywhere;
   color: #17663a;
   font-size: 0.8rem;
   line-height: 1.2;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) small:empty {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) small:empty {
   display: none;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > button {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > button {
   display: flex;
   width: 100%;
   align-items: center;
@@ -1315,53 +1670,53 @@ button:hover {
   text-align: left;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > button:hover,
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > button:focus,
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > button:active {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > button:hover,
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > button:focus,
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > button:active {
   background: #f2f7f1;
   color: #17663a;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > button span:last-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > button span:last-child {
   font-size: 1.15rem;
   line-height: 1;
 }
 
 @media (max-width: 600px) {
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) {
     gap: 10px;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child {
     grid-template-columns: 44px minmax(0, 1fr) auto;
     gap: 9px;
     padding: 12px 10px 10px;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:first-child {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:first-child {
     width: 40px;
     height: 40px;
     font-size: 1.35rem;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:first-child > div:nth-child(3) {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:first-child > div:nth-child(3) {
     min-width: 92px;
     padding: 7px 8px;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) {
     margin: 0 10px;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) > div {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) > div {
     padding: 0 5px;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) span {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) span {
     font-size: 0.58rem;
   }
 
-  :is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > div:nth-child(2) strong {
+  :is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > div:nth-child(2) strong {
     font-size: 0.72rem;
   }
 }
@@ -1823,45 +2178,48 @@ tbody
 #purchases-card-view .data-record-values>div{padding:0 6px}
 }
 
-/* Customer details expansion */
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article:has(> .customer-details) {
+/* Customer and supplier details expansion */
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article:has(> :is(.customer-details, .supplier-details)) {
   border-color: #cadfce;
   box-shadow: 0 5px 16px rgba(23, 102, 58, 0.12);
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article > button span:last-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article > button span:last-child {
   display: inline-block;
   transform: rotate(90deg);
   transition: transform 0.18s ease;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article:has(> .customer-details) > button {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article:has(> :is(.customer-details, .supplier-details)) > button {
   border-bottom: 1px solid #dfe9df;
+  background: #edf6ef;
+  color: #17663a;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article:has(> .customer-details) > button span:first-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article:has(> :is(.customer-details, .supplier-details)) > button span:first-child {
   font-size: 0;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article:has(> .customer-details) > button span:first-child::after {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article:has(> :is(.customer-details, .supplier-details)) > button span:first-child::after {
   content: "Hide Details";
   font-size: 0.75rem;
 }
 
-:is(#customers, #suppliers) :is(.customer-cards, .supplier-cards) > article:has(> .customer-details) > button span:last-child {
+:is(#customers, #suppliers, #employees) :is(.customer-cards, .supplier-cards, .employee-cards) > article:has(> :is(.customer-details, .supplier-details)) > button span:last-child {
   transform: rotate(-90deg);
 }
 
-:is(#customers, #suppliers) .customer-details {
-  margin: 0 10px 10px;
-  border: 1px solid #dbe9dc;
+:is(#customers, #suppliers, #employees) :is(.customer-details, .supplier-details) {
+  margin: 8px 10px 10px;
+  border: 3px solid #4b9564;
   border-radius: 9px;
-  background: #fbfdf9;
-  padding: 0 12px 12px;
+  background: #f0f7f1;
+  box-shadow: 0 3px 10px rgba(23, 102, 58, 0.09);
+  padding: 12px;
   color: #2d3931;
 }
 
-:is(#customers, #suppliers) .customer-details-note {
+:is(#customers, #suppliers, #employees) :is(.customer-details-note, .supplier-details-note) {
   position: relative;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1870,8 +2228,8 @@ tbody
   padding: 0 4px 12px;
 }
 
-:is(#customers, #suppliers) .customer-details-edit-btn,
-:is(#customers, #suppliers) .customer-details-delete-btn {
+:is(#customers, #suppliers, #employees) :is(.customer-details-edit-btn, .supplier-details-edit-btn),
+:is(#customers, #suppliers, #employees) :is(.customer-details-delete-btn, .supplier-details-delete-btn) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1888,20 +2246,20 @@ tbody
   cursor: pointer;
 }
 
-:is(#customers, #suppliers) .customer-details-edit-btn {
+:is(#customers, #suppliers, #employees) :is(.customer-details-edit-btn, .supplier-details-edit-btn) {
   grid-column: 1;
   border-color: #9ccfad;
   color: #17663a;
 }
 
-:is(#customers, #suppliers) .customer-details-delete-btn {
+:is(#customers, #suppliers, #employees) :is(.customer-details-delete-btn, .supplier-details-delete-btn) {
   grid-column: 2;
   border-color: #f2b0b0;
   color: #e54848;
 }
 
-:is(#customers, #suppliers) .customer-details-edit-btn::before,
-:is(#customers, #suppliers) .customer-details-delete-btn::before {
+:is(#customers, #suppliers, #employees) :is(.customer-details-edit-btn, .supplier-details-edit-btn)::before,
+:is(#customers, #suppliers, #employees) :is(.customer-details-delete-btn, .supplier-details-delete-btn)::before {
   content: "";
   width: 13px;
   height: 13px;
@@ -1909,24 +2267,24 @@ tbody
   background: center / contain no-repeat;
 }
 
-:is(#customers, #suppliers) .customer-details-edit-btn::before {
+:is(#customers, #suppliers, #employees) :is(.customer-details-edit-btn, .supplier-details-edit-btn)::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9'/%3E%3Cpath d='M16.5 3.5a2.12 2.12 0 0 1 3 3L8 18l-4 1 1-4Z'/%3E%3C/svg%3E");
 }
 
-:is(#customers, #suppliers) .customer-details-delete-btn::before {
+:is(#customers, #suppliers, #employees) :is(.customer-details-delete-btn, .supplier-details-delete-btn)::before {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e54848' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6'/%3E%3C/svg%3E");
 }
 
-:is(#customers, #suppliers) .customer-details-edit-btn:hover { background: #f4fbf6; }
-:is(#customers, #suppliers) .customer-details-delete-btn:hover { background: #fff7f7; }
+:is(#customers, #suppliers, #employees) :is(.customer-details-edit-btn, .supplier-details-edit-btn):hover { background: #f4fbf6; }
+:is(#customers, #suppliers, #employees) :is(.customer-details-delete-btn, .supplier-details-delete-btn):hover { background: #fff7f7; }
 
-:is(#customers, #suppliers) .customer-details-edit-btn:focus-visible,
-:is(#customers, #suppliers) .customer-details-delete-btn:focus-visible {
+:is(#customers, #suppliers, #employees) :is(.customer-details-edit-btn, .supplier-details-edit-btn):focus-visible,
+:is(#customers, #suppliers, #employees) :is(.customer-details-delete-btn, .supplier-details-delete-btn):focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 2px;
 }
 
-:is(#customers, #suppliers) .customer-details-heading::before {
+:is(#customers, #suppliers, #employees) :is(.customer-details-heading, .supplier-details-heading)::before {
   content: "";
   position: absolute;
   left: 0;
@@ -1937,7 +2295,7 @@ tbody
   background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3h9l3 3v15H6z'/%3E%3Cpath d='M14 3v4h4M9 11h6M9 15h6'/%3E%3C/svg%3E");
 }
 
-:is(#customers, #suppliers) .customer-details-heading {
+:is(#customers, #suppliers, #employees) :is(.customer-details-heading, .supplier-details-heading) {
   position: relative;
   grid-column: 1 / -1;
   margin-top: 3px;
@@ -1948,7 +2306,7 @@ tbody
   font-weight: 800;
 }
 
-:is(#customers, #suppliers) .customer-details-note-text {
+:is(#customers, #suppliers, #employees) :is(.customer-details-note-text, .supplier-details-note-text) {
   grid-column: 1 / -1;
   padding-left: 26px;
   margin: 0;
@@ -1957,12 +2315,12 @@ tbody
   line-height: 1.45;
 }
 
-:is(#customers, #suppliers) .customer-details-body {
+:is(#customers, #suppliers, #employees) :is(.customer-details-body, .supplier-details-body) {
   border-top: 1px solid #dfe9df;
   padding-top: 12px;
 }
 
-:is(#customers, #suppliers) .customer-history-heading {
+:is(#customers, #suppliers, #employees) :is(.customer-history-heading, .supply-history-heading) {
   position: relative;
   margin: 0 0 10px;
   padding-left: 30px;
@@ -1971,7 +2329,7 @@ tbody
   font-weight: 800;
 }
 
-:is(#customers, #suppliers) .customer-history-heading::before {
+:is(#customers, #suppliers, #employees) :is(.customer-history-heading, .supply-history-heading)::before {
   content: "";
   position: absolute;
   left: 2px;
@@ -1981,7 +2339,7 @@ tbody
   background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5M12 7v5l3 2'/%3E%3C/svg%3E");
 }
 
-:is(#customers, #suppliers) .customer-history-list {
+:is(#customers, #suppliers, #employees) :is(.customer-history-list, .supply-history-list) {
   display: grid;
   gap: 7px;
   max-height: 245px;
@@ -1994,7 +2352,7 @@ tbody
   scrollbar-width: thin;
 }
 
-:is(#customers, #suppliers) .customer-history-card {
+:is(#customers, #suppliers, #employees) :is(.customer-history-card, .supply-history-card) {
   position: relative;
   display: grid;
   grid-template-columns: 22px minmax(78px, 1.15fr) 42px minmax(64px, 0.75fr) minmax(72px, 0.85fr) minmax(82px, 1fr);
@@ -2008,14 +2366,14 @@ tbody
   box-shadow: 0 1px 3px rgba(23, 102, 58, 0.04);
 }
 
-:is(#customers, #suppliers) .customer-history-card::before {
+:is(#customers, #suppliers, #employees) :is(.customer-history-card, .supply-history-card)::before {
   content: "";
   width: 18px;
   height: 18px;
   background: center / contain no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2317663a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M8 3v4M16 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01'/%3E%3C/svg%3E");
 }
 
-:is(#customers, #suppliers) .customer-history-card > span {
+:is(#customers, #suppliers, #employees) :is(.customer-history-card, .supply-history-card) > span {
   min-width: 0;
   overflow: hidden;
   font-size: 0.67rem;
@@ -2024,53 +2382,243 @@ tbody
   white-space: nowrap;
 }
 
-:is(#customers, #suppliers) .customer-history-date {
+:is(#customers, #suppliers, #employees) :is(.customer-history-date, .supply-history-date) {
   color: #455149;
 }
 
-:is(#customers, #suppliers) .customer-history-item,
-:is(#customers, #suppliers) .customer-history-total {
+:is(#customers, #suppliers, #employees) :is(.customer-history-item, .supply-history-item),
+:is(#customers, #suppliers, #employees) :is(.customer-history-total, .supply-history-total) {
   color: #17663a;
   font-weight: 800;
 }
 
-:is(#customers, #suppliers) .customer-history-quantity {
+:is(#customers, #suppliers, #employees) :is(.customer-history-quantity, .supply-history-quantity) {
   color: #303b34;
   text-align: right;
 }
 
-:is(#customers, #suppliers) .customer-history-unit-price {
+:is(#customers, #suppliers, #employees) :is(.customer-history-unit-price, .supply-history-unit-price) {
   color: #566159;
   text-align: right;
 }
 
-:is(#customers, #suppliers) .customer-history-total {
+:is(#customers, #suppliers, #employees) :is(.customer-history-total, .supply-history-total) {
   text-align: right;
 }
 
 @media (max-width: 600px) {
-  :is(#customers, #suppliers) .customer-details {
-    margin: 0 7px 8px;
-    padding: 0 8px 9px;
+  :is(#customers, #suppliers, #employees) :is(.customer-details, .supplier-details) {
+    margin: 8px 7px 8px;
+    padding: 9px 8px;
   }
 
-  :is(#customers, #suppliers) .customer-history-list {
+  :is(#customers, #suppliers, #employees) :is(.customer-history-list, .supply-history-list) {
     gap: 6px;
     padding-left: 4px;
   }
 
-  :is(#customers, #suppliers) .customer-history-card {
+  :is(#customers, #suppliers, #employees) :is(.customer-history-card, .supply-history-card) {
     grid-template-columns: 18px minmax(0, 1.45fr) minmax(28px, 0.45fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.15fr);
     gap: 4px;
     padding: 9px 5px;
   }
 
-  :is(#customers, #suppliers) .customer-history-card > span {
+  :is(#customers, #suppliers, #employees) :is(.customer-history-card, .supply-history-card) > span {
     font-size: clamp(0.52rem, 2.2vw, 0.61rem);
   }
 
-  :is(#customers, #suppliers) .customer-history-total {
+  :is(#customers, #suppliers, #employees) :is(.customer-history-total, .supply-history-total) {
     padding-right: 1px;
     font-size: clamp(0.5rem, 2.1vw, 0.59rem);
   }
+}
+
+/* Employee cards follow the shared partner-card structure with employee-specific fields. */
+#employees .employee-cards > article.employee-card {
+  display: grid;
+  grid-template-columns: 40% 60%;
+  grid-template-rows: auto auto auto auto auto;
+  min-height: 220px;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child {
+  display: contents;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:first-child {
+  grid-column: 1;
+  grid-row: 1 / 5;
+  width: 100%;
+  height: 100%;
+  min-height: 220px;
+  overflow: hidden;
+  border-right: 1px solid #dfe7df;
+  border-radius: 0;
+  background: #e8f4e9;
+  font-size: 3rem;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:first-child img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:nth-child(2) {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 16px 14px 8px;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:nth-child(2) > span:nth-child(2)::before {
+  content: "✉";
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:nth-child(2) > span:nth-child(3)::before {
+  content: "☎";
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:nth-child(3) {
+  grid-column: 2;
+  grid-row: 2;
+  width: fit-content;
+  min-width: 88px;
+  margin: 0 14px 10px;
+  flex-direction: row;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:nth-child(3)::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+  background: #12ad4b;
+}
+
+#employees .employee-cards > article.employee-card > div:first-child > div:nth-child(3) span {
+  display: none;
+}
+
+#employees .employee-cards > article.employee-card > div:nth-child(2) {
+  grid-column: 2;
+  grid-row: 3;
+  display: flex;
+  width: calc(100% - 28px);
+  margin: 0 14px;
+}
+
+#employees .employee-cards > article.employee-card > div:nth-child(2) > div {
+  width: 50%;
+  flex: 1 1 50%;
+  padding: 0 16px;
+}
+
+#employees .employee-cards > article.employee-card > button {
+  grid-column: 2;
+  grid-row: 4;
+}
+
+#employees .employee-details {
+  grid-column: 1 / -1;
+  grid-row: 5;
+  display: grid;
+  gap: 10px;
+}
+
+#employees :is(.employee-details-heading, .employee-access-heading) {
+  position: relative;
+  margin: 0;
+  padding-left: 25px;
+  color: #17663a;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+#employees :is(.employee-details-heading, .employee-access-heading)::before {
+  content: "👤";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.82rem;
+}
+
+#employees .employee-access-heading {
+  margin-top: 4px;
+  border-top: 1px solid #dfe9df;
+  padding-top: 12px;
+}
+
+#employees .employee-access-heading::before {
+  content: "◆";
+  top: calc(50% + 6px);
+  color: #17663a;
+  font-size: 0.68rem;
+}
+
+#employees .employee-details-list {
+  display: grid;
+  gap: 7px;
+}
+
+#employees .employee-details-list > div {
+  display: grid;
+  grid-template-columns: minmax(105px,.65fr) minmax(0,1.65fr);
+  gap: 12px;
+  align-items: start;
+}
+
+#employees .employee-details-list span {
+  color: #69736d;
+  font-size: 0.68rem;
+}
+
+#employees .employee-details-list strong {
+  color: #4b5650;
+  font-size: 0.69rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+#employees .employee-details-list > div:last-child strong {
+  color: #17663a;
+  font-weight: 800;
+}
+
+#employees .employee-details-actions {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+  margin-top: 3px;
+}
+
+#employees .employee-details-actions button {
+  width: 100%;
+  min-height: 34px;
+}
+
+@media (max-width: 600px) {
+  #employees .employee-cards > article.employee-card > div:first-child > div:first-child {
+    width: 100%;
+    height: 100%;
+    font-size: 2.4rem;
+  }
+
+  #employees .employee-cards > article.employee-card > div:first-child > div:nth-child(3) {
+    min-width: 76px;
+    padding: 7px 9px;
+  }
+
+  #employees .employee-details-list > div {
+    grid-template-columns: 92px minmax(0,1fr);
+    gap: 8px;
+  }
+}
+/* Keeps sections forbidden by the signed-in role hidden. */
+[hidden],.permission-hidden {
+	display: none !important;
 }

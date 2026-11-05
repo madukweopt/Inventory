@@ -2,6 +2,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 :root {
   --green-dark: #14532d;
   --green: #1f7a3d;
@@ -133,3 +137,33 @@ a {
 .submenu-button{position:relative;display:flex;align-items:center;width:100%;min-height:52px;margin:0;padding:10px 20px;border:0;border-radius:0 10px 10px 0;color:#30353d;font-size:1rem;font-weight:500;cursor:pointer}.submenu-button:hover{background:#f0f1e9}.submenu-button.active{background:#edf2e6;color:#145c37;font-weight:700}.submenu-button.active:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;border-radius:4px;background:#16824c}
 .submenu-one,.submenu-two{gap:0;margin:0 0 6px 42px;padding:3px 0 5px 16px;border-left:2px solid #dfe5dc}.submenu-one a,.submenu-two a{padding:8px 10px;color:#565d62;font-size:.86rem}
 .nav-account{display:flex;align-items:center;gap:12px;margin:22px 6px 0;padding:12px 14px;border-radius:10px;background:#edf1e9;color:#174e32}.nav-account>span:nth-child(2){display:flex;flex:1;flex-direction:column}.nav-account small{color:#686f6b;font-size:.72rem}.nav-account strong{margin-top:3px;font-size:.9rem}.nav-avatar{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#cde2cd;color:#17613b}.nav-logout{display:flex;gap:14px;margin:10px 6px 0;padding:10px 16px;border:0;background:transparent;color:#b42c2c;font:inherit;font-weight:600;cursor:pointer}
+
+.user-account-dialog{width:min(92vw,430px);max-height:calc(100dvh - 24px);padding:0;overflow-y:auto;border:0;border-radius:16px;background:#fffdf8;color:#26312b;box-shadow:0 22px 60px rgba(0,0,0,.28)}
+.user-account-dialog::backdrop{background:rgba(13,24,18,.66)}
+.switch-account-dialog{width:min(92vw,430px);padding:0;border:0;border-radius:16px;background:#fffdf8;color:#26312b;box-shadow:0 22px 60px rgba(0,0,0,.28)}
+.switch-account-dialog::backdrop{background:rgba(13,24,18,.66)}
+.switch-account-form{display:flex;flex-direction:column;gap:10px;padding:24px}
+.switch-account-form h2,.switch-account-form p{margin:0}
+.switch-account-form label{margin-top:4px;font-size:.82rem;font-weight:700}
+.switch-account-form select{min-height:44px;padding:9px 11px;border:1px solid #cbd5ce;border-radius:8px;background:white;font:inherit}
+.switch-dialog-close{border:0;background:transparent;color:#14532d;font-size:1.8rem;cursor:pointer}
+.switch-account-message{min-height:18px;color:#a12c24;font-size:.8rem}
+.switch-account-submit{min-height:44px;border:0;border-radius:8px;background:#17663a;color:white;font-weight:700;cursor:pointer}
+.user-account-form{display:flex;flex-direction:column;gap:8px;padding:24px}
+.user-account-heading{display:flex;justify-content:space-between;gap:18px;margin-bottom:10px}
+.user-account-heading h2{margin:0;color:#14532d;font-size:1.35rem}
+.user-account-heading p{margin:5px 0 0;color:#6b7280;font-size:.86rem}
+.user-dialog-close{align-self:flex-start;width:36px;height:36px;border:0;border-radius:50%;background:#eef2eb;color:#14532d;font-size:1.6rem;line-height:1;cursor:pointer}
+.user-account-form label{margin-top:7px;color:#374151;font-size:.86rem;font-weight:700}
+.user-account-form input,.user-account-form select{width:100%;min-height:44px;padding:10px 12px;border:1px solid #cbd5ce;border-radius:8px;background:white;color:#1f2937;font:inherit}
+.user-account-form input:focus,.user-account-form select:focus{outline:2px solid #9ac8aa;border-color:#287448}
+.user-password-help{color:#6b7280;font-size:.78rem}
+.user-account-message{min-height:20px;margin:8px 0 0;color:#17663a;font-size:.86rem;font-weight:600}
+.user-account-message.error{color:#b42318}
+.user-account-actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:4px}
+.user-account-actions button{min-height:42px;padding:8px;border:0;border-radius:8px;font-weight:700;cursor:pointer}
+.user-create-button,.user-edit-button{background:#17663a;color:white}
+.user-delete-button{background:#fee4e2;color:#b42318}
+.user-account-actions button:disabled{cursor:not-allowed;opacity:.45}
+
+@media (max-width:430px){.user-account-actions{grid-template-columns:1fr}.user-account-dialog{width:94vw}.user-account-form{padding:20px}}

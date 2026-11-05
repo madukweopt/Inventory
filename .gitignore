@@ -1,3 +1,7 @@
 .aider*
 node_modules/
 .env
+public/images/employees/*
+!public/images/employees/.gitkeep
+public/images/company/*
+!public/images/company/.gitkeep

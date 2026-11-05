@@ -1,8 +1,13 @@
 require("dotenv").config();
 const express=require("express");
 const path=require("path");
+const crypto=require("crypto");
+const fs=require("fs");
+const multer=require("multer");
 const app=express();
 const PORT=process.env.PORT||3000;
+const isProduction=process.env.NODE_ENV==='production';
+const debugToolsEnabled=process.env.ENABLE_DEBUG_TOOLS==='true';
 
 const { Pool }=require("pg");
 
@@ -14,15 +19,21 @@ const argon2=require('argon2');
 const pool=new Pool({
 	connectionString: process.env.DATABASE_URL,
 	ssl: {
-		rejectUnauthorized: false
+		rejectUnauthorized: true
 	}
 });
 
+// Handles unexpected database pool errors.
 pool.on("error",function(err) {
 	console.error("Database connection error:",err.message);
 });
 
 app.use(express.json());
+
+// Trusts the secure connection supplied by the hosting service in production.
+if(isProduction) {
+	app.set('trust proxy',1);
+}
 
 app.use(session({
 	store: new pgSession({
@@ -33,6 +44,9 @@ app.use(session({
 	resave: false,
 	saveUninitialized: false,
 	cookie: {
+		httpOnly: true,
+		secure: isProduction,
+		sameSite: 'lax',
 		maxAge: 1000*60*60*8
 	}
 }));
@@ -40,31 +54,141 @@ app.use(session({
 
 const publicDirectory=path.join(__dirname,"..","public");
 const htmlDirectory=path.join(publicDirectory,"html");
+const picturesDirectory=
+	process.env.RAILWAY_VOLUME_MOUNT_PATH||
+	path.join(publicDirectory,"images");
+const employeePhotosDirectory=path.join(picturesDirectory,"employees");
+const companyLogosDirectory=path.join(picturesDirectory,"company");
+
+fs.mkdirSync(employeePhotosDirectory,{ recursive: true });
+fs.mkdirSync(companyLogosDirectory,{ recursive: true });
+
+const employeePhotoExtensions={
+	'image/jpeg': '.jpg',
+	'image/png': '.png',
+	'image/webp': '.webp'
+};
+
+const employeePhotoStorage=multer.diskStorage({
+	// Stores employee photographs in the publicly served employee image directory.
+	destination: function(req,file,done) {
+		done(null,employeePhotosDirectory);
+	},
+	// Gives every uploaded photograph a unique server-generated filename.
+	filename: function(req,file,done) {
+		const extension=employeePhotoExtensions[file.mimetype];
+		done(null,'employee-'+crypto.randomUUID()+extension);
+	}
+});
+
+const employeePhotoUpload=multer({
+	storage: employeePhotoStorage,
+	limits: {
+		fileSize: 3*1025*1600
+	},
+	// Accepts only the image formats supported by the employee form.
+	fileFilter: function(req,file,done) {
+		if(!employeePhotoExtensions[file.mimetype]) {
+			return done(new Error('Only JPG, PNG and WebP images are allowed'));
+		}
+		done(null,true);
+	}
+});
+
+const companyLogoStorage=multer.diskStorage({
+	// Stores company logos in the publicly served company image directory.
+	destination: function(req,file,done) {
+		done(null,companyLogosDirectory);
+	},
+	// Gives each replacement logo a unique server-generated filename.
+	filename: function(req,file,done) {
+		const extension=employeePhotoExtensions[file.mimetype];
+		done(null,'company-'+crypto.randomUUID()+extension);
+	}
+});
+
+const companyLogoUpload=multer({
+	storage: companyLogoStorage,
+	limits: {
+		fileSize: 2*1024*1024
+	},
+	// Accepts the image formats supported by the company logo control.
+	fileFilter: function(req,file,done) {
+		if(!employeePhotoExtensions[file.mimetype]) {
+			return done(new Error('Only JPG, PNG and WebP images are allowed'));
+		}
+		done(null,true);
+	}
+});
+
+// Removes an uploaded photograph when its employee record cannot be saved.
+function removeUploadedEmployeePhoto(file) {
+	if(!file) return;
+	fs.unlink(file.path,function(error) {
+		if(error&&error.code!=='ENOENT') {
+			console.error('Could not remove unused employee photograph:',error);
+		}
+	});
+}
+
+// Removes a previously stored custom image without touching shared application images.
+function removeCustomImage(imagePath,directoryPrefix,storageDirectory) {
+	if(!imagePath||!imagePath.startsWith(directoryPrefix)) return;
+	const filename=path.basename(imagePath);
+	const absolutePath=path.join(storageDirectory,filename);
+	fs.unlink(absolutePath,function(error) {
+		if(error&&error.code!=='ENOENT') {
+			console.error('Could not remove replaced image:',error);
+		}
+	});
+}
 
 app.use("/css",express.static(path.join(publicDirectory,"css")));
 app.use("/js",express.static(path.join(publicDirectory,"js")));
+app.use(
+	"/images/employees",
+	requireRole(['admin','manager']),
+	express.static(employeePhotosDirectory),
+	function(req,res) {
+		return res.sendStatus(404);
+	}
+);
+app.use("/images/company",express.static(companyLogosDirectory));
 app.use("/images",express.static(path.join(publicDirectory,"images")));
 
+// Runs the callback required by the surrounding operation.
 app.get(["/","/login.html"],function(req,res) {
 	res.sendFile(path.join(htmlDirectory,"login.html"));
 });
 
+// Handles GET /index.html requests.
 app.get("/index.html",requirePageLogin,function(req,res) {
 	res.sendFile(path.join(htmlDirectory,"index.html"));
 });
 
+// Handles GET /forms.html requests.
 app.get("/forms.html",requirePageLogin,function(req,res) {
 	res.sendFile(path.join(htmlDirectory,"forms.html"));
 });
 
-app.get("/checks.html",requirePageLogin,function(req,res) {
+// Handles GET /checks.html requests.
+app.get("/checks.html",requirePageRole(['admin']),function(req,res) {
 	res.sendFile(path.join(htmlDirectory,"checks.html"));
 });
 
+// Tells the browser whether development-only debugging tools may be loaded.
+app.get('/debug-settings',function(req,res) {
+	return res.json({
+		enabled: debugToolsEnabled
+	});
+});
+
+// Confirms that the HTTP server has started listening.
 app.listen(PORT,() => {
 	console.log(`Server running at http://localhost:${PORT}`);
 });
 
+// Handles POST /api/login requests.
 app.post('/api/login',async function(req,res) {
 	const username=req.body.username;
 	const password=req.body.password;
@@ -83,15 +207,19 @@ app.post('/api/login',async function(req,res) {
 	}
 	req.session.user_id=user.user_id;
 	req.session.user_name=user.username;
+	req.session.role=user.role;
 	return res.json({
 		message: 'Login successful',
-		user_name: user.username
+		user_name: user.username,
+		role: user.role
 	})
 });
 
 app.use('/api',requireLogin);
 
+// Handles GET /api/items requests.
 app.get("/api/items",function(req,res) {
+	// Handles the result of the preceding database query.
 	pool.query("SELECT * FROM items ORDER BY name",function(err,result) {
 		if(err) {
 			console.error(err);
@@ -103,7 +231,8 @@ app.get("/api/items",function(req,res) {
 	});
 });
 
-app.get("/api/customers",function(req,res) {
+// Handles GET /api/customers requests.
+app.get("/api/customers",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(`SELECT
     customers.customer_id,
     customers.name,
@@ -196,6 +325,7 @@ GROUP BY
     customers.created_at
 
 ORDER BY customers.name`,
+		// Runs the callback required by the surrounding operation.
 		function(err,result) {
 			if(err) {
 				console.error(err);
@@ -208,7 +338,8 @@ ORDER BY customers.name`,
 	);
 });
 
-app.get('/api/suppliers',function(req,res) {
+// Handles GET /api/suppliers requests.
+app.get('/api/suppliers',requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(`SELECT 
     suppliers.supplier_id,
     suppliers.name,
@@ -300,18 +431,211 @@ GROUP BY
     suppliers.note,
     suppliers.created_at
 
-ORDER BY suppliers.name`,function(error,result) {
-		if(error) {
-			console.log(error);
-			return res.status(500).json({
-				err: 'Could not load supplier details'
+ORDER BY suppliers.name`,
+		// Handles the result returned by the supplier query.
+		function(error,result) {
+			if(error) {
+				console.log(error);
+				return res.status(500).json({
+					err: 'Could not load supplier details'
+				});
+			}
+			return res.status(200).json(result.rows);
+		});
+});
+
+// Returns employee records used to build the employee cards.
+app.get('/api/employees',requireRole(['admin','manager']),function(req,res) {
+	pool.query(
+		`SELECT
+		employee_id,
+		TO_CHAR(start_date,'YYYY-MM-DD') AS start_date,
+		name,
+		phone_number,
+		address,
+		email,
+		role,
+		salary,
+		note,
+		department,
+		status,
+		username,
+		permissions,
+		photo_path,
+		created_at
+		FROM employees
+		ORDER BY start_date DESC, employee_id DESC`,
+		// Sends the stored employee records to the employee page.
+		function(error,result) {
+			if(error) {
+				console.error(error);
+				return res.status(500).json({
+					err: 'Could not load employee details'
+				});
+			}
+			return res.status(200).json(result.rows);
+		}
+	);
+});
+
+// Validates and saves an employee record with an optional passport photograph.
+app.post('/api/employees',requireRole(['admin']),function(req,res) {
+	employeePhotoUpload.single('photo')(req,res,async function(uploadError) {
+		if(uploadError) {
+			const message=uploadError.code==='LIMIT_FILE_SIZE'?
+				'Employee photograph must not exceed 2 MB':
+				uploadError.message;
+			return res.status(400).json({ err: message });
+		}
+
+		const employee=req.body;
+		if(
+			!employee.start_date||
+			!employee.name||
+			!employee.phone||
+			!employee.address||
+			!employee.role
+		) {
+			removeUploadedEmployeePhoto(req.file);
+			return res.status(400).json({
+				err: 'Complete all required employee fields'
 			});
 		}
-		return res.status(200).json(result.rows);
+
+		const photoPath=req.file?
+			'/images/employees/'+req.file.filename:
+			null;
+
+		try {
+			const result=await pool.query(
+				`INSERT INTO employees (
+				start_date,
+				name,
+				phone_number,
+				address,
+				email,
+				role,
+				salary,
+				note,
+				photo_path
+				)
+				VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+				RETURNING employee_id,photo_path`,
+				[
+					employee.start_date,
+					employee.name.trim(),
+					employee.phone.trim(),
+					employee.address.trim(),
+					employee.email? employee.email.trim():null,
+					employee.role.trim(),
+					employee.salary||null,
+					employee.note? employee.note.trim():null,
+					photoPath
+				]
+			);
+			return res.status(201).json(result.rows[0]);
+		} catch(error) {
+			removeUploadedEmployeePhoto(req.file);
+			console.error(error);
+			return res.status(500).json({
+				err: 'Could not save employee details'
+			});
+		}
 	});
 });
 
-app.get('/api/customers/:id',async function(req,res) {
+// Returns the company profile displayed on the company details page.
+app.get('/api/company',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	try {
+		const result=await pool.query(
+			'SELECT * FROM company_details WHERE company_id=1'
+		);
+		return res.status(200).json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({
+			err: 'Could not load company details'
+		});
+	}
+});
+
+// Updates every editable company field and optionally replaces or removes the logo.
+app.patch('/api/company',requireRole(['admin']),function(req,res) {
+	companyLogoUpload.single('logo')(req,res,async function(uploadError) {
+		if(uploadError) {
+			const message=uploadError.code==='LIMIT_FILE_SIZE'?
+				'Company logo must not exceed 2 MB':
+				uploadError.message;
+			return res.status(400).json({ err: message });
+		}
+
+		const company=req.body;
+		if(!company.company_name||!company.company_name.trim()) {
+			removeUploadedEmployeePhoto(req.file);
+			return res.status(400).json({ err: 'Company name is required' });
+		}
+
+		try {
+			const currentResult=await pool.query(
+				'SELECT logo_path FROM company_details WHERE company_id=1'
+			);
+			const currentLogo=currentResult.rows[0]? currentResult.rows[0].logo_path:null;
+			let logoPath=currentLogo;
+			if(company.remove_logo==='true') {
+				logoPath=null;
+			} else if(req.file) {
+				logoPath='/images/company/'+req.file.filename;
+			}
+
+			const result=await pool.query(
+				`UPDATE company_details SET
+				company_name=$1,
+				registration_number=$2,
+				tax_identification_number=$3,
+				phone_number=$4,
+				email=$5,
+				website=$6,
+				business_address=$7,
+				bank_name=$8,
+				account_number=$9,
+				account_name=$10,
+				logo_path=$11,
+				updated_at=CURRENT_TIMESTAMP
+				WHERE company_id=1
+				RETURNING *`,
+				[
+					company.company_name.trim(),
+					company.registration_number? company.registration_number.trim():null,
+					company.tax_identification_number? company.tax_identification_number.trim():null,
+					company.phone_number? company.phone_number.trim():null,
+					company.email? company.email.trim():null,
+					company.website? company.website.trim():null,
+					company.business_address? company.business_address.trim():null,
+					company.bank_name? company.bank_name.trim():null,
+					company.account_number? company.account_number.trim():null,
+					company.account_name? company.account_name.trim():null,
+					logoPath
+				]
+			);
+
+			if(currentLogo!==logoPath) {
+				removeCustomImage(
+					currentLogo,
+					'/images/company/',
+					companyLogosDirectory
+				);
+			}
+			return res.status(200).json(result.rows[0]);
+		} catch(error) {
+			removeUploadedEmployeePhoto(req.file);
+			console.error(error);
+			return res.status(500).json({ err: 'Could not update company details' });
+		}
+	});
+});
+
+// Handles GET /api/customers/:id requests.
+app.get('/api/customers/:id',requireRole(['admin','manager','storekeeper']),async function(req,res) {
 	try {
 		const customerId=req.params.id;
 		const result=await pool.query(`
@@ -336,7 +660,8 @@ app.get('/api/customers/:id',async function(req,res) {
 
 })
 
-app.patch('/api/customers/:id',async function(req,res) {
+// Handles PATCH /api/customers/:id requests.
+app.patch('/api/customers/:id',requireRole(['admin','manager']),async function(req,res) {
 	try {
 		const customerId=req.params.id;
 		const customer=req.body;
@@ -365,7 +690,64 @@ app.patch('/api/customers/:id',async function(req,res) {
 })
 
 
-app.get("/api/sales",function(req,res) {
+// Handles GET /api/suppliers/:id requests.
+app.get('/api/suppliers/:id',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	try {
+		const supplierId=req.params.id;
+		const result=await pool.query(`
+		SELECT supplier_id,
+		name,
+		phone_number,
+		address,
+		email,
+		note
+		FROM suppliers
+		WHERE supplier_id = $1`,
+			[supplierId]);
+
+		return res.status(200).json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		res.status(500).json({
+			err: 'Failed to load supplier details'
+		});
+	}
+
+
+})
+
+// Handles PATCH /api/suppliers/:id requests.
+app.patch('/api/suppliers/:id',requireRole(['admin','manager']),async function(req,res) {
+	try {
+		const supplierId=req.params.id;
+		const supplier=req.body;
+		const updated=await pool.query(`UPDATE
+	suppliers
+	SET name = $1,
+	phone_number = $2,
+	address = $3,
+	email = $4,
+	note = $5
+	WHERE supplier_id = $6 RETURNING *`,
+			[supplier.name,
+			supplier.phone,
+			supplier.address,
+			supplier.email,
+			supplier.note,
+				supplierId]);
+		return res.json(updated.rows[0])
+
+	} catch(error) {
+		console.log(error);
+		return res.status(500).json({
+			err: 'failed to update supplier'
+		})
+	}
+})
+
+
+// Handles GET /api/sales requests.
+app.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
 		`SELECT
 		sales.item_id,
@@ -384,6 +766,7 @@ app.get("/api/sales",function(req,res) {
 		INNER JOIN items
 		ON sales.item_id = items.item_id
 		ORDER BY sales.created_at DESC`,
+		// Runs the callback required by the surrounding operation.
 		function(err,result) {
 			if(err) {
 				return res.status(500).json({
@@ -395,9 +778,11 @@ app.get("/api/sales",function(req,res) {
 	);
 });
 
-app.get("/api/stock_counts",function(req,res) {
+// Handles GET /api/stock_counts requests.
+app.get("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
 	pool.query(
 		"SELECT stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.created_at DESC",
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -410,7 +795,8 @@ app.get("/api/stock_counts",function(req,res) {
 	);
 });
 
-app.get("/api/purchases",function(req,res) {
+// Handles GET /api/purchases requests.
+app.get("/api/purchases",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
 		`SELECT
     purchases.purchase_id,
@@ -430,6 +816,7 @@ app.get("/api/purchases",function(req,res) {
     purchases.item_id = items.item_id
     ORDER BY purchases.purchase_date
     DESC, purchases.created_at DESC`,
+		// Runs the callback required by the surrounding operation.
 		function(err,result) {
 			if(err) {
 				console.log(err.message);
@@ -442,9 +829,11 @@ app.get("/api/purchases",function(req,res) {
 	);
 });
 
-app.get("/api/production",function(req,res) {
+// Handles GET /api/production requests.
+app.get("/api/production",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
 		"SELECT production.production_id, to_char(production.production_date, 'YYYY-MM-DD') AS production_date, production.created_at, production.kernel_used, production.pko_produced, production.pkc_produced, ROUND((production.pko_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pko_yield, ROUND((production.pkc_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pkc_yield, to_char(production.production_hours, 'HH24:MI') AS production_hours, to_char(production.down_time, 'HH24:MI') AS down_time FROM production ORDER BY production.created_at DESC;",
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -457,13 +846,15 @@ app.get("/api/production",function(req,res) {
 	);
 });
 
-app.get("/api/expenses",function(req,res) {
+// Handles GET /api/expenses requests.
+app.get("/api/expenses",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
 		`SELECT expenses.expense_id, to_char(expenses.expense_date, 'YYYY-MM-DD') AS expense_date, expenses.created_at, expenses.category, expenses.description,
     expenses.amount_spent
     FROM expenses
     ORDER BY
     expenses.created_at DESC;`,
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -476,7 +867,8 @@ app.get("/api/expenses",function(req,res) {
 	);
 });
 
-app.post("/api/sales",function(req,res) {
+// Handles POST /api/sales requests.
+app.post("/api/sales",requireRole(['admin','manager']),function(req,res) {
 	const sales=req.body;
 	if(
 		!sales.customer_id||
@@ -499,6 +891,7 @@ app.post("/api/sales",function(req,res) {
 			sales.quantity,
 			sales.unit_price
 		],
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -511,7 +904,8 @@ app.post("/api/sales",function(req,res) {
 	);
 });
 
-app.post("/api/purchases",function(req,res) {
+// Handles POST /api/purchases requests.
+app.post("/api/purchases",requireRole(['admin','manager']),function(req,res) {
 	const purchase=req.body;
 	if(
 		!purchase.supplier_id||
@@ -534,6 +928,7 @@ app.post("/api/purchases",function(req,res) {
 			purchase.quantity_supplied,
 			purchase.unit_cost
 		],
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -546,7 +941,8 @@ app.post("/api/purchases",function(req,res) {
 	);
 });
 
-app.post("/api/stock_counts",function(req,res) {
+// Handles POST /api/stock_counts requests.
+app.post("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
 	const stockInventory=req.body;
 	if(
 		!stockInventory.count_date||
@@ -568,6 +964,7 @@ app.post("/api/stock_counts",function(req,res) {
 			stockInventory.received,
 			stockInventory.issued
 		],
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -580,7 +977,8 @@ app.post("/api/stock_counts",function(req,res) {
 	);
 });
 
-app.post("/api/production",function(req,res) {
+// Handles POST /api/production requests.
+app.post("/api/production",requireRole(['admin','manager']),function(req,res) {
 	const production=req.body;
 	if(
 		!production.production_date||
@@ -598,6 +996,7 @@ app.post("/api/production",function(req,res) {
 	pool.query(
 		"SELECT production_id FROM production WHERE production_date = $1::date",
 		[production.production_date],
+		// Handles the result of the preceding database query.
 		function(err,existing) {
 			if(err) {
 				console.log(err);
@@ -620,6 +1019,7 @@ app.post("/api/production",function(req,res) {
 					production.production_hours,
 					production.down_time
 				],
+				// Handles the result of the preceding database query.
 				function(err,result) {
 					if(err) {
 						console.log(err);
@@ -639,7 +1039,8 @@ app.post("/api/production",function(req,res) {
 	);
 });
 
-app.post("/api/expenses",function(req,res) {
+// Handles POST /api/expenses requests.
+app.post("/api/expenses",requireRole(['admin','manager']),function(req,res) {
 	const expense=req.body;
 	if(
 		!expense.expense_date||
@@ -663,6 +1064,7 @@ app.post("/api/expenses",function(req,res) {
 			expense.description,
 			expense.amount_spent
 		],
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -675,6 +1077,7 @@ app.post("/api/expenses",function(req,res) {
 	);
 });
 
+// Calculates weighted inventory and production costs from transaction history.
 async function calculateCosts() {
 	const RawPurchasesRecords=await pool.query(`
     SELECT
@@ -779,6 +1182,7 @@ async function calculateCosts() {
 	 */
 	const productReceiptsByDate={};
 
+	// Processes each entry in the collection.
 	productStock.forEach(item => {
 		const quantityReceived=Number(item.received)||0;
 
@@ -808,6 +1212,7 @@ async function calculateCosts() {
 	 */
 	const productDispatches=[];
 
+	// Processes each entry in the collection.
 	productStock.forEach(item => {
 		const quantityIssued=Number(item.issued)||0;
 
@@ -866,6 +1271,7 @@ async function calculateCosts() {
 	const dispatchOutput=[];
 	const issueCostByDate={};
 
+	// Handles the avg operation.
 	function avg(itemId) {
 		const stockName=stock[itemId];
 
@@ -885,6 +1291,7 @@ async function calculateCosts() {
 		return stockName.value/stockName.quantity;
 	}
 
+	// Handles the finished avg operation.
 	function finishedAvg(itemId) {
 		const product=finishedStock[itemId];
 
@@ -895,6 +1302,7 @@ async function calculateCosts() {
 		return product.value/product.quantity;
 	}
 
+	// Handles the add finished product operation.
 	function addFinishedProduct(receipt,productCost) {
 		if(!receipt||receipt.quantity<=0) {
 			return 0;
@@ -918,6 +1326,7 @@ async function calculateCosts() {
 		return finishedAvg(itemId);
 	}
 
+	// Processes each entry in the collection.
 	events.forEach(event => {
 		if(event.type==="in") {
 			const itemId=event.item_id;
@@ -1039,6 +1448,7 @@ async function calculateCosts() {
 				return product.name.trim().toUpperCase()==="PKO";
 			});
 
+			// Finds the first collection entry that matches the condition.
 			const pkcReceipt=productReceipts.find(product => {
 				return product.name.trim().toUpperCase()==="PKC";
 			});
@@ -1072,6 +1482,7 @@ async function calculateCosts() {
 				pkcProductionCost
 			);
 
+			// Transforms collection entries into the required output shape.
 			const materials=materialsCosted.map(material => {
 				return {
 					item_id: material.item_id,
@@ -1168,6 +1579,7 @@ async function calculateCosts() {
 		}
 	});
 
+	// Transforms collection entries into the required output shape.
 	const finishedStockBalance=Object.values(finishedStock).map(product => {
 		return {
 			item_id: product.item_id,
@@ -1187,7 +1599,8 @@ async function calculateCosts() {
 	return costs;
 }
 
-app.get("/api/average_cost",async function(req,res) {
+// Handles GET /api/average_cost requests.
+app.get("/api/average_cost",requireRole(['admin']),async function(req,res) {
 	try {
 		const costs=await calculateCosts();
 		res.status(200).json(costs);
@@ -1199,7 +1612,8 @@ app.get("/api/average_cost",async function(req,res) {
 	}
 });
 
-app.get("/api/dashboard",async function(req,res) {
+// Handles GET /api/dashboard requests.
+app.get("/api/dashboard",requireRole(['admin','manager','storekeeper']),async function(req,res) {
 	try {
 		const selectedDate=req.query.date||null;
 
@@ -1238,6 +1652,7 @@ app.get("/api/dashboard",async function(req,res) {
 			param
 		);
 
+		// Transforms collection entries into the required output shape.
 		const stockLevels=RawStockLevels.rows.map(stockLevel => {
 			return {
 				item: stockLevel.name,
@@ -1256,7 +1671,8 @@ app.get("/api/dashboard",async function(req,res) {
 	}
 });
 
-app.get("/api/dashboard_period",async function(req,res) {
+// Handles GET /api/dashboard_period requests.
+app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(req,res) {
 	try {
 		const selectedDate=req.query.date;
 		const datesql=selectedDate? "$1::date":"CURRENT_DATE";
@@ -1402,6 +1818,7 @@ app.get("/api/dashboard_period",async function(req,res) {
 
 		const output={};
 
+		// Processes each entry in the collection.
 		production.forEach(row => {
 			output[row.period]={
 				production: {
@@ -1414,6 +1831,7 @@ app.get("/api/dashboard_period",async function(req,res) {
 				expenses: {}
 			};
 		});
+		// Processes each entry in the collection.
 		sales.forEach(row => {
 			output[row.period].sales[row.name]={
 				quantity_sold: Number(row.quantity_sold),
@@ -1422,11 +1840,19 @@ app.get("/api/dashboard_period",async function(req,res) {
 			};
 		});
 
+		// Processes each entry in the collection.
 		expenses.forEach(row => {
 			output[row.period].expenses={
 				total_expenses: Number(row.total_spent)
 			};
 		});
+
+		if(req.session.role!=='admin') {
+			Object.values(output).forEach(period => {
+				delete period.expenses;
+			});
+			return res.status(200).json(output);
+		}
 
 		const costs=await calculateCosts();
 		const dispatchPeriods=calculateDispatchPeriods(
@@ -1466,6 +1892,7 @@ app.get("/api/dashboard_period",async function(req,res) {
 	}
 });
 
+// Groups product dispatch costs into reporting periods around the selected date.
 function calculateDispatchPeriods(productDispatchCosts,selectedDate) {
 	const selected=new Date(selectedDate+"T00:00:00");
 	const weekStart=new Date(selected);
@@ -1487,6 +1914,7 @@ function calculateDispatchPeriods(productDispatchCosts,selectedDate) {
 			pkc: 0
 		}
 	};
+	// Processes each entry in the collection.
 	productDispatchCosts.forEach(dispatch => {
 		const product=String(dispatch.name).trim().toLowerCase();
 		if(product!=="pko"&&product!=="pkc") {
@@ -1511,6 +1939,7 @@ function calculateDispatchPeriods(productDispatchCosts,selectedDate) {
 	return dispatchPeriods;
 }
 
+// Calculates inventory consistency checks from production, purchase, and sales data.
 async function calculateChecks() {
 	const checks=[];
 	const pkoProduction=await pool.query(`SELECT 'PKO' AS item,
@@ -1542,6 +1971,7 @@ async function calculateChecks() {
     sc.count_date
     WHERE COALESCE (sc.received, 0) <>
     COALESCE (production.pko_produced, 0)`);
+	// Processes each entry in the collection.
 	pkoProduction.rows.forEach(row => {
 		checks.push({
 			check_date: row.check_date,
@@ -1578,6 +2008,7 @@ async function calculateChecks() {
     ON pr.production_date = sc.count_date
     WHERE COALESCE(sc.received, 0)
     <> COALESCE(pr.pkc_produced, 0)`);
+	// Processes each entry in the collection.
 	pkcProduction.rows.forEach(row => {
 		checks.push({
 			check_date: row.check_date,
@@ -1615,6 +2046,7 @@ async function calculateChecks() {
     ON pr.production_date = sc.count_date
     WHERE COALESCE(sc.issued, 0)
     <> COALESCE(pr.kernel_used, 0)`);
+	// Processes each entry in the collection.
 	kernelUsage.rows.forEach(row => {
 		checks.push({
 			check_date: row.check_date,
@@ -1666,6 +2098,7 @@ async function calculateChecks() {
     COALESCE(sc.received, 0) <>
     COALESCE(pu.purchased, 0)`);
 
+	// Processes each entry in the collection.
 	kernelPurchased.rows.forEach(row => {
 		checks.push({
 			check_date: row.check_date,
@@ -1716,6 +2149,7 @@ async function calculateChecks() {
     WHERE
     COALESCE(sc.issued, 0) <>
     COALESCE(sa.sold, 0)`);
+	// Processes each entry in the collection.
 	pkoSold.rows.forEach(row => {
 		checks.push({
 			check_date: row.check_date,
@@ -1766,6 +2200,7 @@ async function calculateChecks() {
     WHERE
     COALESCE(sc.issued, 0) <>
     COALESCE(sa.sold, 0)`);
+	// Processes each entry in the collection.
 	pkcSold.rows.forEach(row => {
 		checks.push({
 			check_date: row.check_date,
@@ -1776,6 +2211,7 @@ async function calculateChecks() {
 			difference: row.difference
 		});
 	});
+	// Processes each entry in the collection.
 	checks.sort((first,second) => {
 		const dateOrder=first.check_date.localeCompare(second.check_date);
 		return dateOrder||first.item.localeCompare(second.item);
@@ -1783,7 +2219,8 @@ async function calculateChecks() {
 	return checks;
 }
 
-app.get("/api/checks",async function(req,res) {
+// Handles GET /api/checks requests.
+app.get("/api/checks",requireRole(['admin']),async function(req,res) {
 	try {
 		const checks=await calculateChecks();
 		res.status(200).json(checks);
@@ -1795,7 +2232,8 @@ app.get("/api/checks",async function(req,res) {
 	}
 });
 
-app.get("/api/correction",async function(req,res) {
+// Handles GET /api/correction requests.
+app.get("/api/correction",requireRole(['admin']),async function(req,res) {
 	try {
 		const correctionFor=req.query;
 		const stockAndRelated={};
@@ -1897,9 +2335,13 @@ app.get("/api/correction",async function(req,res) {
 	}
 });
 
-app.patch("/api/correction_edit",async function(req,res) {
+// Handles PATCH /api/correction_edit requests.
+app.patch("/api/correction_edit",requireRole(['admin','storekeeper']),async function(req,res) {
 	try {
 		const kind=req.body.kind;
+		if(req.session.role==='storekeeper'&&kind!=='stock') {
+			return res.status(403).json({ err: 'Access denied' });
+		}
 		const record=req.body.record;
 
 		let updated;
@@ -2016,9 +2458,13 @@ app.patch("/api/correction_edit",async function(req,res) {
 	}
 });
 
-app.delete("/api/correction_delete",async function(req,res) {
+// Handles DELETE /api/correction_delete requests.
+app.delete("/api/correction_delete",requireRole(['admin','storekeeper']),async function(req,res) {
 	try {
 		const kind=req.body.kind;
+		if(req.session.role==='storekeeper'&&kind!=='stock') {
+			return res.status(403).json({ err: 'Access denied' });
+		}
 		const record=req.body.record;
 		let deleted;
 
@@ -2072,6 +2518,7 @@ app.delete("/api/correction_delete",async function(req,res) {
 });
 
 
+// Allows authenticated API requests to continue and rejects unauthenticated requests.
 function requireLogin(req,res,next) {
 	if(!req.session.user_id) {
 		return res.status(401).json({
@@ -2081,6 +2528,34 @@ function requireLogin(req,res,next) {
 	next();
 }
 
+// Allows only users whose saved account role appears in the supplied list.
+function requireRole(allowedRoles) {
+	return async function(req,res,next) {
+		try {
+			const result=await pool.query(
+				'SELECT username,role FROM users WHERE user_id=$1',
+				[req.session.user_id]
+			);
+			if(result.rowCount===0) {
+				return res.status(401).json({ message: 'Login required' });
+			}
+			req.session.user_name=result.rows[0].username;
+			req.session.role=result.rows[0].role;
+		} catch(error) {
+			console.error(error);
+			return res.status(500).json({ message: 'Could not check account access' });
+		}
+
+		if(!allowedRoles.includes(req.session.role)) {
+			return res.status(403).json({
+				message: 'Access denied'
+			});
+		}
+		next();
+	};
+}
+
+// Serves protected pages only to authenticated users.
 function requirePageLogin(req,res,next) {
 	if(!req.session.user_id) {
 		return res.redirect('/')
@@ -2088,13 +2563,316 @@ function requirePageLogin(req,res,next) {
 	next()
 }
 
-app.get('/api/current-user',requireLogin,function(req,res) {
-	return res.json({
-		username: req.session.user_name
-	});
+// Opens a protected page only for the listed account roles.
+function requirePageRole(allowedRoles) {
+	return async function(req,res,next) {
+		if(!req.session.user_id) {
+			return res.redirect('/');
+		}
+		try {
+			const result=await pool.query(
+				'SELECT role FROM users WHERE user_id=$1',
+				[req.session.user_id]
+			);
+			if(result.rowCount===0) {
+				return res.redirect('/');
+			}
+			req.session.role=result.rows[0].role;
+			if(!allowedRoles.includes(req.session.role)) {
+				return res.redirect('/index.html');
+			}
+			next();
+		} catch(error) {
+			console.error(error);
+			return res.redirect('/');
+		}
+	};
+}
+
+// Handles GET /api/current-user requests.
+app.get('/api/current-user',requireLogin,async function(req,res) {
+	try {
+		const result=await pool.query(
+			'SELECT username,role FROM users WHERE user_id=$1',
+			[req.session.user_id]
+		);
+		if(result.rowCount===0) {
+			return res.status(401).json({ message: 'Login required' });
+		}
+		req.session.user_name=result.rows[0].username;
+		req.session.role=result.rows[0].role;
+		return res.json({
+			...result.rows[0],
+			switched_from_admin: Boolean(req.session.admin_user_id)
+		});
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Could not load the current user' });
+	}
 });
 
+// Returns the login accounts that an administrator can manage.
+app.get('/api/users',requireRole(['admin']),async function(req,res) {
+	try {
+		const result=await pool.query(
+			`SELECT user_id,username,role,created_at
+			FROM users
+			ORDER BY username`
+		);
+		return res.status(200).json(result.rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({
+			err: 'Could not load user accounts'
+		});
+	}
+});
+
+// Creates a login account and stores only a protected copy of its password.
+app.post('/api/users',requireRole(['admin']),async function(req,res) {
+	const username=String(req.body.username||'').trim().toLowerCase();
+	const password=String(req.body.password||'');
+	const role=String(req.body.role||'').trim().toLowerCase();
+
+	if(!username||!password||!role) {
+		return res.status(400).json({
+			err: 'Username, password and role are required'
+		});
+	}
+	if(!/^[a-z0-9._-]+$/.test(username)) {
+		return res.status(400).json({
+			err: 'Username can contain letters, numbers, dots, underscores and hyphens only'
+		});
+	}
+	if(password.length<8) {
+		return res.status(400).json({
+			err: 'Password must contain at least 8 characters'
+		});
+	}
+
+	try {
+		const passwordHash=await argon2.hash(password);
+		const result=await pool.query(
+			`INSERT INTO users (username,password_hash,role)
+			VALUES ($1,$2,$3)
+			RETURNING user_id,username,role,created_at`,
+			[username,passwordHash,role]
+		);
+		return res.status(201).json(result.rows[0]);
+	} catch(error) {
+		if(error.code==='23505') {
+			return res.status(409).json({
+				err: 'That username already exists'
+			});
+		}
+		console.error(error);
+		return res.status(500).json({
+			err: 'Could not create the user account'
+		});
+	}
+});
+
+// Updates an existing login account and changes its password only when supplied.
+app.patch('/api/users/:id',requireRole(['admin']),async function(req,res) {
+	const userId=Number(req.params.id);
+	const username=String(req.body.username||'').trim().toLowerCase();
+	const password=String(req.body.password||'');
+	const role=String(req.body.role||'').trim().toLowerCase();
+
+	if(!Number.isInteger(userId)||userId<1||!username||!role) {
+		return res.status(400).json({ err: 'Valid user details are required' });
+	}
+	if(!/^[a-z0-9._-]+$/.test(username)) {
+		return res.status(400).json({
+			err: 'Username can contain letters, numbers, dots, underscores and hyphens only'
+		});
+	}
+	if(password&&password.length<8) {
+		return res.status(400).json({
+			err: 'Password must contain at least 8 characters'
+		});
+	}
+	if(userId===req.session.user_id&&role!=='admin') {
+		return res.status(400).json({
+			err: 'You cannot remove your own administrator access'
+		});
+	}
+
+	try {
+		let result;
+		if(password) {
+			const passwordHash=await argon2.hash(password);
+			result=await pool.query(
+				`UPDATE users
+				SET username=$1,password_hash=$2,role=$3
+				WHERE user_id=$4
+				RETURNING user_id,username,role,created_at`,
+				[username,passwordHash,role,userId]
+			);
+		} else {
+			result=await pool.query(
+				`UPDATE users
+				SET username=$1,role=$2
+				WHERE user_id=$3
+				RETURNING user_id,username,role,created_at`,
+				[username,role,userId]
+			);
+		}
+
+		if(result.rowCount===0) {
+			return res.status(404).json({ err: 'User account was not found' });
+		}
+		if(userId===req.session.user_id) {
+			req.session.user_name=result.rows[0].username;
+			req.session.role=result.rows[0].role;
+		} else {
+			await pool.query(
+				"DELETE FROM session WHERE sess->>'user_id'=$1",
+				[String(userId)]
+			);
+		}
+		return res.status(200).json(result.rows[0]);
+	} catch(error) {
+		if(error.code==='23505') {
+			return res.status(409).json({
+				err: 'That username already exists'
+			});
+		}
+		console.error(error);
+		return res.status(500).json({ err: 'Could not update the user account' });
+	}
+});
+
+// Deletes a login account while preventing an administrator from deleting their own account.
+app.delete('/api/users/:id',requireRole(['admin']),async function(req,res) {
+	const userId=Number(req.params.id);
+	if(!Number.isInteger(userId)||userId<1) {
+		return res.status(400).json({ err: 'A valid user is required' });
+	}
+	if(userId===req.session.user_id) {
+		return res.status(400).json({
+			err: 'You cannot delete the account you are currently using'
+		});
+	}
+
+	const client=await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const selected=await client.query(
+			'SELECT role FROM users WHERE user_id=$1 FOR UPDATE',
+			[userId]
+		);
+		if(selected.rowCount===0) {
+			await client.query('ROLLBACK');
+			return res.status(404).json({ err: 'User account was not found' });
+		}
+		if(selected.rows[0].role==='admin') {
+			const admins=await client.query(
+				"SELECT COUNT(*)::integer AS total FROM users WHERE role='admin'"
+			);
+			if(admins.rows[0].total<=1) {
+				await client.query('ROLLBACK');
+				return res.status(400).json({
+					err: 'The final administrator account cannot be deleted'
+				});
+			}
+		}
+
+		await client.query(
+			"DELETE FROM session WHERE sess->>'user_id'=$1",
+			[String(userId)]
+		);
+		await client.query('DELETE FROM users WHERE user_id=$1',[userId]);
+		await client.query('COMMIT');
+		return res.status(200).json({ message: 'User account deleted' });
+	} catch(error) {
+		await client.query('ROLLBACK');
+		console.error(error);
+		return res.status(500).json({ err: 'Could not delete the user account' });
+	} finally {
+		client.release();
+	}
+});
+
+// Lets an administrator temporarily use an existing manager or storekeeper account.
+app.post('/api/switch-account',requireRole(['admin']),async function(req,res) {
+	const targetUserId=Number(req.body.user_id);
+	if(!Number.isInteger(targetUserId)||targetUserId<1) {
+		return res.status(400).json({ message: 'Choose an account' });
+	}
+	try {
+		const result=await pool.query(
+			`SELECT user_id,username,role
+			FROM users
+			WHERE user_id=$1 AND role IN ('manager','storekeeper')`,
+			[targetUserId]
+		);
+		if(result.rowCount===0) {
+			return res.status(404).json({
+				message: 'Manager or storekeeper account not found'
+			});
+		}
+
+		const target=result.rows[0];
+		req.session.admin_user_id=req.session.user_id;
+		req.session.user_id=target.user_id;
+		req.session.user_name=target.username;
+		req.session.role=target.role;
+		req.session.save(function(error) {
+			if(error) {
+				console.error(error);
+				return res.status(500).json({ message: 'Could not switch account' });
+			}
+			return res.json({
+				message: 'Account switched successfully',
+				username: target.username,
+				role: target.role
+			});
+		});
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Could not switch account' });
+	}
+});
+
+// Restores the administrator who started the temporary account switch.
+app.post('/api/return-to-admin',async function(req,res) {
+	const adminUserId=Number(req.session.admin_user_id);
+	if(!Number.isInteger(adminUserId)||adminUserId<1) {
+		return res.status(403).json({ message: 'No administrator account to return to' });
+	}
+	try {
+		const result=await pool.query(
+			`SELECT user_id,username,role
+			FROM users
+			WHERE user_id=$1 AND role='admin'`,
+			[adminUserId]
+		);
+		if(result.rowCount===0) {
+			return res.status(403).json({ message: 'Administrator account not found' });
+		}
+
+		const admin=result.rows[0];
+		req.session.user_id=admin.user_id;
+		req.session.user_name=admin.username;
+		req.session.role=admin.role;
+		delete req.session.admin_user_id;
+		req.session.save(function(error) {
+			if(error) {
+				console.error(error);
+				return res.status(500).json({ message: 'Could not return to admin' });
+			}
+			return res.json({ message: 'Returned to administrator account' });
+		});
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ message: 'Could not return to admin' });
+	}
+});
+
+// Handles POST /api/logout requests.
 app.post('/api/logout',(req,res) => {
+	// Completes the response after attempting to destroy the session.
 	return req.session.destroy(err => {
 		if(err) {
 			res.status(500).json({
@@ -2107,7 +2885,8 @@ app.post('/api/logout',(req,res) => {
 	});
 })
 
-app.post('/api/customers',function(req,res) {
+// Handles POST /api/customers requests.
+app.post('/api/customers',requireRole(['admin','manager']),function(req,res) {
 	const customer=req.body;
 	if(!customer.name||!customer.phone||!customer.address) {
 		res.status(400).json({
@@ -2118,6 +2897,7 @@ app.post('/api/customers',function(req,res) {
 		(name, phone_number, address, email, note)
 		VALUES($1, $2, $3, $4, $5) RETURNING*`,
 		[customer.name,customer.phone,customer.address,customer.email,customer.note],
+		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
 				console.log(err);
@@ -2130,7 +2910,34 @@ app.post('/api/customers',function(req,res) {
 
 })
 
-app.get('/api/customers-purchases',async function(req,res) {
+// Handles POST /api/suppliers requests.
+app.post('/api/suppliers',requireRole(['admin','manager']),function(req,res) {
+	const supplier=req.body;
+	if(!supplier.name||!supplier.phone||!supplier.address) {
+		return res.status(400).json({
+			err: 'invalid request'
+		})
+	}
+	pool.query(`INSERT INTO suppliers
+		(name, phone_number, address, email, note)
+		VALUES($1, $2, $3, $4, $5) RETURNING*`,
+		[supplier.name,supplier.phone,supplier.address,supplier.email,supplier.note],
+		// Handles the result of the preceding database query.
+		function(err,result) {
+			if(err) {
+				console.log(err);
+				return res.status(500).json({
+					err: 'Could not save supplier, server problem'
+				});
+			}
+			return res.status(201).json(result.rows[0])
+		})
+
+})
+
+
+// Handles GET /api/customers-purchases requests.
+app.get('/api/customers-purchases',requireRole(['admin','manager','storekeeper']),async function(req,res) {
 	const customerId=req.query.customerId;
 	const result=await pool.query(`
 
@@ -2150,5 +2957,33 @@ app.get('/api/customers-purchases',async function(req,res) {
 		sales.sales_id DESC 
 		`,[customerId]);
 	res.json(result.rows);
+})
+
+// Handles GET /api/supplier-supplies requests.
+app.get('/api/supplier-supplies',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	try {
+		const supplierId=req.query.supplierId;
+		const result=await pool.query(`
+		SELECT 
+	purchases.supplier_id,
+	TO_CHAR(purchases.purchase_date, 'YYYY-MM-DD') AS supply_date,
+	items.name AS item,
+	purchases.quantity_supplied,
+	purchases.unit_cost,
+	purchases.quantity_supplied * purchases.unit_cost
+	AS total
+	FROM purchases
+	INNER JOIN items
+	ON items.item_id = purchases.item_id
+	WHERE purchases.supplier_id = $1
+	ORDER BY purchases.purchase_date DESC,
+	purchases.purchase_id DESC`,[supplierId]);
+		res.json(result.rows);
+	} catch(error) {
+		console.log(error);
+		res.status(500).json({
+			err: 'Could not load supplier history'
+		})
+	}
 })
 

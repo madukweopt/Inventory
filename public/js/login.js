@@ -1,20 +1,37 @@
+// Defines an empty placeholder function.
 function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} function name(params) {
+}
+// Defines an empty placeholder function.
+function name(params) {
 
-} async function submitLogin(event) {
+}
+// Submits login credentials and redirects authenticated users.
+async function submitLogin(event) {
 	event.preventDefault();
 	const username=document.querySelector("#login-username");
 	const password=document.querySelector("#login-password");

@@ -94,9 +94,21 @@
 
                 <button type="button" class="submenu-button">Prices</button>
 
-                <button type="button" class="submenu-button">
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="company-details-button"
+                >
                     Company details
                 </button>
+				<button
+					type="button"
+					class="submenu-button"
+					id="manage-users-button"
+					hidden
+				>
+					Create User
+				</button>
                 <div class="nav-account">
                     <span class="nav-avatar">●</span
                     ><span
@@ -896,11 +908,204 @@
                     <button type="submit" id="submit-button">Submit</button>
                 </form>
             </section>
+            <section id="employee-addition" class="card">
+                <h2>Add Employee</h2>
+                <p>Create a new employee profile</p>
+                <form id="employee-form" enctype="multipart/form-data">
+                    <label for="start-date">Employee start date</label>
+                    <input
+                        type="date"
+                        id="start-date"
+                        name="start_date"
+                        required
+                    />
+                    <label for="employee-name">Employee Name</label>
+                    <input
+                        type="text"
+                        id="employee-name"
+                        name="name"
+                        required
+                        placeholder="Enter employee name"
+                    />
+                    <label for="employee-photo">Passport Photograph</label>
+                    <input
+                        type="file"
+                        id="employee-photo"
+                        name="photo"
+                        accept="image/jpeg,image/png,image/webp"
+                    />
+                    <label for="employee-phone">Phone Number</label>
+                    <input
+                        type="tel"
+                        id="employee-phone"
+                        name="phone"
+                        required
+                        placeholder="Enter phone number"
+                    />
+                    <label for="employee-address">Address/Location</label>
+                    <input
+                        type="text"
+                        id="employee-address"
+                        name="address"
+                        required
+                        placeholder="Enter address"
+                    />
+                    <label for="employee-email">Email Address</label>
+                    <input
+                        type="email"
+                        id="employee-email"
+                        name="email"
+                        placeholder="Email address"
+                    />
+                    <label for="role">Role</label>
+                    <input type="text" id="role" name="role" required />
+                    <label for="salary">Salary</label>
+                    <input type="number" id="salary" name="salary" />
+                    <label for="employee-note">Note (Optional)</label>
+                    <input
+                        type="text"
+                        id="employee-note"
+                        name="note"
+                        placeholder="Add any other additional note...."
+                    />
+                    <button type="button" id="cancel-button">Cancel</button>
+                    <button type="submit" id="submit-button">Submit</button>
+                </form>
+            </section>
+            <section id="employees" class="card">
+                <div class="header">
+                    <h1>Employees</h1>
+                    <button id="add-employee">+ Add Employee</button>
+                    <p>Manage employees and view their summary.</p>
+                </div>
+                <div>
+                    <input
+                        type="search"
+                        id="employee-search"
+                        placeholder=" Search by name"
+                    />
+                </div>
+                <div class="employee-cards"></div>
+            </section>
+            <section id="company-details" class="card">
+                <div class="company-page-heading">
+                    <div>
+                        <h1>Company Details</h1>
+                        <p>View and maintain the company profile.</p>
+                    </div>
+                    <button type="button" id="edit-company">
+                        Edit Details
+                    </button>
+                </div>
+                <form id="company-form" enctype="multipart/form-data">
+                    <section class="company-logo-panel">
+                        <div class="company-logo-preview">
+                            <img id="company-logo-preview" alt="Company logo" />
+                            <span id="company-logo-fallback">🏢</span>
+                        </div>
+                        <div class="company-logo-control">
+                            <label for="company-logo">Company logo</label>
+                            <small>PNG, JPG or WebP (Max 2MB)</small>
+                            <input
+                                type="file"
+                                id="company-logo"
+                                name="logo"
+                                accept="image/jpeg,image/png,image/webp"
+                                disabled
+                            />
+                        </div>
+                        <button
+                            type="button"
+                            id="remove-company-logo"
+                            aria-label="Remove company logo"
+                            disabled
+                        >
+                            🗑
+                        </button>
+                        <input
+                            type="hidden"
+                            id="remove-company-logo-value"
+                            name="remove_logo"
+                            value="false"
+                        />
+                    </section>
+
+                    <section class="company-information-group">
+                        <h2>🏢 <span>Basic information</span></h2>
+                        <label>
+                            <span>Company name</span>
+                            <input name="company_name" required disabled />
+                        </label>
+                        <label>
+                            <span>Registration number (CAC)</span>
+                            <input name="registration_number" disabled />
+                        </label>
+                        <label>
+                            <span>Tax identification number (TIN)</span>
+                            <input name="tax_identification_number" disabled />
+                        </label>
+                    </section>
+
+                    <section class="company-information-group">
+                        <h2>☎ <span>Contact information</span></h2>
+                        <label>
+                            <span>Phone number</span>
+                            <input name="phone_number" disabled />
+                        </label>
+                        <label>
+                            <span>Email address</span>
+                            <input type="email" name="email" disabled />
+                        </label>
+                        <label>
+                            <span>Website (optional)</span>
+                            <input name="website" disabled />
+                        </label>
+                    </section>
+
+                    <section
+                        class="company-information-group company-address-group"
+                    >
+                        <h2>⌖ <span>Address</span></h2>
+                        <label>
+                            <span>Business address</span>
+                            <textarea
+                                name="business_address"
+                                rows="3"
+                                disabled
+                            ></textarea>
+                        </label>
+                    </section>
+
+                    <section class="company-information-group">
+                        <h2>▣ <span>Bank details (optional)</span></h2>
+                        <label>
+                            <span>Bank name</span>
+                            <input name="bank_name" disabled />
+                        </label>
+                        <label>
+                            <span>Account number</span>
+                            <input
+                                name="account_number"
+                                inputmode="numeric"
+                                disabled
+                            />
+                        </label>
+                        <label>
+                            <span>Account name</span>
+                            <input name="account_name" disabled />
+                        </label>
+                    </section>
+
+                    <div class="company-form-actions" hidden>
+                        <button type="button" id="cancel-company-edit">
+                            Cancel
+                        </button>
+                        <button type="submit">Save Changes</button>
+                    </div>
+                </form>
+            </section>
         </main>
-        <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-        <script>
-            eruda.init();
-        </script>
+        <script src="/js/debug-tools.js"></script>
         <script src="/js/navigation.js"></script>
         <script src="/js/forms.js"></script>
     </body>
