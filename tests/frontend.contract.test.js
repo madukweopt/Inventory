@@ -64,6 +64,8 @@ test('Manager authorises work while Storekeeper owns every physical quantity',fu
 	}
 	assert.equal((formsHtml.match(/manager-authorisation-card/g)||[]).length,3);
 	assert.doesNotMatch(formsJs,/textContent='Submit Sale'/);
+	assert.match(formsHtml,/type="time"[\s\S]*?id="production-hours"/);
+	assert.match(formsHtml,/type="time"[\s\S]*?id="down-time"/);
 });
 
 test('mobile navigation uses seventy percent width and closes from its shadow',function() {

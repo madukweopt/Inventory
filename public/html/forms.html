@@ -316,12 +316,10 @@
                                 >Production Hours</label
                             >
                             <input
-                                type="text"
+                                type="time"
                                 id="production-hours"
                                 name="production-hours"
-                                inputmode="numeric"
-                                pattern="[0-9]+:[0-5][0-9]"
-                                placeholder="HH:MM"
+                                step="60"
                                 required
                             />
                         </div>
@@ -336,12 +334,10 @@
                     <div class="field">
                         <label for="down-time">Down Time</label>
                         <input
-                            type="text"
+                            type="time"
                             id="down-time"
                             name="down-time"
-                            inputmode="numeric"
-                            pattern="[0-9]+:[0-5][0-9]"
-                            placeholder="HH:MM"
+                            step="60"
                             required
                         />
                     </div>
