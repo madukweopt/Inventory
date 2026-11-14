@@ -109,6 +109,7 @@ test('role permissions match the Admin, Manager and Storekeeper rules',async fun
 	await manager.get('/api/payroll?month=2026-11').expect(403);
 	await storekeeper.post('/api/sales').send({}).expect(403);
 	await manager.post('/api/stock_counts').send({}).expect(403);
+	await storekeeper.post('/api/stock_counts').send({}).expect(403);
 	await storekeeper.get('/api/company').expect(200);
 });
 
@@ -170,31 +171,39 @@ test('salary history, employee status and payroll calculations work',async funct
 	await manager.patch('/api/employees/'+ids.employee+'/status').send({}).expect(403);
 });
 
-test('inventory validates decimals and Storekeeper can record stock',async function() {
+test('manual Inventory adjustments are Admin-only and validate decimals',async function() {
 	const items=await admin.get('/api/items').expect(200);
 	for(const item of items.body) ids[item.name]=item.item_id;
-	await storekeeper.post('/api/stock_counts').send({
-		count_date: '2026-11-13',item_id: ids.PKO,received: 500,issued: '1.234'
+	await admin.post('/api/stock_counts').send({
+		count_date: '2026-11-13',item_id: ids.Diesel,received: 500,issued: '1.234'
 	}).expect(400);
-	await storekeeper.post('/api/stock_counts').send({
-		count_date: '2026-11-13',item_id: ids.PKO,received: 500,issued: 500
+	await admin.post('/api/stock_counts').send({
+		count_date: '2026-11-13',item_id: ids.Diesel,received: 500,issued: 0
 	}).expect(201);
-	await storekeeper.post('/api/stock_counts').send({
-		count_date: '2026-11-13',item_id: ids['P Kernel'],received: 1000,issued: 500
-	}).expect(201);
-	const stock=await admin.get('/api/stock_counts').expect(200);
-	assert.ok(stock.body.some(row => row.name==='PKO'));
+	const stock=await storekeeper.get('/api/stock_counts').expect(200);
+	assert.ok(stock.body.some(row => row.name==='Diesel'));
 });
 
-test('purchases, production and expenses save and appear in their data APIs',async function() {
-	await manager.post('/api/purchases').send({
+test('Manager authorises work and Storekeeper quantities create Purchase and Production records',async function() {
+	const purchaseRequest=await manager.post('/api/purchases').send({
 		purchase_date: '2026-11-13',supplier_id: ids.supplier,item_id: ids['P Kernel'],
-		quantity_supplied: 1000,unit_cost: 300
+		unit_cost: 300
 	}).expect(201);
-	await manager.post('/api/production').send({
-		production_date: '2026-11-13',kernel_used: 500,pko_produced: 200,
-		pkc_produced: 280,production_hours: '08:00',down_time: '01:00'
+	assert.equal(purchaseRequest.body.status,'Awaiting Storekeeper');
+	const productionRequest=await manager.post('/api/production').send({
+		production_date: '2026-11-13',production_hours: '08:00',down_time: '01:00'
 	}).expect(201);
+	const pending=await storekeeper.get('/api/weighing-requests').expect(200);
+	assert.deepEqual(new Set(pending.body.map(row => row.request_type)),new Set(['Purchase','Production']));
+	await manager.patch('/api/weighing-requests/'+purchaseRequest.body.request_id+'/complete').send({ quantity:1000 }).expect(403);
+	await storekeeper.patch('/api/weighing-requests/'+purchaseRequest.body.request_id+'/cancel').expect(403);
+	await storekeeper.patch('/api/weighing-requests/'+purchaseRequest.body.request_id+'/complete').send({
+		quantity: 1000,scale_ticket: 'PURCHASE-TICKET-1',vehicle_number: 'TEST-001'
+	}).expect(200);
+	await storekeeper.patch('/api/weighing-requests/'+productionRequest.body.request_id+'/complete').send({
+		kernel_used: 500,pko_produced: 200,pkc_produced: 280,sludge_produced: 20,
+		scale_ticket: 'PRODUCTION-TICKET-1'
+	}).expect(200);
 	await manager.post('/api/expenses').send({
 		expense_date: '2026-11-13',category: 'Expenses',description: 'Test transport',amount_spent: 25000
 	}).expect(201);
@@ -221,12 +230,14 @@ test('dated product prices are visible to every role but only Admin can change t
 });
 
 test('sales generate invoices and partial payments generate receipts and balances',async function() {
-	const sale=await manager.post('/api/sales').send({
+	const saleRequest=await manager.post('/api/sales').send({
 		sales_date: '2026-11-13',customer_id: ids.customer,item_id: ids.PKO,
 		quantity: 400,unit_price: 1
 	}).expect(201);
-	ids.sale=sale.body.sales_id;
-	assert.match(sale.body.invoice_number,/^INV-2026-\d{6}$/);
+	const completed=await storekeeper.patch('/api/weighing-requests/'+saleRequest.body.request_id+'/complete').send({
+		quantity: 400,scale_ticket: 'SALE-TICKET-1',vehicle_number: 'TEST-002'
+	}).expect(200);
+	ids.sale=completed.body.record_id;
 
 	let invoice=await manager.get('/api/sales/'+ids.sale+'/invoice').expect(200);
 	assert.equal(Number(invoice.body.sale.total),400000);
@@ -250,14 +261,16 @@ test('sales generate invoices and partial payments generate receipts and balance
 	assert.equal(saved.payment_status,'Partly Paid');
 });
 
-test('existing checks detect the difference between Inventory Issued and Sales Quantity',async function() {
+test('single-source Storekeeper quantities keep Inventory and business records consistent',async function() {
 	const checks=await admin.get('/api/checks').expect(200);
-	const salesDifference=checks.body.find(row =>
-		row.item==='PKO'&&row.check_date==='2026-11-13'&&
-		row.check_type==='pko_issued vs sold'
-	);
-	assert.ok(salesDifference,'Expected a PKO difference between 500 kg issued and 400 kg sold');
-	assert.equal(Math.abs(Number(salesDifference.difference)),100);
+	assert.equal(checks.body.length,0);
+	const stock=await storekeeper.get('/api/stock_counts').expect(200);
+	assert.ok(stock.body.some(row => row.name==='PKO'&&Number(row.issued)===400));
+	assert.ok(stock.body.some(row => row.name==='P Kernel'&&Number(row.issued)===500));
+	const summary=await storekeeper.get('/api/inventory-summary').expect(200);
+	const pkoDay=summary.body.find(row => row.name==='PKO'&&row.count_date==='2026-11-13');
+	assert.equal(Number(pkoDay.received),200);
+	assert.equal(Number(pkoDay.issued),400);
 });
 
 test('dashboard, customer history and supplier history return calculated data',async function() {

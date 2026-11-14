@@ -100,6 +100,10 @@
                     Prices
                 </button>
 
+                <button type="button" class="submenu-button" id="weighing-tasks-button">
+                    Pending Weighing
+                </button>
+
                 <button
                     type="button"
                     class="submenu-button"
@@ -255,7 +259,7 @@
             <section class="card">
                 <h2>Production Report</h2>
                 <p class="form-description">
-                    Provide details of the day's production
+                    Authorise the production date and working time. The Storekeeper will enter all weighed quantities.
                 </p>
                 <form id="production-form">
                     <div class="field">
@@ -276,8 +280,8 @@
                                 id="kernel-used"
                                 name="kernel-used"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -288,8 +292,8 @@
                                 id="oil-produced"
                                 name="oil-produced"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
                     </div>
@@ -302,8 +306,8 @@
                                 id="pkc-produced"
                                 name="pkc-produced"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -324,6 +328,12 @@
                     </div>
 
                     <div class="field">
+                        <label for="sludge-produced">Sludge Produced (kg)</label>
+                        <input type="number" id="sludge-produced" min="0" step="0.01"
+                            placeholder="Entered by Storekeeper" readonly />
+                    </div>
+
+                    <div class="field">
                         <label for="down-time">Down Time</label>
                         <input
                             type="text"
@@ -336,15 +346,14 @@
                         />
                     </div>
 
-                    <button type="submit">Submit Production</button>
+                    <button type="submit">Authorise Production</button>
                 </form>
             </section>
 
             <section class="card">
                 <h2>Inventory Purchases</h2>
                 <p class="form-description">
-                    Record details of inventory purchases. Fill this form for
-                    each purchase.
+                    Authorise the supplier, material and cost. The Storekeeper will enter the received quantity.
                 </p>
                 <form id="purchases-form">
                     <div class="field">
@@ -382,7 +391,7 @@
                     <div class="field-row">
                         <div class="field">
                             <label for="quantity-supplied"
-                                >Quantity Supplied (<span
+                                >Quantity Supplied by Storekeeper (<span
                                     class="purchase-entry-unit"
                                     >kg</span
                                 >)</label
@@ -393,8 +402,8 @@
                                 name="quantity-supplied"
                                 min="0"
                                 step="0.01"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -416,15 +425,14 @@
                         </div>
                     </div>
 
-                    <button type="submit">Submit Purchase</button>
+                    <button type="submit">Authorise Purchase</button>
                 </form>
             </section>
 
             <section class="card">
                 <h2>Sales Report</h2>
                 <p class="form-description">
-                    Record details of sales transactions. Fill this form for
-                    each product sold.
+                    Authorise the customer and product. The Storekeeper will enter the dispatched quantity.
                 </p>
                 <form id="sales-form">
                     <div class="field">
@@ -456,14 +464,14 @@
 
                     <div class="field-row">
                         <div class="field">
-                            <label for="sales-quantity">Quantity (kg)</label>
+                            <label for="sales-quantity">Quantity Issued by Storekeeper (kg)</label>
                             <input
                                 type="number"
                                 id="sales-quantity"
                                 name="quantity"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -484,7 +492,7 @@
                         </div>
                     </div>
 
-                    <button type="submit">Submit Sale</button>
+                    <button type="submit">Authorise Sale</button>
                 </form>
             </section>
 
@@ -695,6 +703,7 @@
                             <th>Kernel Used (kg)</th>
                             <th>PKO-produced (kg)</th>
                             <th>PKC Produced (kg)</th>
+                            <th>Sludge Produced (kg)</th>
                             <th>PKO yield</th>
                             <th>PKC yield</th>
                             <th>Production Hours</th>
@@ -1192,6 +1201,17 @@
                         <button type="submit">Save Price</button>
                     </div>
                 </form>
+            </section>
+            <section id="weighing-tasks" class="card weighing-tasks-page">
+                <div class="weighing-tasks-heading">
+                    <div>
+                        <h1>Pending Weighing</h1>
+                        <p>Complete quantities for activities already authorised by the Manager.</p>
+                    </div>
+                    <button type="button" id="refresh-weighing-tasks">Refresh</button>
+                </div>
+                <p class="weighing-tasks-message" role="status"></p>
+                <div class="weighing-task-list"></div>
             </section>
         </main>
         <script src="/js/debug-tools.js"></script>

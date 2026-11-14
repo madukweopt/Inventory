@@ -47,34 +47,34 @@ function filterChecks(checks) {
 function checkLabels(checkType) {
 	const labels={
 		pko_received_vs_produced: {
-			title: 'Received vs Produced',
-			store: 'Store keeper received',
-			manager: 'Manager produced'
+			title: 'Inventory vs Production record',
+			store: 'Inventory received',
+			manager: 'Production quantity'
 		},
 		pkc_received_vs_produced: {
-			title: 'Received vs Produced',
-			store: 'Store keeper received',
-			manager: 'Manager produced'
+			title: 'Inventory vs Production record',
+			store: 'Inventory received',
+			manager: 'Production quantity'
 		},
 		kernel_issued_vs_used: {
-			title: 'Issued vs Used',
-			store: 'Store keeper issued',
-			manager: 'Manager used'
+			title: 'Inventory vs Production record',
+			store: 'Inventory issued',
+			manager: 'Production quantity'
 		},
 		kernel_received_vs_purchased: {
-			title: 'Received vs Purchased',
-			store: 'Store keeper received',
-			manager: 'Purchases recorded'
+			title: 'Inventory vs Purchase record',
+			store: 'Inventory received',
+			manager: 'Purchase quantity'
 		},
 		pko_issued_vs_sold: {
-			title: 'Issued vs Sold',
-			store: 'Store keeper issued',
-			manager: 'Manager sold'
+			title: 'Inventory vs Sale record',
+			store: 'Inventory issued',
+			manager: 'Sale quantity'
 		},
 		pkc_issued_vs_sold: {
-			title: 'Issued vs Sold',
-			store: 'Store keeper issued',
-			manager: 'Manager sold'
+			title: 'Inventory vs Sale record',
+			store: 'Inventory issued',
+			manager: 'Sale quantity'
 		}
 	};
 
@@ -325,6 +325,9 @@ async function openCorrection(check) {
 				true],
 			['PKC produced',
 				record.pkc_produced,
+				true],
+			['Sludge produced',
+				record.sludge_produced,
 				true]
 		];
 		if(kind==='purchases') return [

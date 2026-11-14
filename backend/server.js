@@ -1045,6 +1045,7 @@ app.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(req
 		sales.unit_price,
 		sales.quantity * sales.unit_price AS total,
 		sales.invoice_number,
+		wr.scale_ticket,wr.vehicle_number,wr.completed_by AS weighed_by,
 		to_char(sales.due_date,'YYYY-MM-DD') AS due_date,
 		COALESCE(payments.amount_paid,0) AS amount_paid,
 		GREATEST(sales.quantity*sales.unit_price-COALESCE(payments.amount_paid,0),0) AS amount_remaining,
@@ -1059,6 +1060,8 @@ app.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(req
 		ON sales.customer_id = customers.customer_id
 		INNER JOIN items
 		ON sales.item_id = items.item_id
+		LEFT JOIN weighing_requests wr
+		ON wr.request_type='Sale' AND wr.completed_record_id=sales.sales_id AND wr.status='Completed'
 		LEFT JOIN (
 			SELECT sales_id,SUM(amount) AS amount_paid
 			FROM sale_payments GROUP BY sales_id
@@ -1164,6 +1167,29 @@ app.get("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,re
 	);
 });
 
+// Returns one daily Inventory summary per item from completed physical movements.
+app.get('/api/inventory-summary',requireRole(['admin','storekeeper']),async function(req,res) {
+	try {
+		const result=await pool.query(`WITH daily AS (
+			SELECT stock_counts.item_id,items.name,stock_counts.count_date,
+			MAX(stock_counts.created_at) AS created_at,SUM(stock_counts.received) AS received,
+			SUM(stock_counts.issued) AS issued
+			FROM stock_counts INNER JOIN items ON items.item_id=stock_counts.item_id
+			GROUP BY stock_counts.item_id,items.name,stock_counts.count_date
+		)
+		SELECT ROW_NUMBER() OVER (ORDER BY count_date,item_id) AS summary_id,item_id,name,
+		TO_CHAR(count_date,'YYYY-MM-DD') AS count_date,created_at,received,issued,
+		SUM(received-issued) OVER (PARTITION BY item_id ORDER BY count_date)-
+			(received-issued) AS opening_stock,
+		SUM(received-issued) OVER (PARTITION BY item_id ORDER BY count_date) AS closing_stock
+		FROM daily ORDER BY count_date DESC,item_id`);
+		return res.json(result.rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load daily Inventory summary' });
+	}
+});
+
 // Handles GET /api/purchases requests.
 app.get("/api/purchases",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
@@ -1177,12 +1203,15 @@ app.get("/api/purchases",requireRole(['admin','manager','storekeeper']),function
     purchases.quantity_supplied,
     items.name, purchases.unit_cost,
     purchases.quantity_supplied *
-    purchases.unit_cost AS total_cost
+    purchases.unit_cost AS total_cost,
+	wr.scale_ticket,wr.vehicle_number,wr.completed_by AS weighed_by
     FROM purchases
     INNER JOIN suppliers ON
     purchases.supplier_id = suppliers.supplier_id
     INNER JOIN items ON
     purchases.item_id = items.item_id
+	LEFT JOIN weighing_requests wr
+	ON wr.request_type='Purchase' AND wr.completed_record_id=purchases.purchase_id AND wr.status='Completed'
     ORDER BY purchases.purchase_date
     DESC, purchases.created_at DESC`,
 		// Runs the callback required by the surrounding operation.
@@ -1201,7 +1230,15 @@ app.get("/api/purchases",requireRole(['admin','manager','storekeeper']),function
 // Handles GET /api/production requests.
 app.get("/api/production",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
-		"SELECT production.production_id, to_char(production.production_date, 'YYYY-MM-DD') AS production_date, production.created_at, production.kernel_used, production.pko_produced, production.pkc_produced, ROUND((production.pko_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pko_yield, ROUND((production.pkc_produced / NULLIF(production.kernel_used, 0) * 100)::numeric, 2) AS pkc_yield, to_char(production.production_hours, 'HH24:MI') AS production_hours, to_char(production.down_time, 'HH24:MI') AS down_time FROM production ORDER BY production.created_at DESC;",
+		`SELECT production.production_id,to_char(production.production_date,'YYYY-MM-DD') AS production_date,
+		production.created_at,production.kernel_used,production.pko_produced,production.pkc_produced,
+		production.sludge_produced,ROUND((production.pko_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pko_yield,
+		ROUND((production.pkc_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pkc_yield,
+		to_char(production.production_hours,'HH24:MI') AS production_hours,
+		to_char(production.down_time,'HH24:MI') AS down_time,wr.scale_ticket,wr.completed_by AS weighed_by
+		FROM production LEFT JOIN weighing_requests wr
+		ON wr.request_type='Production' AND wr.completed_record_id=production.production_id AND wr.status='Completed'
+		ORDER BY production.created_at DESC`,
 		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
@@ -1242,8 +1279,6 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 	if(
 		!sales.customer_id||
 		!sales.item_id||
-		!sales.quantity||
-		sales.quantity<=0||
 		!/^\d{4}-\d{2}-\d{2}$/.test(sales.sales_date)
 	) {
 		return res.status(400).json({
@@ -1260,18 +1295,14 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 		}
 		const savedUnitPrice=priceResult.rows[0].unit_price;
 		const inserted=await pool.query(
-			`WITH next_sale AS (SELECT nextval('sales_sales_id_seq') AS sales_id)
-			INSERT INTO sales
-				(sales_id,sales_date,customer_id,item_id,quantity,unit_price,due_date,invoice_number)
-			SELECT sales_id,$1::date,$2,$3,$4,$5,$6::date,
-				'INV-'||to_char($1::date,'YYYY')||'-'||lpad(sales_id::text,6,'0')
-			FROM next_sale RETURNING *`,[
+			`INSERT INTO weighing_requests
+			(request_type,request_date,customer_id,item_id,unit_price,created_by)
+			VALUES ('Sale',$1::date,$2,$3,$4,$5) RETURNING *`,[
 			sales.sales_date,
 			sales.customer_id,
 			sales.item_id,
-			sales.quantity,
 			savedUnitPrice,
-			sales.due_date||sales.sales_date
+			req.session.user_id
 		]);
 		return res.status(201).json(inserted.rows[0]);
 	} catch(error) {
@@ -1281,44 +1312,39 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 });
 
 // Handles POST /api/purchases requests.
-app.post("/api/purchases",requireRole(['admin','manager']),function(req,res) {
+app.post("/api/purchases",requireRole(['admin','manager']),async function(req,res) {
 	const purchase=req.body;
 	if(
 		!purchase.supplier_id||
 		!purchase.item_id||
-		!purchase.quantity_supplied||
-		purchase.quantity_supplied<=0||
 		!purchase.unit_cost||
-		purchase.unit_cost<=0
+		purchase.unit_cost<=0||
+		!/^\d{4}-\d{2}-\d{2}$/.test(purchase.purchase_date)
 	) {
 		return res.status(400).json({
 			error: "Could not submit purchase"
 		});
 	}
-	pool.query(
-		"INSERT INTO purchases(purchase_date, supplier_id, item_id, quantity_supplied, unit_cost) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-		[
+	try {
+		const result=await pool.query(
+			`INSERT INTO weighing_requests
+			(request_type,request_date,supplier_id,item_id,unit_cost,created_by)
+			VALUES ('Purchase',$1::date,$2,$3,$4,$5) RETURNING *`,[
 			purchase.purchase_date,
 			purchase.supplier_id,
 			purchase.item_id,
-			purchase.quantity_supplied,
-			purchase.unit_cost
-		],
-		// Handles the result of the preceding database query.
-		function(err,result) {
-			if(err) {
-				console.log(err);
-				return res.status(500).json({
-					err: "could not save purchase"
-				});
-			}
-			res.status(201).json(result.rows[0]);
-		}
-	);
+			purchase.unit_cost,
+			req.session.user_id
+		]);
+		return res.status(201).json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not send purchase to Storekeeper' });
+	}
 });
 
 // Handles POST /api/stock_counts requests.
-app.post("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
+app.post("/api/stock_counts",requireRole(['admin']),function(req,res) {
 	const stockInventory=req.body;
 	const receivedQuantity=readInventoryQuantity(stockInventory.received);
 	const issuedQuantity=readInventoryQuantity(stockInventory.issued);
@@ -1365,65 +1391,183 @@ function readInventoryQuantity(value) {
 }
 
 // Handles POST /api/production requests.
-app.post("/api/production",requireRole(['admin','manager']),function(req,res) {
+app.post("/api/production",requireRole(['admin','manager']),async function(req,res) {
 	const production=req.body;
 	if(
 		!production.production_date||
-		!production.kernel_used||
-		production.kernel_used<=0||
-		!production.pko_produced||
-		production.pko_produced<=0||
-		!production.pkc_produced||
-		production.pkc_produced<=0
+		!production.production_hours||
+		!production.down_time
 	) {
 		return res.status(400).json({
 			err: "Check your inputs and try again"
 		});
 	}
-	pool.query(
-		"SELECT production_id FROM production WHERE production_date = $1::date",
-		[production.production_date],
-		// Handles the result of the preceding database query.
-		function(err,existing) {
-			if(err) {
-				console.log(err);
-				return res.status(500).json({
-					err: "Failed to submit. Internal server error"
-				});
-			}
-			if(existing.rows.length>0) {
-				return res.status(409).json({
-					err: "A production report already exists for this date"
-				});
-			}
-			pool.query(
-				"INSERT INTO production ( production_date, kernel_used, pko_produced, pkc_produced, production_hours, down_time ) VALUES ($1, $2, $3, $4, $5::interval, $6::interval) RETURNING *",
-				[
-					production.production_date,
-					production.kernel_used,
-					production.pko_produced,
-					production.pkc_produced,
-					production.production_hours,
-					production.down_time
-				],
-				// Handles the result of the preceding database query.
-				function(err,result) {
-					if(err) {
-						console.log(err);
-						if(err.code==="23505") {
-							return res.status(409).json({
-								err: "A production report already exists for this date"
-							});
-						}
-						return res.status(500).json({
-							err: "Failed to submit. Internal server error"
-						});
-					}
-					res.status(201).json(result.rows[0]);
-				}
-			);
+	try {
+		const existing=await pool.query(`SELECT 1 FROM production WHERE production_date=$1::date
+			UNION ALL SELECT 1 FROM weighing_requests
+			WHERE request_type='Production' AND request_date=$1::date AND status='Awaiting Storekeeper'`,
+		[production.production_date]);
+		if(existing.rows.length>0) return res.status(409).json({ err: 'A production record already exists for this date' });
+		const result=await pool.query(`INSERT INTO weighing_requests
+			(request_type,request_date,production_hours,down_time,created_by)
+			VALUES ('Production',$1::date,$2::interval,$3::interval,$4) RETURNING *`,
+		[production.production_date,production.production_hours,production.down_time,req.session.user_id]);
+		return res.status(201).json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not send production to Storekeeper' });
+	}
+});
+
+// Lists authorised activities that are waiting for the Storekeeper's physical quantities.
+app.get('/api/weighing-requests',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	try {
+		const result=await pool.query(`SELECT
+			wr.request_id,wr.request_type,TO_CHAR(wr.request_date,'YYYY-MM-DD') AS request_date,
+			wr.item_id,items.name AS item,wr.supplier_id,suppliers.name AS supplier,
+			wr.customer_id,customers.name AS customer,wr.unit_cost,wr.unit_price,
+			TO_CHAR(wr.production_hours,'HH24:MI') AS production_hours,
+			TO_CHAR(wr.down_time,'HH24:MI') AS down_time,wr.status,wr.created_at,
+			users.username AS authorised_by
+		FROM weighing_requests wr
+		LEFT JOIN items ON items.item_id=wr.item_id
+		LEFT JOIN suppliers ON suppliers.supplier_id=wr.supplier_id
+		LEFT JOIN customers ON customers.customer_id=wr.customer_id
+		LEFT JOIN users ON users.user_id=wr.created_by
+		WHERE wr.status='Awaiting Storekeeper'
+		ORDER BY wr.request_date,wr.created_at,wr.request_id`);
+		return res.json(result.rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load pending Storekeeper work' });
+	}
+});
+
+// Cancels an incorrect authorisation before the Storekeeper has completed it.
+app.patch('/api/weighing-requests/:id/cancel',requireRole(['admin','manager']),async function(req,res) {
+	const requestId=Number(req.params.id);
+	if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err: 'Invalid request' });
+	try {
+		const parameters=[requestId];
+		let ownerRule='';
+		if(req.session.role==='manager') {
+			parameters.push(req.session.user_id);
+			ownerRule=' AND created_by=$2';
 		}
-	);
+		const result=await pool.query(`UPDATE weighing_requests SET status='Cancelled'
+			WHERE request_id=$1 AND status='Awaiting Storekeeper'${ownerRule} RETURNING request_id`,parameters);
+		if(result.rows.length===0) return res.status(404).json({ err: 'Pending request not found or cannot be cancelled' });
+		return res.json({ message: 'Authorisation cancelled' });
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not cancel the authorisation' });
+	}
+});
+
+// Completes an authorised activity using quantities entered once by the Storekeeper.
+app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeeper']),async function(req,res) {
+	const requestId=Number(req.params.id);
+	if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err: 'Invalid request' });
+	const client=await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const requestResult=await client.query(
+			`SELECT * FROM weighing_requests WHERE request_id=$1 FOR UPDATE`,[requestId]
+		);
+		if(requestResult.rows.length===0) {
+			await client.query('ROLLBACK');
+			return res.status(404).json({ err: 'Request not found' });
+		}
+		const request=requestResult.rows[0];
+		if(request.status!=='Awaiting Storekeeper') {
+			await client.query('ROLLBACK');
+			return res.status(409).json({ err: 'This request has already been completed' });
+		}
+		const scaleTicket=String(req.body.scale_ticket||'').trim()||null;
+		const vehicleNumber=String(req.body.vehicle_number||'').trim()||null;
+		let completedRecordId;
+		if(request.request_type==='Purchase') {
+			const quantity=readInventoryQuantity(req.body.quantity);
+			if(quantity===null||quantity<=0) throw Object.assign(new Error('Enter the received quantity using no more than two decimal places'),{ status:400 });
+			const purchase=await client.query(`INSERT INTO purchases
+				(purchase_date,supplier_id,item_id,quantity_supplied,unit_cost)
+				VALUES ($1,$2,$3,$4,$5) RETURNING purchase_id`,
+			[request.request_date,request.supplier_id,request.item_id,quantity,request.unit_cost]);
+			completedRecordId=purchase.rows[0].purchase_id;
+			await client.query(`INSERT INTO stock_counts
+				(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
+				VALUES ($1,$2,$3,0,'Purchase',$4,'Received',$5)`,
+			[request.request_date,request.item_id,quantity,requestId,req.session.user_id]);
+			await client.query(`UPDATE weighing_requests SET quantity=$1 WHERE request_id=$2`,[quantity,requestId]);
+		} else if(request.request_type==='Sale') {
+			const quantity=readInventoryQuantity(req.body.quantity);
+			if(quantity===null||quantity<=0) throw Object.assign(new Error('Enter the issued quantity using no more than two decimal places'),{ status:400 });
+			const sale=await client.query(`WITH next_sale AS
+				(SELECT nextval('sales_sales_id_seq') AS sales_id)
+				INSERT INTO sales
+				(sales_id,sales_date,customer_id,item_id,quantity,unit_price,due_date,invoice_number)
+				SELECT sales_id,$1,$2,$3,$4,$5,$1,
+				'INV-'||to_char($1::date,'YYYY')||'-'||lpad(sales_id::text,6,'0')
+				FROM next_sale RETURNING sales_id`,
+			[request.request_date,request.customer_id,request.item_id,quantity,request.unit_price]);
+			completedRecordId=sale.rows[0].sales_id;
+			await client.query(`INSERT INTO stock_counts
+				(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
+				VALUES ($1,$2,0,$3,'Sale',$4,'Issued',$5)`,
+			[request.request_date,request.item_id,quantity,requestId,req.session.user_id]);
+			await client.query(`UPDATE weighing_requests SET quantity=$1 WHERE request_id=$2`,[quantity,requestId]);
+		} else {
+			const quantities={
+				kernel_used: readInventoryQuantity(req.body.kernel_used),
+				pko_produced: readInventoryQuantity(req.body.pko_produced),
+				pkc_produced: readInventoryQuantity(req.body.pkc_produced),
+				sludge_produced: readInventoryQuantity(req.body.sludge_produced)
+			};
+			if(quantities.kernel_used===null||quantities.kernel_used<=0||
+				quantities.pko_produced===null||quantities.pko_produced<=0||
+				quantities.pkc_produced===null||quantities.pkc_produced<=0||
+				quantities.sludge_produced===null||quantities.sludge_produced<0) {
+				throw Object.assign(new Error('Check all production quantities; use no more than two decimal places'),{ status:400 });
+			}
+			const production=await client.query(`INSERT INTO production
+				(production_date,kernel_used,pko_produced,pkc_produced,sludge_produced,production_hours,down_time)
+				VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING production_id`,
+			[request.request_date,quantities.kernel_used,quantities.pko_produced,
+				quantities.pkc_produced,quantities.sludge_produced,request.production_hours,request.down_time]);
+			completedRecordId=production.rows[0].production_id;
+			const itemRows=await client.query(`SELECT item_id,LOWER(name) AS name FROM items
+				WHERE LOWER(name) IN ('p kernel','pko','pkc','sludge')`);
+			const ids=Object.fromEntries(itemRows.rows.map(item => [item.name,item.item_id]));
+			if(!ids['p kernel']||!ids.pko||!ids.pkc||!ids.sludge) throw new Error('Production inventory items are incomplete');
+			const movements=[
+				[ids['p kernel'],0,quantities.kernel_used,'Kernel Issued'],
+				[ids.pko,quantities.pko_produced,0,'PKO Received'],
+				[ids.pkc,quantities.pkc_produced,0,'PKC Received'],
+				[ids.sludge,quantities.sludge_produced,0,'Sludge Received']
+			];
+			for(const movement of movements) {
+				await client.query(`INSERT INTO stock_counts
+					(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
+					VALUES ($1,$2,$3,$4,'Production',$5,$6,$7)`,
+				[request.request_date,movement[0],movement[1],movement[2],requestId,movement[3],req.session.user_id]);
+			}
+			await client.query(`UPDATE weighing_requests SET kernel_used=$1,pko_produced=$2,
+				pkc_produced=$3,sludge_produced=$4 WHERE request_id=$5`,
+			[quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,requestId]);
+		}
+		await client.query(`UPDATE weighing_requests SET status='Completed',completed_by=$1,
+			completed_record_id=$2,scale_ticket=$3,vehicle_number=$4,completed_at=CURRENT_TIMESTAMP
+			WHERE request_id=$5`,
+		[req.session.user_id,completedRecordId,scaleTicket,vehicleNumber,requestId]);
+		await client.query('COMMIT');
+		return res.json({ message: request.request_type+' completed successfully',record_id: completedRecordId });
+	} catch(error) {
+		await client.query('ROLLBACK');
+		console.error(error);
+		return res.status(error.status||500).json({ err: error.status?error.message:'Could not complete the Storekeeper work' });
+	} finally {
+		client.release();
+	}
 });
 
 // Handles POST /api/expenses requests.
@@ -2807,12 +2951,9 @@ app.get("/api/correction",requireRole(['admin']),async function(req,res) {
 });
 
 // Handles PATCH /api/correction_edit requests.
-app.patch("/api/correction_edit",requireRole(['admin','storekeeper']),async function(req,res) {
+app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) {
 	try {
 		const kind=req.body.kind;
-		if(req.session.role==='storekeeper'&&kind!=='stock') {
-			return res.status(403).json({ err: 'Access denied' });
-		}
 		const record=req.body.record;
 
 		let updated;
@@ -2854,15 +2995,17 @@ app.patch("/api/correction_edit",requireRole(['admin','storekeeper']),async func
         kernel_used = $2,
         pko_produced = $3,
         pkc_produced = $4,
-        production_hours = $5::interval,
-        down_time = $6::interval
-        WHERE production_id = $7
+        sludge_produced = $5,
+        production_hours = $6::interval,
+        down_time = $7::interval
+        WHERE production_id = $8
         RETURNING *`,
 				[
 					record.production_date,
 					record.kernel_used,
 					record.pko_produced,
 					record.pkc_produced,
+					record.sludge_produced||0,
 					record.production_hours,
 					record.down_time,
 					record.production_id
@@ -2943,12 +3086,9 @@ app.patch("/api/correction_edit",requireRole(['admin','storekeeper']),async func
 });
 
 // Handles DELETE /api/correction_delete requests.
-app.delete("/api/correction_delete",requireRole(['admin','storekeeper']),async function(req,res) {
+app.delete("/api/correction_delete",requireRole(['admin']),async function(req,res) {
 	try {
 		const kind=req.body.kind;
-		if(req.session.role==='storekeeper'&&kind!=='stock') {
-			return res.status(403).json({ err: 'Access denied' });
-		}
 		const record=req.body.record;
 		let deleted;
 

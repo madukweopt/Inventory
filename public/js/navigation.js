@@ -13,6 +13,7 @@ const suppliersBtn=document.querySelector('#suppliers-button');
 const employeesBtn=document.querySelector('#employees-button');
 const companyDetailsBtn=document.querySelector('#company-details-button');
 const pricesBtn=document.querySelector('#prices-button');
+const weighingTasksBtn=document.querySelector('#weighing-tasks-button');
 const manageUsersBtn=document.querySelector('#manage-users-button');
 const switchAccountBtn=document.createElement('button');
 switchAccountBtn.type='button';
@@ -36,7 +37,7 @@ function applyRoleVisibility(user) {
 		});
 	};
 
-	hide('a[href$="#inventory-form"]',role==='manager');
+	hide('a[href$="#inventory-form"]',role!=='admin');
 	hide('a[href$="#inventory-data"]',role==='manager');
 	hide('a[href$="#purchases-form"], a[href$="#sales-form"], a[href$="#production-form"], a[href$="#expenses-form"]',role==='storekeeper');
 	hide('#employees-button',role==='storekeeper');
@@ -97,7 +98,7 @@ if(secondBtn) {
 	secondBtn.addEventListener("click",displayData);
 }
 
-const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #employees-button, #company-details-button, #prices-button");
+const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {
 	// Handles click events from link.
@@ -150,6 +151,13 @@ if(pricesBtn) {
 	// Opens the product price list and price editor.
 	pricesBtn.addEventListener('click',() => {
 		window.location.href='/forms.html#prices';
+	});
+}
+
+if(weighingTasksBtn) {
+	// Opens the Storekeeper's authorised work waiting for physical quantities.
+	weighingTasksBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#weighing-tasks';
 	});
 }
 

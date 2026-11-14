@@ -3723,3 +3723,122 @@ tbody
 		width: 100%;
 	}
 }
+
+.weighing-tasks-page {
+	min-height: calc(100vh - 80px);
+	background: #f7faf7;
+}
+
+.weighing-tasks-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 14px;
+	margin-bottom: 14px;
+	padding-bottom: 14px;
+	border-bottom: 1px solid #dce6de;
+}
+
+.weighing-tasks-heading h1 {
+	margin: 0 0 4px;
+	color: #174f31;
+}
+
+.weighing-tasks-heading p,
+.weighing-tasks-message {
+	margin: 0;
+	color: #647269;
+}
+
+#refresh-weighing-tasks {
+	width: auto;
+	margin: 0;
+	padding: 8px 11px;
+	font-size: .78rem;
+	white-space: nowrap;
+}
+
+.weighing-tasks-message {
+	min-height: 24px;
+	font-weight: 700;
+}
+
+.weighing-task-list {
+	display: grid;
+	gap: 14px;
+}
+
+.weighing-task-card {
+	padding: 16px;
+	border: 1px solid #dce6de;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.weighing-task-card-heading h2 {
+	margin: 0 0 5px;
+	color: #174f31;
+	font-size: 1rem;
+}
+
+.weighing-task-card-heading p {
+	margin: 0 0 14px;
+	color: #647269;
+	font-size: .82rem;
+}
+
+.weighing-task-waiting {
+	display: inline-block;
+	padding: 6px 9px;
+	border-radius: 999px;
+	background: #fff2cf;
+	color: #855f00;
+	font-size: .7rem;
+}
+
+.weighing-task-manager-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.cancel-weighing-request,
+.cancel-weighing-request:hover,
+.cancel-weighing-request:focus,
+.cancel-weighing-request:active {
+	width: auto;
+	margin: 0;
+	padding: 7px 10px;
+	border: 1px solid #b42318;
+	background: #fff;
+	color: #b42318;
+	font-size: .72rem;
+}
+
+.weighing-task-form {
+	display: grid;
+	grid-template-columns: repeat(auto-fit,minmax(155px,1fr));
+	align-items: end;
+	gap: 10px;
+}
+
+.weighing-task-form label span {
+	display: block;
+	margin-bottom: 5px;
+	color: #33453a;
+	font-size: .76rem;
+	font-weight: 700;
+}
+
+.weighing-task-form input {
+	width: 100%;
+	margin: 0;
+}
+
+.weighing-task-form button[type="submit"] {
+	width: 100%;
+	min-height: 43px;
+	margin: 0;
+	padding: 9px 12px;
+}

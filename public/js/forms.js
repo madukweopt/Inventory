@@ -21,6 +21,7 @@ const productionDate=document.querySelector("#production-date");
 const kernelUsed=document.querySelector("#kernel-used");
 const oilProduced=document.querySelector("#oil-produced");
 const pkcProduced=document.querySelector("#pkc-produced");
+const sludgeProduced=document.querySelector('#sludge-produced');
 const productionHours=document.querySelector("#production-hours");
 const downTime=document.querySelector("#down-time");
 const expenseDate=document.querySelector("#expense-date");
@@ -52,6 +53,9 @@ const priceCards=document.querySelector('.price-cards');
 const openPriceFormBtn=document.querySelector('#open-price-form');
 const cancelPriceFormBtn=document.querySelector('#cancel-price-form');
 const salesPriceMessage=document.querySelector('#sales-price-message');
+const weighingTaskList=document.querySelector('.weighing-task-list');
+const weighingTasksMessage=document.querySelector('.weighing-tasks-message');
+const refreshWeighingTasksBtn=document.querySelector('#refresh-weighing-tasks');
 
 // Prevents inventory quantities from containing more than two decimal places.
 function limitInventoryDecimals(input) {
@@ -75,7 +79,7 @@ function applyFormPermissions(user) {
 		if(card) card.classList.toggle('permission-hidden',shouldHide);
 	};
 
-	hideCard('#inventory-form',role==='manager');
+	hideCard('#inventory-form',role!=='admin');
 	hideCard('#inventory-data',role==='manager');
 	hideCard('#purchases-form',role==='storekeeper');
 	hideCard('#sales-form',role==='storekeeper');
@@ -148,6 +152,8 @@ async function displaySelectedForm() {
 		loadSaleDocument();
 	} else if(formId==="#prices") {
 		loadPrices();
+	} else if(formId==="#weighing-tasks") {
+		loadWeighingTasks();
 	}
 }
 displaySelectedForm();
@@ -582,7 +588,6 @@ async function saveSale(event) {
 		sales_date: salesDate.value,
 		customer_id: customer.value,
 		item_id: productSold.value,
-		quantity: salesQuantity.value,
 		unit_price: unitPrice.value
 	};
 	try {
@@ -600,7 +605,7 @@ async function saveSale(event) {
 		}
 		const savedSale=await response.json();
 		console.log("saved:",savedSale);
-		alert("Sale saved successfully!");
+		alert("Sale authorised and sent to Storekeeper for weighing.");
 		salesForm.reset();
 		salesPriceMessage.textContent='Select a sales date and product to load its price.';
 	} catch(err) {
@@ -620,7 +625,6 @@ async function savePurchases(event) {
 		purchase_date: purchaseDate.value,
 		supplier_id: supplier.value,
 		item_id: materialSupplied.value,
-		quantity_supplied: quantitySupplied.value,
 		unit_cost: unitCost.value
 	};
 	try {
@@ -637,7 +641,7 @@ async function savePurchases(event) {
 		}
 		const savedPurchase=await response.json();
 		console.log("saved:",savedPurchase);
-		alert("Purchase submited");
+		alert("Purchase authorised and sent to Storekeeper for weighing.");
 		purchaseForm.reset();
 	} catch(err) {
 		console.error("Network problem",err);
@@ -688,9 +692,6 @@ async function saveProduction(event) {
 	event.preventDefault();
 	const production={
 		production_date: productionDate.value,
-		kernel_used: kernelUsed.value,
-		pko_produced: oilProduced.value,
-		pkc_produced: pkcProduced.value,
 		production_hours: productionHours.value,
 		down_time: downTime.value
 	};
@@ -713,7 +714,7 @@ async function saveProduction(event) {
 		}
 		const savedProduction=await response.json();
 		console.log("saved:",savedProduction);
-		alert("Production submitted successfully");
+		alert("Production authorised and sent to Storekeeper for weighing.");
 		productionForm.reset();
 	} catch(err) {
 		console.error(err);
@@ -723,6 +724,142 @@ async function saveProduction(event) {
 if(productionForm) {
 	productionForm.addEventListener("submit",saveProduction);
 }
+
+// Builds one Storekeeper card for an activity already authorised by the Manager.
+function createWeighingTaskCard(request) {
+	const card=document.createElement('article');
+	const heading=document.createElement('div');
+	const title=document.createElement('h2');
+	const details=document.createElement('p');
+	const form=document.createElement('form');
+	const requestLabel=request.request_type+' #'+request.request_id;
+	card.className='weighing-task-card';
+	heading.className='weighing-task-card-heading';
+	title.textContent=requestLabel;
+	details.textContent=request.request_type==='Purchase'?
+		(request.item+' from '+request.supplier+' · '+formatDate(request.request_date)+' · ₦'+formatNumber(request.unit_cost)+'/'+inventoryUnit(request.item)):
+		request.request_type==='Sale'?
+		(request.item+' for '+request.customer+' · '+formatDate(request.request_date)+' · ₦'+formatNumber(request.unit_price)+'/'+inventoryUnit(request.item)):
+		('Production on '+formatDate(request.request_date)+' · '+request.production_hours+' hours · '+request.down_time+' downtime');
+	heading.append(title,details);
+	if(document.documentElement.dataset.userRole==='manager') {
+		const managerActions=document.createElement('div');
+		const waiting=document.createElement('strong');
+		const cancel=document.createElement('button');
+		waiting.className='weighing-task-waiting';
+		waiting.textContent='Waiting for Storekeeper';
+		cancel.type='button';
+		cancel.className='cancel-weighing-request';
+		cancel.textContent='Cancel Authorisation';
+		cancel.addEventListener('click',async function() {
+			if(!window.confirm('Cancel this authorisation?')) return;
+			const response=await fetch('/api/weighing-requests/'+request.request_id+'/cancel',{ method:'PATCH' });
+			const result=await response.json();
+			if(response.ok) {
+				await loadWeighingTasks();
+				weighingTasksMessage.textContent=result.message;
+			} else {
+				weighingTasksMessage.textContent=result.err||'Could not cancel authorisation';
+			}
+		});
+		managerActions.className='weighing-task-manager-actions';
+		managerActions.append(waiting,cancel);
+		card.append(heading,managerActions);
+		return card;
+	}
+	form.className='weighing-task-form';
+	form.dataset.requestId=request.request_id;
+
+	// Adds a labelled input used to complete the authorised activity.
+	function addInput(labelText,name,options={}) {
+		const label=document.createElement('label');
+		const text=document.createElement('span');
+		const input=document.createElement('input');
+		text.textContent=labelText;
+		input.name=name;
+		input.type=options.type||'number';
+		if(input.type==='number') {
+			input.min=String(options.min??0);
+			input.step='0.01';
+			input.inputMode='decimal';
+		}
+		input.required=options.required!==false;
+		input.placeholder=options.placeholder||'';
+		label.append(text,input);
+		form.appendChild(label);
+		return input;
+	}
+
+	if(request.request_type==='Production') {
+		addInput('Kernel issued (kg)','kernel_used',{ min:0.01 });
+		addInput('PKO received (kg)','pko_produced',{ min:0.01 });
+		addInput('PKC received (kg)','pkc_produced',{ min:0.01 });
+		addInput('Sludge received (kg)','sludge_produced',{ min:0 });
+	} else {
+		addInput(request.request_type==='Purchase'?
+			'Quantity received ('+inventoryUnit(request.item)+')':
+			'Quantity issued ('+inventoryUnit(request.item)+')','quantity',{ min:0.01 });
+		addInput('Vehicle number','vehicle_number',{ type:'text',required:false,placeholder:'Optional' });
+	}
+	addInput('Scale ticket number','scale_ticket',{ type:'text',required:false,placeholder:'Optional' });
+	const submit=document.createElement('button');
+	submit.type='submit';
+	submit.textContent=request.request_type==='Purchase'?'Confirm Receipt':
+		request.request_type==='Sale'?'Confirm Dispatch':'Confirm Production Quantities';
+	form.appendChild(submit);
+	form.addEventListener('submit',completeWeighingTask);
+	card.append(heading,form);
+	return card;
+}
+
+// Loads Manager-authorised work that is waiting for Storekeeper quantities.
+async function loadWeighingTasks() {
+	if(!weighingTaskList) return;
+	weighingTaskList.textContent='Loading pending work...';
+	weighingTasksMessage.textContent='';
+	try {
+		const response=await fetch('/api/weighing-requests');
+		if(!response.ok) throw new Error('Could not load pending work');
+		const requests=await response.json();
+		weighingTaskList.replaceChildren();
+		requests.forEach(request => weighingTaskList.appendChild(createWeighingTaskCard(request)));
+		if(requests.length===0) weighingTaskList.textContent='There is no activity waiting for weighing.';
+	} catch(error) {
+		console.error(error);
+		weighingTaskList.textContent='Pending work could not be loaded.';
+	}
+}
+
+// Saves the Storekeeper quantities once and completes the related business record and Inventory movement.
+async function completeWeighingTask(event) {
+	event.preventDefault();
+	const form=event.currentTarget;
+	const submit=form.querySelector('button[type="submit"]');
+	submit.disabled=true;
+	weighingTasksMessage.textContent='Saving physical quantities...';
+	const values=Object.fromEntries(new FormData(form).entries());
+	try {
+		const response=await fetch('/api/weighing-requests/'+form.dataset.requestId+'/complete',{
+			method: 'PATCH',
+			headers: { 'content-type':'application/json' },
+			body: JSON.stringify(values)
+		});
+		const result=await response.json();
+		if(!response.ok) {
+			weighingTasksMessage.textContent=result.err||'The quantities could not be saved.';
+			submit.disabled=false;
+			return;
+		}
+		await loadWeighingTasks();
+		weighingTasksMessage.textContent=result.message;
+	} catch(error) {
+		console.error(error);
+		weighingTasksMessage.textContent='The quantities could not be saved.';
+		submit.disabled=false;
+	}
+}
+
+if(refreshWeighingTasksBtn) refreshWeighingTasksBtn.addEventListener('click',loadWeighingTasks);
 
 // Validates the submitted expenses data and sends it to the server for saving.
 async function saveExpenses(event) {
@@ -1143,12 +1280,9 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 			config.item(row),
 			config.id(row)
 		);
-		if(
-			document.documentElement.dataset.userRole==='storekeeper'&&
-			config.kind==='stock'
-		) {
-			card.card.querySelector('.edit-btn').hidden=false;
-			card.card.querySelector('.delete-btn').hidden=false;
+		if(config.readonly) {
+			card.card.querySelector('.edit-btn').hidden=true;
+			card.card.querySelector('.delete-btn').hidden=true;
 		}
 
 		card.card.classList.add(
@@ -1315,6 +1449,10 @@ async function renderSalesCard(salesList) {
 				label: "Total",
 				// Derives the displayed field value from the current record.
 				value: row => "₦"+formatNumber(row.total)
+			},
+			{
+				label: "Scale Ticket",
+				value: row => row.scale_ticket||"Not provided"
 			}
 		]
 	};
@@ -1472,13 +1610,14 @@ async function renderInventoryCard(inventoryList) {
 
 	const inventoryConfig={
 		kind: "stock",
+		readonly: true,
 		formId: "inventory-form",
 		// Returns the record date used for display and filtering.
 		date: row => row.count_date,
 		// Returns the record creation timestamp.
 		createdAt: row => row.created_at,
 		// Returns the record identifier used by the card.
-		id: row => row.count_id,
+		id: row => row.summary_id,
 		// Returns the record item name.
 		item: row => row.name,
 		field: [
@@ -1675,6 +1814,10 @@ async function renderPurchasesCard(purchasesList) {
 				label: "Total",
 				// Derives the displayed field value from the current record.
 				value: row => "₦"+formatNumber(row.total_cost)
+			},
+			{
+				label: "Scale Ticket",
+				value: row => row.scale_ticket||"Not provided"
 			}
 		]
 	};
@@ -1801,6 +1944,11 @@ function renderProductionCard(productionList) {
 				unit: () => "kg"
 			},
 			{
+				label: "Sludge Produced",
+				value: row => formatNumber(row.sludge_produced),
+				unit: () => "kg"
+			},
+			{
 				label: "Production hours",
 				// Derives the displayed field value from the current record.
 				value: row => row.production_hours,
@@ -1813,6 +1961,10 @@ function renderProductionCard(productionList) {
 				value: row => row.down_time,
 				// Returns the unit displayed beside the current value.
 				unit: () => "hrs"
+			},
+			{
+				label: "Scale Ticket",
+				value: row => row.scale_ticket||"Not provided"
 			}
 		]
 	};
@@ -1874,7 +2026,7 @@ function renderProductionCard(productionList) {
 
 // Fetches inventory data and displays the results in the relevant interface.
 async function loadInventoryData() {
-	const response=await fetch("/api/stock_counts");
+	const response=await fetch("/api/inventory-summary");
 	if(response.status===500) {
 		const problem=await response.json();
 		alert(problem.err);
@@ -1980,6 +2132,7 @@ async function renderProductionTable() {
 				production.kernel_used,
 				production.pko_produced,
 				production.pkc_produced,
+				production.sludge_produced,
 				production.pko_yield,
 				production.pkc_yield,
 				production.production_hours,
@@ -2088,10 +2241,15 @@ function editForm() {
 		inventoryForm.querySelector('button[type="submit"]').textContent=
 			"Save Inventory";
 	} else if(kind==="production") {
+		kernelUsed.readOnly=false;
+		oilProduced.readOnly=false;
+		pkcProduced.readOnly=false;
+		sludgeProduced.readOnly=false;
 		productionDate.value=record.production_date.slice(0,10);
 		kernelUsed.value=record.kernel_used;
 		oilProduced.value=record.pko_produced;
 		pkcProduced.value=record.pkc_produced;
+		sludgeProduced.value=record.sludge_produced||0;
 		productionHours.value=record.production_hours;
 		downTime.value=record.down_time;
 
@@ -2100,6 +2258,7 @@ function editForm() {
 		productionForm.querySelector('button[type="submit"]').textContent=
 			"Save Production";
 	} else if(kind==="sales") {
+		salesQuantity.readOnly=false;
 		salesDate.value=record.sales_date.slice(0,10);
 		customer.value=record.customer_id;
 		productSold.value=record.item_id;
@@ -2111,6 +2270,7 @@ function editForm() {
 		salesForm.querySelector('button[type="submit"]').textContent=
 			"Save Sales";
 	} else if(kind==="purchases") {
+		quantitySupplied.readOnly=false;
 		purchaseDate.value=record.purchase_date.slice(0,10);
 		supplier.value=record.supplier_id;
 		materialSupplied.value=record.item_id;
@@ -2158,6 +2318,7 @@ async function saveEdit(event) {
 			kernel_used: kernelUsed.value,
 			pko_produced: oilProduced.value,
 			pkc_produced: pkcProduced.value,
+			sludge_produced: sludgeProduced.value,
 			production_hours: productionHours.value,
 			down_time: downTime.value
 		};

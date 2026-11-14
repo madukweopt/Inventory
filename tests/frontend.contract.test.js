@@ -46,6 +46,16 @@ test('Prices page supplies a locked saved price to the Sales form',function() {
 	assert.match(navigationJs,/\/forms\.html#prices/);
 });
 
+test('Manager authorises work while Storekeeper owns every physical quantity',function() {
+	assert.match(formsHtml,/id="weighing-tasks"/);
+	assert.match(formsHtml,/id="weighing-tasks-button"/);
+	for(const id of ['sales-quantity','quantity-supplied','kernel-used','oil-produced','pkc-produced','sludge-produced']) {
+		assert.match(formsHtml,new RegExp('id="'+id+'"[\\s\\S]*?readonly'));
+	}
+	assert.match(formsJs,/function loadWeighingTasks\(/);
+	assert.match(formsJs,/function completeWeighingTask\(/);
+});
+
 test('mobile navigation uses seventy percent width and closes from its shadow',function() {
 	assert.match(navigationCss,/width:min\(70vw,410px\)/);
 	assert.match(navigationJs,/!clickedPanel&&!clickedMenuButton/);
