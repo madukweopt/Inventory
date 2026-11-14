@@ -40,6 +40,7 @@ function applyRoleVisibility(user) {
 	hide('a[href$="#inventory-form"]',role!=='admin');
 	hide('a[href$="#inventory-data"]',role==='manager');
 	hide('a[href$="#purchases-form"], a[href$="#sales-form"], a[href$="#production-form"], a[href$="#expenses-form"]',role==='storekeeper');
+	hide('.first',role==='storekeeper');
 	hide('#employees-button',role==='storekeeper');
 	hide('#manage-users-button',role!=='admin');
 	hide('#production-panel, #sales-panel',role==='storekeeper');

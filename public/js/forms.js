@@ -1309,6 +1309,9 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 			config.item(row),
 			config.id(row)
 		);
+		if(!config.openDetails) {
+			card.card.querySelector('.details-btn').hidden=true;
+		}
 		if(config.readonly) {
 			card.card.querySelector('.edit-btn').hidden=true;
 			card.card.querySelector('.delete-btn').hidden=true;
