@@ -63,6 +63,10 @@ async function showStockLevels() {
 				stockCard.classList.add("electricity");
 				stockBadge.textContent="EL";
 				stockUnit.textContent="kWh";
+			} else if(stockName.textContent==="Sludge") {
+				stockCard.classList.add("sludge");
+				stockBadge.textContent="SLG";
+				stockUnit.textContent="kg";
 			}
 
 			stockQuantity.appendChild(stockUnit);
@@ -188,49 +192,111 @@ if(dateInput) {
 			[
 				{
 					name: "PKO",
-					value: grossProfit.pko,
+					key: "pko",
 					className: "pko"
 				},
 				{
 					name: "PKC",
-					value: grossProfit.pkc,
+					key: "pkc",
 					className: "pkc"
+				},
+				{
+					name: "Sludge",
+					key: "sludge",
+					className: "sludge"
 				}
 			// Processes each entry in the collection.
 			].forEach(product => {
+				const salesAmount=Number(
+					profit.sales[product.name]?.total_sales
+				)||0;
+				const costAmount=Number(
+					profit.cost_of_goods_sold?.[product.key]
+				)||0;
+				const grossAmount=Number(grossProfit[product.key])||0;
+				const margin=salesAmount!==0?
+					(grossAmount/salesAmount)*100:0;
 				const card=document.createElement("article");
+				const heading=document.createElement("header");
 				const badge=document.createElement("span");
-				const details=document.createElement("div");
 				const name=document.createElement("span");
-				const value=document.createElement("strong");
+				const metrics=document.createElement("div");
 
 				card.classList.add("profit-card",product.className);
+				heading.classList.add("profit-product-heading");
 				badge.classList.add("profit-badge");
-				details.classList.add("profit-details");
 				name.classList.add("profit-label");
-				value.classList.add("profit-value");
+				metrics.classList.add("profit-metrics");
 
-				badge.textContent=product.name;
-				name.textContent=product.name+" gross profit";
-				value.textContent=currency.format(Number(product.value)||0);
+				badge.textContent=product.name==="Sludge"? "SLG":product.name;
+				name.textContent=product.name;
+				heading.append(badge,name);
 
-				details.append(name,value);
-				card.append(badge,details);
+				[
+					["Sales",currency.format(salesAmount)],
+					["Cost of products sold",currency.format(costAmount)],
+					["Gross profit",currency.format(grossAmount)],
+					["Profit margin",margin.toLocaleString("en-NG",{
+						minimumFractionDigits: 1,
+						maximumFractionDigits: 1
+					})+"%"]
+				].forEach(function(metric) {
+					const box=document.createElement("div");
+					const label=document.createElement("span");
+					const value=document.createElement("strong");
+					label.textContent=metric[0];
+					value.textContent=metric[1];
+					if(metric[0]==="Gross profit"&&grossAmount<0) {
+						value.classList.add("negative");
+					}
+					box.append(label,value);
+					metrics.appendChild(box);
+				});
+
+				card.append(heading,metrics);
 				cards.appendChild(card);
 			});
 
-			const netProfit=document.createElement("div");
-			const netLabel=document.createElement("span");
-			const netValue=document.createElement("strong");
+			const summary=document.createElement("div");
+			summary.classList.add("profit-summary");
+			const totalSales=Object.values(profit.sales).reduce(
+				(total,product) => total+(Number(product.total_sales)||0),0
+			);
+			const totalCost=Object.values(profit.cost_of_goods_sold||{}).reduce(
+				(total,cost) => total+(Number(cost)||0),0
+			);
+			const totalGross=Object.values(grossProfit).reduce(
+				(total,value) => total+(Number(value)||0),0
+			);
+			const totalExpenses=Number(profit.expenses?.total_expenses)||0;
+			const payrollCost=Number(profit.payroll_cost)||0;
 			const netAmount=Number(profit.total_net_profit)||0;
+			const netMargin=totalSales!==0? (netAmount/totalSales)*100:0;
 
-			netProfit.classList.add("net-profit");
-			netProfit.classList.toggle("negative",netAmount<0);
-			netLabel.textContent="Total net profit";
-			netValue.textContent=currency.format(netAmount);
-			netProfit.append(netLabel,netValue);
+			[
+				["Total sales",currency.format(totalSales)],
+				["Total cost of products sold",currency.format(totalCost)],
+				["Gross profit",currency.format(totalGross)],
+				["Expenses",currency.format(totalExpenses)],
+				["Employee salaries",currency.format(payrollCost)],
+				["Net profit",currency.format(netAmount),"net"],
+				["Net profit margin",netMargin.toLocaleString("en-NG",{
+					minimumFractionDigits: 1,
+					maximumFractionDigits: 1
+				})+"%","net"]
+			].forEach(function(row) {
+				const line=document.createElement("div");
+				const label=document.createElement("span");
+				const value=document.createElement("strong");
+				label.textContent=row[0];
+				value.textContent=row[1];
+				if(row[2]==="net") line.classList.add("summary-total");
+				if(row[2]==="net"&&netAmount<0) line.classList.add("negative");
+				line.append(label,value);
+				summary.appendChild(line);
+			});
 
-			profitList.append(cards,netProfit);
+			profitList.append(cards,summary);
 			if(profitCaption) {
 				profitCaption.textContent=
 					period.charAt(0).toUpperCase()+period.slice(1);
@@ -393,10 +459,14 @@ if(dateInput) {
 					salesCard.classList.add("pko");
 					badge.textContent="PKO";
 					productIcon.textContent="💧";
-				} else {
+					} else if(row.product==="PKC") {
 					salesCard.classList.add("pkc");
 					badge.textContent="PKC";
 					productIcon.textContent="🟤";
+					} else if(row.product==="Sludge") {
+						salesCard.classList.add("sludge");
+						badge.textContent="SLG";
+						productIcon.textContent="◉";
 				}
 
 				salesDetails.append(salesRowOne,salesRowTwo,salesRowThree);

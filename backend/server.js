@@ -183,11 +183,6 @@ app.get('/debug-settings',function(req,res) {
 	});
 });
 
-// Confirms that the HTTP server has started listening.
-app.listen(PORT,() => {
-	console.log(`Server running at http://localhost:${PORT}`);
-});
-
 // Handles POST /api/login requests.
 app.post('/api/login',async function(req,res) {
 	const username=req.body.username;
@@ -229,6 +224,73 @@ app.get("/api/items",function(req,res) {
 		}
 		res.json(result.rows);
 	});
+});
+
+// Returns the complete effective-date price history for saleable products.
+app.get('/api/prices',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	try {
+		const result=await pool.query(`SELECT
+			product_prices.price_id,product_prices.item_id,items.name,
+			product_prices.unit_price,
+			TO_CHAR(product_prices.effective_date,'YYYY-MM-DD') AS effective_date,
+			product_prices.created_at
+		FROM product_prices
+		INNER JOIN items ON items.item_id=product_prices.item_id
+		WHERE items.item_type='product'
+		ORDER BY items.name,product_prices.effective_date DESC,product_prices.price_id DESC`);
+		return res.json(result.rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load product prices' });
+	}
+});
+
+// Returns the price in force for a product on a selected sales date.
+app.get('/api/prices/lookup',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	const itemId=Number(req.query.item_id);
+	const salesDate=String(req.query.date||'');
+	if(!Number.isInteger(itemId)||itemId<1||!/^\d{4}-\d{2}-\d{2}$/.test(salesDate)) {
+		return res.status(400).json({ err: 'Choose a product and sales date' });
+	}
+	try {
+		const result=await pool.query(`SELECT product_prices.unit_price,
+			TO_CHAR(product_prices.effective_date,'YYYY-MM-DD') AS effective_date
+		FROM product_prices
+		INNER JOIN items ON items.item_id=product_prices.item_id
+		WHERE product_prices.item_id=$1 AND product_prices.effective_date<=$2::date
+		AND items.item_type='product'
+		ORDER BY product_prices.effective_date DESC,product_prices.price_id DESC LIMIT 1`,
+		[itemId,salesDate]);
+		if(result.rows.length===0) return res.status(404).json({ err: 'No price has been set for this product on the selected date' });
+		return res.json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load the product price' });
+	}
+});
+
+// Saves or corrects a product price beginning on its effective date.
+app.post('/api/prices',requireRole(['admin']),async function(req,res) {
+	const itemId=Number(req.body.item_id);
+	const unitPrice=Number(req.body.unit_price);
+	const effectiveDate=String(req.body.effective_date||'');
+	if(!Number.isInteger(itemId)||itemId<1||!Number.isFinite(unitPrice)||unitPrice<=0||!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)) {
+		return res.status(400).json({ err: 'Enter a product, valid price and effective date' });
+	}
+	try {
+		const result=await pool.query(`INSERT INTO product_prices
+			(item_id,unit_price,effective_date,created_by)
+			SELECT items.item_id,$2,$3::date,$4 FROM items
+			WHERE items.item_id=$1 AND items.item_type='product'
+			ON CONFLICT (item_id,effective_date) DO UPDATE SET
+			unit_price=EXCLUDED.unit_price,created_by=EXCLUDED.created_by,created_at=CURRENT_TIMESTAMP
+			RETURNING *`,[itemId,unitPrice,effectiveDate,req.session.user_id]);
+		if(result.rows.length===0) return res.status(400).json({ err: 'Prices can only be set for saleable products' });
+		return res.status(201).json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not save the product price' });
+	}
 });
 
 // Handles GET /api/customers requests.
@@ -459,6 +521,7 @@ app.get('/api/employees',requireRole(['admin','manager']),function(req,res) {
 		note,
 		department,
 		status,
+		TO_CHAR(inactive_date,'YYYY-MM-DD') AS inactive_date,
 		username,
 		permissions,
 		photo_path,
@@ -507,7 +570,10 @@ app.post('/api/employees',requireRole(['admin']),function(req,res) {
 			null;
 
 		try {
-			const result=await pool.query(
+			const client=await pool.connect();
+			try {
+				await client.query('BEGIN');
+				const result=await client.query(
 				`INSERT INTO employees (
 				start_date,
 				name,
@@ -532,8 +598,23 @@ app.post('/api/employees',requireRole(['admin']),function(req,res) {
 					employee.note? employee.note.trim():null,
 					photoPath
 				]
-			);
-			return res.status(201).json(result.rows[0]);
+				);
+				if(employee.salary) {
+					await client.query(
+						`INSERT INTO salary_history
+						(employee_id,previous_salary,new_salary,effective_date,reason,changed_by)
+						VALUES ($1,NULL,$2,$3,'Initial salary',$4)`,
+						[result.rows[0].employee_id,employee.salary,employee.start_date,req.session.user_id]
+					);
+				}
+				await client.query('COMMIT');
+				return res.status(201).json(result.rows[0]);
+			} catch(error) {
+				await client.query('ROLLBACK');
+				throw error;
+			} finally {
+				client.release();
+			}
 		} catch(error) {
 			removeUploadedEmployeePhoto(req.file);
 			console.error(error);
@@ -542,6 +623,209 @@ app.post('/api/employees',requireRole(['admin']),function(req,res) {
 			});
 		}
 	});
+});
+
+// Returns the complete agreed-salary history for one employee.
+app.get('/api/employees/:id/salary-history',requireRole(['admin','manager']),async function(req,res) {
+	try {
+		const result=await pool.query(
+			`SELECT salary_history_id,previous_salary,new_salary,
+			TO_CHAR(effective_date,'YYYY-MM-DD') AS effective_date,reason,created_at
+			FROM salary_history WHERE employee_id=$1
+			ORDER BY effective_date DESC,salary_history_id DESC`,
+			[req.params.id]
+		);
+		return res.json(result.rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load salary history' });
+	}
+});
+
+// Changes an employee's agreed salary while preserving the previous amount.
+app.post('/api/employees/:id/salary-history',requireRole(['admin']),async function(req,res) {
+	const employeeId=Number(req.params.id);
+	const newSalary=Number(req.body.new_salary);
+	const effectiveDate=String(req.body.effective_date||'');
+	const reason=String(req.body.reason||'').trim();
+	if(!Number.isInteger(employeeId)||employeeId<1||!Number.isFinite(newSalary)||newSalary<=0||!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate)||!reason) {
+		return res.status(400).json({ err: 'Enter the new salary, effective date and reason' });
+	}
+	const client=await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const employee=await client.query(
+			'SELECT salary FROM employees WHERE employee_id=$1 FOR UPDATE',
+			[employeeId]
+		);
+		if(employee.rowCount===0) {
+			await client.query('ROLLBACK');
+			return res.status(404).json({ err: 'Employee not found' });
+		}
+		await client.query(
+			`INSERT INTO salary_history
+			(employee_id,previous_salary,new_salary,effective_date,reason,changed_by)
+			VALUES ($1,$2,$3,$4,$5,$6)`,
+			[employeeId,employee.rows[0].salary,newSalary,effectiveDate,reason,req.session.user_id]
+		);
+		await client.query('UPDATE employees SET salary=$1 WHERE employee_id=$2',[newSalary,employeeId]);
+		await client.query('COMMIT');
+		return res.json({ message: 'Salary changed successfully' });
+	} catch(error) {
+		await client.query('ROLLBACK');
+		console.error(error);
+		return res.status(500).json({ err: 'Could not change salary' });
+	} finally {
+		client.release();
+	}
+});
+
+// Marks an employee as active or inactive using the administrator's effective date.
+app.patch('/api/employees/:id/status',requireRole(['admin']),async function(req,res) {
+	const employeeId=Number(req.params.id);
+	const status=String(req.body.status||'');
+	const effectiveDate=String(req.body.effective_date||'');
+	if(
+		!Number.isInteger(employeeId)||employeeId<1||
+		!['Active','Inactive'].includes(status)||
+		(status==='Inactive'&&!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate))
+	) {
+		return res.status(400).json({ err: 'Choose a valid employee status and date' });
+	}
+	try {
+		const result=await pool.query(
+			`UPDATE employees SET status=$1::varchar,
+			inactive_date=CASE WHEN $1::varchar='Inactive' THEN $2::date ELSE NULL END
+			WHERE employee_id=$3 RETURNING employee_id,status,inactive_date`,
+			[status,status==='Inactive'? effectiveDate:null,employeeId]
+		);
+		if(result.rowCount===0) return res.status(404).json({ err: 'Employee not found' });
+		return res.json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not change employee status' });
+	}
+});
+
+// Loads payroll records for a selected month.
+app.get('/api/payroll',requireRole(['admin']),async function(req,res) {
+	const month=String(req.query.month||'');
+	if(!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ err: 'Choose a payroll month' });
+	try {
+		const result=await pool.query(
+			`SELECT payroll.payroll_id,payroll.employee_id,employees.name,
+			payroll.basic_salary,payroll.bonus,payroll.deduction,payroll.total_salary_cost,
+			payroll.payment_status,TO_CHAR(payroll.payment_date,'YYYY-MM-DD') AS payment_date
+			FROM payroll INNER JOIN employees ON employees.employee_id=payroll.employee_id
+			WHERE payroll.payroll_month=$1::date ORDER BY employees.name`,
+			[month+'-01']
+		);
+		return res.json(result.rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load payroll' });
+	}
+});
+
+// Creates missing monthly payroll records using each employee's current salary.
+app.post('/api/payroll/generate',requireRole(['admin']),async function(req,res) {
+	const month=String(req.body.month||'');
+	if(!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ err: 'Choose a payroll month' });
+	try {
+		const result=await pool.query(
+			`INSERT INTO payroll
+			(employee_id,payroll_month,basic_salary,bonus,deduction,total_salary_cost)
+			SELECT employee_id,$1::date,earned_salary,0,0,earned_salary
+			FROM (
+				SELECT employees.employee_id,ROUND(SUM(
+					COALESCE(
+						(SELECT salary_history.new_salary
+						 FROM salary_history
+						 WHERE salary_history.employee_id=employees.employee_id
+						 AND salary_history.effective_date<=work_day::date
+						 ORDER BY salary_history.effective_date DESC,salary_history.salary_history_id DESC
+						 LIMIT 1),
+						employees.salary
+					)/EXTRACT(day FROM ($1::date+INTERVAL '1 month - 1 day'))
+				),2) AS earned_salary
+				FROM employees
+				CROSS JOIN LATERAL generate_series(
+					GREATEST(employees.start_date,$1::date),
+					LEAST(
+						($1::date+INTERVAL '1 month - 1 day')::date,
+						COALESCE(employees.inactive_date,($1::date+INTERVAL '1 month - 1 day')::date)
+					),
+					INTERVAL '1 day'
+				) AS work_day
+				WHERE employees.salary IS NOT NULL
+				AND employees.start_date<($1::date+INTERVAL '1 month')
+				AND (employees.inactive_date IS NULL OR employees.inactive_date>=$1::date)
+				GROUP BY employees.employee_id
+			) AS monthly_salary
+			ON CONFLICT (employee_id,payroll_month) DO NOTHING
+			RETURNING payroll_id`,
+			[month+'-01']
+		);
+		const summary=await pool.query(
+			`SELECT
+			(SELECT COUNT(*)::int FROM payroll WHERE payroll_month=$1::date) AS prepared,
+			(SELECT COUNT(*)::int FROM employees
+			 WHERE salary IS NULL AND start_date<($1::date+INTERVAL '1 month')
+			 AND (inactive_date IS NULL OR inactive_date>=$1::date)) AS missing_salary`,
+			[month+'-01']
+		);
+		const prepared=summary.rows[0].prepared;
+		const missingSalary=summary.rows[0].missing_salary;
+		let message;
+		if(result.rowCount>0) {
+			message=result.rowCount+' payroll record'+
+				(result.rowCount===1?' was':'s were')+' created.';
+		} else if(prepared>0) {
+			message='Payroll already contains '+prepared+' employee'+
+				(prepared===1?'':'s')+' for this month.';
+		} else {
+			message='No payroll records were created.';
+		}
+		if(missingSalary>0) {
+			message+=' '+missingSalary+' employee'+
+				(missingSalary===1?' was':'s were')+
+				' skipped because no salary has been added.';
+		}
+		return res.status(result.rowCount>0?201:200).json({
+			message: message,
+			created: result.rowCount,
+			prepared: prepared,
+			missing_salary: missingSalary
+		});
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not prepare payroll' });
+	}
+});
+
+// Saves payroll adjustments and payment information.
+app.patch('/api/payroll/:id',requireRole(['admin']),async function(req,res) {
+	const payrollId=Number(req.params.id);
+	const bonus=Number(req.body.bonus);
+	const deduction=Number(req.body.deduction);
+	const status=String(req.body.payment_status||'');
+	const paymentDate=req.body.payment_date||null;
+	if(!Number.isInteger(payrollId)||payrollId<1||!Number.isFinite(bonus)||bonus<0||!Number.isFinite(deduction)||deduction<0||!['Pending','Paid'].includes(status)||(status==='Paid'&&!paymentDate)) {
+		return res.status(400).json({ err: 'Check the payroll values and payment date' });
+	}
+	try {
+		const result=await pool.query(
+			`UPDATE payroll SET bonus=$1,deduction=$2,
+			total_salary_cost=GREATEST(basic_salary+$1-$2,0),payment_status=$3,payment_date=$4
+			WHERE payroll_id=$5 RETURNING *`,
+			[bonus,deduction,status,paymentDate,payrollId]
+		);
+		if(result.rowCount===0) return res.status(404).json({ err: 'Payroll record not found' });
+		return res.json(result.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not save payroll' });
+	}
 });
 
 // Returns the company profile displayed on the company details page.
@@ -759,12 +1043,26 @@ app.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(req
 		items.name,
 		sales.quantity,
 		sales.unit_price,
-		sales.quantity * sales.unit_price AS total
+		sales.quantity * sales.unit_price AS total,
+		sales.invoice_number,
+		to_char(sales.due_date,'YYYY-MM-DD') AS due_date,
+		COALESCE(payments.amount_paid,0) AS amount_paid,
+		GREATEST(sales.quantity*sales.unit_price-COALESCE(payments.amount_paid,0),0) AS amount_remaining,
+		CASE
+			WHEN COALESCE(payments.amount_paid,0)>=sales.quantity*sales.unit_price THEN 'Paid'
+			WHEN COALESCE(payments.amount_paid,0)>0 THEN 'Partly Paid'
+			WHEN sales.due_date<CURRENT_DATE THEN 'Overdue'
+			ELSE 'Pending'
+		END AS payment_status
 		FROM sales
 		INNER JOIN customers
 		ON sales.customer_id = customers.customer_id
 		INNER JOIN items
 		ON sales.item_id = items.item_id
+		LEFT JOIN (
+			SELECT sales_id,SUM(amount) AS amount_paid
+			FROM sale_payments GROUP BY sales_id
+		) AS payments ON payments.sales_id=sales.sales_id
 		ORDER BY sales.created_at DESC`,
 		// Runs the callback required by the surrounding operation.
 		function(err,result) {
@@ -778,10 +1076,81 @@ app.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(req
 	);
 });
 
+// Returns one sale with the company details and every payment recorded against it.
+app.get('/api/sales/:id/invoice',requireRole(['admin','manager','storekeeper']),async function(req,res) {
+	try {
+		const saleResult=await pool.query(`SELECT
+			s.sales_id,to_char(s.sales_date,'YYYY-MM-DD') AS sales_date,
+			to_char(s.due_date,'YYYY-MM-DD') AS due_date,s.invoice_number,
+			s.quantity,s.unit_price,s.quantity*s.unit_price AS total,
+			c.customer_id,c.name AS customer,c.phone_number AS customer_phone,
+			c.email AS customer_email,c.address AS customer_address,i.name AS item,
+			COALESCE((SELECT SUM(amount) FROM sale_payments WHERE sales_id=s.sales_id),0) AS amount_paid
+		FROM sales s
+		JOIN customers c ON c.customer_id=s.customer_id
+		JOIN items i ON i.item_id=s.item_id
+		WHERE s.sales_id=$1`,[req.params.id]);
+		if(saleResult.rows.length===0) return res.status(404).json({ err: 'Sale not found' });
+		const paymentsResult=await pool.query(`SELECT
+			payment_id,receipt_number,to_char(payment_date,'YYYY-MM-DD') AS payment_date,
+			amount,payment_method,reference_number,note,created_at
+		FROM sale_payments WHERE sales_id=$1 ORDER BY payment_date,created_at,payment_id`,[req.params.id]);
+		const companyResult=await pool.query('SELECT * FROM company_details WHERE company_id=1');
+		return res.json({ sale: saleResult.rows[0],payments: paymentsResult.rows,company: companyResult.rows[0]||{} });
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not load invoice details' });
+	}
+});
+
+// Records one customer payment and creates its permanent receipt number.
+app.post('/api/sales/:id/payments',requireRole(['admin','manager']),async function(req,res) {
+	const payment=req.body;
+	const amount=Number(payment.amount);
+	if(!payment.payment_date||!payment.payment_method||!Number.isFinite(amount)||amount<=0) {
+		return res.status(400).json({ err: 'Enter a valid payment date, amount and method' });
+	}
+	const client=await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const saleResult=await client.query(`SELECT
+			sales_id,quantity*unit_price AS total,
+			COALESCE((SELECT SUM(amount) FROM sale_payments WHERE sales_id=sales.sales_id),0) AS amount_paid
+		FROM sales WHERE sales_id=$1 FOR UPDATE`,[req.params.id]);
+		if(saleResult.rows.length===0) {
+			await client.query('ROLLBACK');
+			return res.status(404).json({ err: 'Sale not found' });
+		}
+		const sale=saleResult.rows[0];
+		if(amount>Number(sale.total)-Number(sale.amount_paid)) {
+			await client.query('ROLLBACK');
+			return res.status(400).json({ err: 'Payment cannot be greater than the remaining amount' });
+		}
+		const inserted=await client.query(`INSERT INTO sale_payments
+			(sales_id,payment_date,amount,payment_method,reference_number,note,recorded_by)
+			VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING payment_id`,[
+			req.params.id,payment.payment_date,amount,payment.payment_method,
+			payment.reference_number||null,payment.note||null,req.session.user_id
+		]);
+		const paymentId=inserted.rows[0].payment_id;
+		const receiptNumber='RCT-'+String(payment.payment_date).slice(0,4)+'-'+String(paymentId).padStart(6,'0');
+		const saved=await client.query(`UPDATE sale_payments SET receipt_number=$1
+			WHERE payment_id=$2 RETURNING *`,[receiptNumber,paymentId]);
+		await client.query('COMMIT');
+		return res.status(201).json(saved.rows[0]);
+	} catch(error) {
+		await client.query('ROLLBACK');
+		console.error(error);
+		return res.status(500).json({ err: 'Could not record payment' });
+	} finally {
+		client.release();
+	}
+});
+
 // Handles GET /api/stock_counts requests.
 app.get("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
 	pool.query(
-		"SELECT stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.created_at) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.created_at DESC",
+		"SELECT stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.count_date DESC, stock_counts.created_at DESC, stock_counts.count_id DESC",
 		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
@@ -868,40 +1237,47 @@ app.get("/api/expenses",requireRole(['admin','manager','storekeeper']),function(
 });
 
 // Handles POST /api/sales requests.
-app.post("/api/sales",requireRole(['admin','manager']),function(req,res) {
+app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 	const sales=req.body;
 	if(
 		!sales.customer_id||
 		!sales.item_id||
 		!sales.quantity||
 		sales.quantity<=0||
-		!sales.unit_price||
-		sales.unit_price<=0
+		!/^\d{4}-\d{2}-\d{2}$/.test(sales.sales_date)
 	) {
 		return res.status(400).json({
 			error: "could not save sale"
 		});
 	}
-	pool.query(
-		"INSERT INTO sales (sales_date, customer_id, item_id, quantity, unit_price) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-		[
+	try {
+		const priceResult=await pool.query(`SELECT unit_price FROM product_prices
+			WHERE item_id=$1 AND effective_date<=$2::date
+			ORDER BY effective_date DESC,price_id DESC LIMIT 1`,
+			[sales.item_id,sales.sales_date]);
+		if(priceResult.rows.length===0) {
+			return res.status(400).json({ err: 'No price has been set for this product on the selected date' });
+		}
+		const savedUnitPrice=priceResult.rows[0].unit_price;
+		const inserted=await pool.query(
+			`WITH next_sale AS (SELECT nextval('sales_sales_id_seq') AS sales_id)
+			INSERT INTO sales
+				(sales_id,sales_date,customer_id,item_id,quantity,unit_price,due_date,invoice_number)
+			SELECT sales_id,$1::date,$2,$3,$4,$5,$6::date,
+				'INV-'||to_char($1::date,'YYYY')||'-'||lpad(sales_id::text,6,'0')
+			FROM next_sale RETURNING *`,[
 			sales.sales_date,
 			sales.customer_id,
 			sales.item_id,
 			sales.quantity,
-			sales.unit_price
-		],
-		// Handles the result of the preceding database query.
-		function(err,result) {
-			if(err) {
-				console.log(err);
-				return res.status(500).json({
-					err: "Could not save sale"
-				});
-			}
-			res.status(201).json(result.rows[0]);
-		}
-	);
+			savedUnitPrice,
+			sales.due_date||sales.sales_date
+		]);
+		return res.status(201).json(inserted.rows[0]);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not save sale' });
+	}
 });
 
 // Handles POST /api/purchases requests.
@@ -944,13 +1320,14 @@ app.post("/api/purchases",requireRole(['admin','manager']),function(req,res) {
 // Handles POST /api/stock_counts requests.
 app.post("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
 	const stockInventory=req.body;
+	const receivedQuantity=readInventoryQuantity(stockInventory.received);
+	const issuedQuantity=readInventoryQuantity(stockInventory.issued);
 	if(
 		!stockInventory.count_date||
 		!stockInventory.item_id||
-		!stockInventory.received||
-		stockInventory.received<=0||
-		!stockInventory.issued||
-		stockInventory.issued<=0
+		receivedQuantity===null||
+		issuedQuantity===null||
+		(receivedQuantity===0&&issuedQuantity===0)
 	) {
 		return res.status(400).json({
 			error: "Could not submit stock"
@@ -961,8 +1338,8 @@ app.post("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,r
 		[
 			stockInventory.count_date,
 			stockInventory.item_id,
-			stockInventory.received,
-			stockInventory.issued
+			receivedQuantity,
+			issuedQuantity
 		],
 		// Handles the result of the preceding database query.
 		function(err,result) {
@@ -976,6 +1353,16 @@ app.post("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,r
 		}
 	);
 });
+
+// Accepts a non-negative inventory quantity with no more than two decimal places.
+function readInventoryQuantity(value) {
+	const quantityText=String(value??'').trim();
+	if(!/^\d+(?:\.\d{1,2})?$/.test(quantityText)) {
+		return null;
+	}
+	const quantity=Number(quantityText);
+	return Number.isFinite(quantity)? quantity:null;
+}
 
 // Handles POST /api/production requests.
 app.post("/api/production",requireRole(['admin','manager']),function(req,res) {
@@ -1426,10 +1813,6 @@ async function calculateCosts() {
 			/*
 			 * Current cost-allocation rule.
 			 */
-			const pkoProductionCost=totalCost*0.75;
-
-			const pkcProductionCost=totalCost*0.25;
-
 			const managerPkoProduced=Number(event.pko_produced)||0;
 
 			const managerPkcProduced=Number(event.pkc_produced)||0;
@@ -1453,6 +1836,20 @@ async function calculateCosts() {
 				return product.name.trim().toUpperCase()==="PKC";
 			});
 
+			const sludgeReceipt=productReceipts.find(product => {
+				return product.name.trim().toUpperCase()==="SLUDGE";
+			});
+
+			/*
+			 * Old production days have no Sludge inventory record, so they retain
+			 * the original 75/25 split. Reported Sludge receives a 2% share.
+			 */
+			const pkoProductionCost=totalCost*(sludgeReceipt? 0.73:0.75);
+
+			const pkcProductionCost=totalCost*0.25;
+
+			const sludgeProductionCost=totalCost*(sludgeReceipt? 0.02:0);
+
 			/*
 			 * The storekeeper's received quantities
 			 * increase finished-product inventory.
@@ -1460,6 +1857,8 @@ async function calculateCosts() {
 			const pkoReceived=pkoReceipt? pkoReceipt.quantity:0;
 
 			const pkcReceived=pkcReceipt? pkcReceipt.quantity:0;
+
+			const sludgeReceived=sludgeReceipt? sludgeReceipt.quantity:0;
 
 			const pkoVariance=managerPkoProduced-pkoReceived;
 
@@ -1480,6 +1879,11 @@ async function calculateCosts() {
 			const pkcStockAverageCost=addFinishedProduct(
 				pkcReceipt,
 				pkcProductionCost
+			);
+
+			const sludgeStockAverageCost=addFinishedProduct(
+				sludgeReceipt,
+				sludgeProductionCost
 			);
 
 			// Transforms collection entries into the required output shape.
@@ -1522,12 +1926,17 @@ async function calculateCosts() {
 
 				pko_production_cost: pkoProductionCost,
 				pkc_production_cost: pkcProductionCost,
+					sludge_received: sludgeReceived,
+					sludge_production_cost: sludgeProductionCost,
 
 				pko_daily_cost_per_kg:
 					pkoReceived>0? pkoProductionCost/pkoReceived:0,
 
 				pkc_daily_cost_per_kg:
 					pkcReceived>0? pkcProductionCost/pkcReceived:0,
+
+					sludge_daily_cost_per_kg:
+						sludgeReceived>0? sludgeProductionCost/sludgeReceived:0,
 
 				/*
 				 * Weighted average after adding this
@@ -1537,8 +1946,11 @@ async function calculateCosts() {
 
 				pkc_stock_average_cost: pkcStockAverageCost,
 
+					sludge_stock_average_cost: sludgeStockAverageCost,
+
 				receipt_status:
-					pkoReceipt&&pkcReceipt? "received":"pending_receipt"
+						pkoReceipt&&pkcReceipt&&sludgeReceipt?
+							"received":"pending_receipt"
 			});
 		} else if(event.type==="product_out") {
 			const itemId=event.item_id;
@@ -1741,6 +2153,28 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 
 		const production=RawProduction.rows;
 
+		const RawSludgeProduction=await pool.query(
+			`SELECT 'day' AS period,COALESCE(SUM(stock_counts.received),0) AS sludge_produced
+			FROM stock_counts INNER JOIN items ON items.item_id=stock_counts.item_id
+			WHERE LOWER(items.name)='sludge' AND stock_counts.count_date=${datesql}
+			UNION ALL
+			SELECT 'week',COALESCE(SUM(stock_counts.received),0)
+			FROM stock_counts INNER JOIN items ON items.item_id=stock_counts.item_id
+			WHERE LOWER(items.name)='sludge'
+			AND stock_counts.count_date>=date_trunc('week',${datesql})
+			AND stock_counts.count_date<date_trunc('week',${datesql})+INTERVAL '7 days'
+			UNION ALL
+			SELECT 'month',COALESCE(SUM(stock_counts.received),0)
+			FROM stock_counts INNER JOIN items ON items.item_id=stock_counts.item_id
+			WHERE LOWER(items.name)='sludge'
+			AND stock_counts.count_date>=date_trunc('month',${datesql})
+			AND stock_counts.count_date<date_trunc('month',${datesql})+INTERVAL '1 month'`,
+			param
+		);
+		const sludgeProductionByPeriod=Object.fromEntries(
+			RawSludgeProduction.rows.map(row => [row.period,Number(row.sludge_produced)])
+		);
+
 		const RawSales=await pool.query(
 			`SELECT 'day' AS period,
         items.name AS name,
@@ -1816,6 +2250,31 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 		);
 		const expenses=rawExpenses.rows;
 
+		const rawPayroll=await pool.query(
+			`SELECT 'day' AS period,
+			COALESCE((SELECT SUM(total_salary_cost) FROM payroll
+			WHERE payroll_month=date_trunc('month',${datesql})::date),0)
+			/EXTRACT(day FROM (date_trunc('month',${datesql})+INTERVAL '1 month - 1 day')) AS payroll_cost
+			UNION ALL
+			SELECT 'week',COALESCE(SUM(
+				(SELECT COALESCE(SUM(total_salary_cost),0) FROM payroll
+				 WHERE payroll_month=date_trunc('month',day_value)::date)
+				/EXTRACT(day FROM (date_trunc('month',day_value)+INTERVAL '1 month - 1 day'))
+			),0)
+			FROM generate_series(
+				date_trunc('week',${datesql}),
+				date_trunc('week',${datesql})+INTERVAL '6 days',
+				INTERVAL '1 day'
+			) AS day_value
+			UNION ALL
+			SELECT 'month',COALESCE(SUM(total_salary_cost),0)
+			FROM payroll WHERE payroll_month=date_trunc('month',${datesql})::date`,
+			param
+		);
+		const payrollByPeriod=Object.fromEntries(
+			rawPayroll.rows.map(row => [row.period,Number(row.payroll_cost)||0])
+		);
+
 		const output={};
 
 		// Processes each entry in the collection.
@@ -1825,10 +2284,12 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 					kernel_used: Number(row.kernel_used),
 					pko_produced: Number(row.pko_produced),
 					pkc_produced: Number(row.pkc_produced),
+						sludge_produced: sludgeProductionByPeriod[row.period]||0,
 					oil_yield: Number(row.oil_yield)
 				},
 				sales: {},
-				expenses: {}
+				expenses: {},
+				payroll_cost: payrollByPeriod[row.period]||0
 			};
 		});
 		// Processes each entry in the collection.
@@ -1850,6 +2311,7 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 		if(req.session.role!=='admin') {
 			Object.values(output).forEach(period => {
 				delete period.expenses;
+				delete period.payroll_cost;
 			});
 			return res.status(200).json(output);
 		}
@@ -1867,20 +2329,26 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 
 		const periodGrossProfit={};
 		for(let period in output) {
-			const pkcPeriodSales=output[period].sales.PKC.total_sales;
-			const pkoPeriodSales=output[period].sales.PKO.total_sales;
+			const pkcPeriodSales=output[period].sales.PKC?.total_sales||0;
+			const pkoPeriodSales=output[period].sales.PKO?.total_sales||0;
+			const sludgePeriodSales=output[period].sales.Sludge?.total_sales||0;
 			const periodExpenses=output[period].expenses.total_expenses;
+			const periodPayroll=output[period].payroll_cost;
 			const pkoPeriodCost=output[period].cost_of_goods_sold.pko;
 			const pkcPeriodCost=output[period].cost_of_goods_sold.pkc;
+			const sludgePeriodCost=output[period].cost_of_goods_sold.sludge;
 			const pkoGrossProfit=pkoPeriodSales-pkoPeriodCost;
 			const pkcGrossProfit=pkcPeriodSales-pkcPeriodCost;
+			const sludgeGrossProfit=sludgePeriodSales-sludgePeriodCost;
 			periodGrossProfit[period]={
 				pko: pkoGrossProfit,
-				pkc: pkcGrossProfit
+				pkc: pkcGrossProfit,
+				sludge: sludgeGrossProfit
 			};
 			output[period].period_gross_profit=periodGrossProfit[period];
 			const totalNetProfit=
-				pkoGrossProfit+pkcGrossProfit-periodExpenses;
+				pkoGrossProfit+pkcGrossProfit+sludgeGrossProfit-
+				periodExpenses-periodPayroll;
 			output[period].total_net_profit=totalNetProfit;
 		}
 		res.status(200).json(output);
@@ -1903,21 +2371,24 @@ function calculateDispatchPeriods(productDispatchCosts,selectedDate) {
 	const dispatchPeriods={
 		day: {
 			pko: 0,
-			pkc: 0
+			pkc: 0,
+			sludge: 0
 		},
 		week: {
 			pko: 0,
-			pkc: 0
+			pkc: 0,
+			sludge: 0
 		},
 		month: {
 			pko: 0,
-			pkc: 0
+			pkc: 0,
+			sludge: 0
 		}
 	};
 	// Processes each entry in the collection.
 	productDispatchCosts.forEach(dispatch => {
 		const product=String(dispatch.name).trim().toLowerCase();
-		if(product!=="pko"&&product!=="pkc") {
+		if(!["pko","pkc","sludge"].includes(product)) {
 			return;
 		}
 		const dispatchDate=new Date(dispatch.dispatch_date+"T00:00:00");
@@ -2347,6 +2818,19 @@ app.patch("/api/correction_edit",requireRole(['admin','storekeeper']),async func
 		let updated;
 
 		if(kind==="stock") {
+				const receivedQuantity=readInventoryQuantity(record.received);
+				const issuedQuantity=readInventoryQuantity(record.issued);
+				if(
+					!record.count_date||
+					!record.item_id||
+					receivedQuantity===null||
+					issuedQuantity===null||
+					(receivedQuantity===0&&issuedQuantity===0)
+				) {
+					return res.status(400).json({
+						err: 'Inventory quantities must use no more than two decimal places'
+					});
+				}
 			updated=await pool.query(
 				`UPDATE stock_counts
         SET count_date = $1::date,
@@ -2358,8 +2842,8 @@ app.patch("/api/correction_edit",requireRole(['admin','storekeeper']),async func
 				[
 					record.count_date,
 					record.item_id,
-					record.received,
-					record.issued,
+						receivedQuantity,
+						issuedQuantity,
 					record.count_id
 				]
 			);
@@ -2986,4 +3470,12 @@ app.get('/api/supplier-supplies',requireRole(['admin','manager','storekeeper']),
 		})
 	}
 })
+
+if(require.main===module) {
+	app.listen(PORT,() => {
+		console.log(`Server running at http://localhost:${PORT}`);
+	});
+}
+
+module.exports={ app,pool };
 

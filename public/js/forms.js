@@ -42,6 +42,29 @@ let currentCompanyDetails=null;
 const addCustomer=document.querySelector('#add-customer');
 const addSupplier=document.querySelector('#add-supplier');
 const addEmployee=document.querySelector('#add-employee');
+const managePayrollBtn=document.querySelector('#manage-payroll');
+const priceForm=document.querySelector('#price-form');
+const priceProduct=document.querySelector('#price-product');
+const priceAmount=document.querySelector('#price-amount');
+const priceEffectiveDate=document.querySelector('#price-effective-date');
+const priceMessage=document.querySelector('.price-message');
+const priceCards=document.querySelector('.price-cards');
+const openPriceFormBtn=document.querySelector('#open-price-form');
+const cancelPriceFormBtn=document.querySelector('#cancel-price-form');
+const salesPriceMessage=document.querySelector('#sales-price-message');
+
+// Prevents inventory quantities from containing more than two decimal places.
+function limitInventoryDecimals(input) {
+	input.addEventListener('input',function() {
+		const parts=input.value.split('.');
+		if(parts[1]&&parts[1].length>2) {
+			input.value=parts[0]+'.'+parts[1].slice(0,2);
+		}
+	});
+}
+
+limitInventoryDecimals(received);
+limitInventoryDecimals(issued);
 
 // Hides forms, pages and action buttons that the signed-in role cannot use.
 function applyFormPermissions(user) {
@@ -59,10 +82,15 @@ function applyFormPermissions(user) {
 	hideCard('#production-form',role==='storekeeper');
 	hideCard('#expenses-form',role==='storekeeper');
 	hideCard('#employees',role==='storekeeper');
+	hideCard('#employee-details',role==='storekeeper');
+	hideCard('#payroll',role!=='admin');
 	hideCard('#employee-addition',role!=='admin');
 	hideCard('#supplier-addition',role==='storekeeper');
+	if(priceForm&&role!=='admin') priceForm.hidden=true;
+	if(openPriceFormBtn) openPriceFormBtn.hidden=role!=='admin';
 
 	addEmployee.hidden=role!=='admin';
+	managePayrollBtn.hidden=role!=='admin';
 	addSupplier.hidden=role==='storekeeper';
 	addCustomer.hidden=role==='storekeeper';
 	editCompanyBtn.hidden=role!=='admin';
@@ -79,6 +107,14 @@ async function displaySelectedForm() {
 	applyFormPermissions(user);
 	const forms=document.querySelectorAll(".card");
 	const formId=window.location.hash;
+	const isEditMode=new URLSearchParams(window.location.search).get('mode')==='edit';
+	if(formId==='#sales-form'&&!isEditMode) {
+		salesForm.reset();
+		sessionStorage.removeItem('editRecord');
+		sessionStorage.removeItem('editKind');
+		sessionStorage.removeItem('checksReturnUrl');
+		salesForm.querySelector('button[type="submit"]').textContent='Submit Sale';
+	}
 	// Processes each entry in the collection.
 	forms.forEach(form => {
 		form.classList.remove("show");
@@ -106,11 +142,18 @@ async function displaySelectedForm() {
 		loadProductionData();
 	} else if(formId==="#expenses-data") {
 		loadExpensesData();
+	} else if(formId==="#payroll") {
+		openPayrollPage();
+	} else if(formId==="#sale-document") {
+		loadSaleDocument();
+	} else if(formId==="#prices") {
+		loadPrices();
 	}
 }
 displaySelectedForm();
 
 window.addEventListener("hashchange",displaySelectedForm);
+window.addEventListener("popstate",displaySelectedForm);
 
 // Fetches sales dropdown and displays the results in the relevant interface.
 async function loadSalesDropdown(select=productSold) {
@@ -136,6 +179,170 @@ async function loadSalesDropdown(select=productSold) {
 	} catch(err) {
 		console.error("Could not load items:",err);
 	}
+}
+
+// Loads the saved price for the chosen product and sales date into the sales form.
+async function loadSelectedSalesPrice() {
+	const isEditMode=new URLSearchParams(window.location.search).get('mode')==='edit';
+	if(isEditMode) return;
+	unitPrice.value='';
+	if(!salesDate.value||!productSold.value) {
+		salesPriceMessage.textContent='Select a sales date and product to load its price.';
+		return;
+	}
+	salesPriceMessage.textContent='Loading saved price...';
+	try {
+		const query=new URLSearchParams({ item_id: productSold.value,date: salesDate.value });
+		const response=await fetch('/api/prices/lookup?'+query.toString());
+		const result=await response.json();
+		if(!response.ok) {
+			salesPriceMessage.textContent=result.err||'No price is available for this selection.';
+			return;
+		}
+		unitPrice.value=Number(result.unit_price).toFixed(2);
+		salesPriceMessage.textContent='Saved price effective from '+formatDate(result.effective_date)+'.';
+	} catch(error) {
+		console.error(error);
+		salesPriceMessage.textContent='The price could not be loaded.';
+	}
+}
+
+salesDate.addEventListener('change',loadSelectedSalesPrice);
+productSold.addEventListener('change',loadSelectedSalesPrice);
+
+// Loads every product and its dated price history onto the Prices page.
+async function loadPrices() {
+	if(!priceCards) return;
+	priceCards.textContent='Loading product prices...';
+	try {
+		const [itemsResponse,pricesResponse]=await Promise.all([
+			fetch('/api/items'),fetch('/api/prices')
+		]);
+		if(!itemsResponse.ok||!pricesResponse.ok) throw new Error('Price records could not be loaded');
+		const items=await itemsResponse.json();
+		const prices=await pricesResponse.json();
+		const products=items.filter(item => item.item_type==='product');
+		const selectedProduct=priceProduct?priceProduct.value:'';
+		if(priceProduct) {
+			priceProduct.replaceChildren(new Option('Select a product',''));
+			priceProduct.firstElementChild.disabled=true;
+			products.forEach(item => priceProduct.add(new Option(item.name,item.item_id)));
+			priceProduct.value=selectedProduct;
+		}
+		priceCards.replaceChildren();
+		const today=new Date().toISOString().slice(0,10);
+		products.forEach(product => {
+			const history=prices.filter(record => String(record.item_id)===String(product.item_id));
+			const current=history.find(record => record.effective_date<=today);
+			const priceUnit=inventoryUnit(product.name);
+			const card=document.createElement('article');
+			card.className='price-card';
+			const heading=document.createElement('div');
+			heading.className='price-card-heading';
+			const title=document.createElement('h2');
+			title.textContent=product.name;
+			const currentDisplay=document.createElement('div');
+			currentDisplay.className='price-current';
+			const currentPrice=document.createElement('strong');
+			currentPrice.textContent=current?'₦'+formatNumber(current.unit_price)+'/'+priceUnit:'No current price';
+			const currentStatus=document.createElement('span');
+			currentStatus.className='price-status '+(current?'current':'not-set');
+			currentStatus.textContent=current?'Current':'Not set';
+			currentDisplay.append(currentPrice,currentStatus);
+			heading.append(title,currentDisplay);
+			const list=document.createElement('div');
+			list.className='price-history';
+			list.hidden=true;
+			if(history.length===0) {
+				const empty=document.createElement('p');
+				empty.textContent='No price has been saved for this product.';
+				list.appendChild(empty);
+			} else {
+				history.forEach((record,index) => {
+					const row=document.createElement('p');
+					const date=document.createElement('span');
+					const details=document.createElement('span');
+					const amount=document.createElement('b');
+					const status=document.createElement('small');
+					const recordStatus=record.effective_date>today?'Upcoming':
+						(history.slice(0,index).some(entry => entry.effective_date<=today)?'Previous':'Current');
+					date.textContent=(record.effective_date>today?'Starts ':'From ')+formatDate(record.effective_date);
+					amount.textContent='₦'+formatNumber(record.unit_price)+'/'+priceUnit;
+					status.className='price-status '+recordStatus.toLowerCase();
+					status.textContent=recordStatus;
+					details.append(amount,status);
+					row.append(date,details);
+					list.appendChild(row);
+				});
+			}
+			const historyButton=document.createElement('button');
+			historyButton.type='button';
+			historyButton.className='price-history-button';
+			historyButton.textContent='View Price History';
+			historyButton.disabled=history.length===0;
+			historyButton.addEventListener('click',function() {
+				list.hidden=!list.hidden;
+				historyButton.classList.toggle('is-open',!list.hidden);
+				historyButton.textContent=list.hidden?'View Price History':'Hide Price History';
+			});
+			card.append(heading,historyButton,list);
+			priceCards.appendChild(card);
+		});
+		if(products.length===0) priceCards.textContent='No saleable products were found.';
+	} catch(error) {
+		console.error(error);
+		priceCards.textContent='Product prices could not be loaded.';
+	}
+}
+
+// Saves a new dated product price and refreshes the visible price history.
+async function saveProductPrice(event) {
+	event.preventDefault();
+	priceMessage.textContent='Saving price...';
+	try {
+		const response=await fetch('/api/prices',{
+			method: 'POST',
+			headers: { 'content-type':'application/json' },
+			body: JSON.stringify({
+				item_id: priceProduct.value,
+				unit_price: priceAmount.value,
+				effective_date: priceEffectiveDate.value
+			})
+		});
+		const result=await response.json();
+		if(!response.ok) {
+			priceMessage.textContent=result.err||'The price could not be saved.';
+			return;
+		}
+		priceMessage.textContent='Price saved successfully.';
+		priceAmount.value='';
+		priceForm.hidden=true;
+		await loadPrices();
+	} catch(error) {
+		console.error(error);
+		priceMessage.textContent='The price could not be saved.';
+	}
+}
+
+if(priceForm) {
+	priceEffectiveDate.value=new Date().toISOString().slice(0,10);
+	priceForm.addEventListener('submit',saveProductPrice);
+}
+
+if(openPriceFormBtn) {
+	// Reveals the price form only when the administrator chooses to add a price.
+	openPriceFormBtn.addEventListener('click',function() {
+		priceForm.hidden=false;
+		priceProduct.focus();
+	});
+}
+
+if(cancelPriceFormBtn) {
+	// Closes the price form without changing any saved price.
+	cancelPriceFormBtn.addEventListener('click',function() {
+		priceForm.hidden=true;
+		priceMessage.textContent='';
+	});
 }
 
 // Fetches purchases dropdown and displays the results in the relevant interface.
@@ -387,13 +594,15 @@ async function saveSale(event) {
 			body: JSON.stringify(sale)
 		});
 		if(!response.ok) {
-			alert("save failed. Please check the form and try again.");
+			const problem=await response.json();
+			alert(problem.err||problem.error||"Sale could not be saved.");
 			return;
 		}
 		const savedSale=await response.json();
 		console.log("saved:",savedSale);
 		alert("Sale saved successfully!");
 		salesForm.reset();
+		salesPriceMessage.textContent='Select a sales date and product to load its price.';
 	} catch(err) {
 		console.error("network problem:",err);
 		alert("Network problem. Your entry was NOT saved");
@@ -686,6 +895,220 @@ function formatNumber(value) {
 	return Number(value).toLocaleString("en-NG");
 }
 
+let currentSaleDocumentData=null;
+
+// Opens the invoice and payment page for the selected sale.
+function openSaleDocument(sale) {
+	const address=new URL(window.location.href);
+	address.search='';
+	address.searchParams.set('saleId',sale.sales_id);
+	address.hash='sale-document';
+	window.history.pushState({},'',address);
+	displaySelectedForm();
+}
+
+// Creates a text element used by the printable sales documents.
+function createDocumentText(tag,className,text) {
+	const element=document.createElement(tag);
+	if(className) element.className=className;
+	element.textContent=text||'';
+	return element;
+}
+
+// Calculates and displays the current payment position for a sale.
+function salePaymentSummary(sale) {
+	const total=Number(sale.total);
+	const paid=Number(sale.amount_paid);
+	const remaining=Math.max(total-paid,0);
+	let status='Pending';
+	if(remaining===0) status='Paid';
+	else if(paid>0) status='Partly Paid';
+	else if(sale.due_date&&sale.due_date<new Date().toISOString().slice(0,10)) status='Overdue';
+	return { total: total,paid: paid,remaining: remaining,status: status };
+}
+
+// Builds the shared company, customer and sale heading for a printable document.
+function buildSaleDocumentHeading(data,title,number) {
+	const fragment=document.createDocumentFragment();
+	const company=createDocumentText('div','sale-print-company');
+	company.append(
+		createDocumentText('h2','',data.company.company_name||'Company'),
+		createDocumentText('p','',data.company.business_address||''),
+		createDocumentText('p','',[data.company.phone_number,data.company.email].filter(Boolean).join(' · '))
+	);
+	const titleBox=createDocumentText('div','sale-print-title');
+	titleBox.append(createDocumentText('h1','',title),createDocumentText('strong','',number));
+	const customer=createDocumentText('div','sale-print-customer');
+	customer.append(
+		createDocumentText('span','','Customer'),
+		createDocumentText('strong','',data.sale.customer),
+		createDocumentText('p','',data.sale.customer_address||''),
+		createDocumentText('p','',[data.sale.customer_phone,data.sale.customer_email].filter(Boolean).join(' · '))
+	);
+	fragment.append(company,titleBox,customer);
+	return fragment;
+}
+
+// Displays the invoice for the current sale.
+function showSaleInvoice() {
+	if(!currentSaleDocumentData) return;
+	const data=currentSaleDocumentData;
+	const sale=data.sale;
+	const summary=salePaymentSummary(sale);
+	const printArea=document.querySelector('.sale-print-area');
+	const meta=createDocumentText('div','sale-print-meta');
+	meta.append(
+		createCardValues('Invoice Date',formatDate(sale.sales_date)),
+		createCardValues('Payment Due',formatDate(sale.due_date||sale.sales_date)),
+		createCardValues('Status',summary.status)
+	);
+	const item=createDocumentText('div','sale-invoice-item');
+	item.append(
+		createCardValues('Product',sale.item),
+		createCardValues('Quantity',formatNumber(sale.quantity)+' kg'),
+		createCardValues('Unit Price','₦'+formatNumber(sale.unit_price)),
+		createCardValues('Invoice Amount','₦'+formatNumber(summary.total))
+	);
+	const totals=createDocumentText('div','sale-document-totals');
+	totals.append(
+		createCardValues('Total Paid','₦'+formatNumber(summary.paid)),
+		createCardValues('Amount Remaining','₦'+formatNumber(summary.remaining))
+	);
+	printArea.replaceChildren(buildSaleDocumentHeading(data,'INVOICE',sale.invoice_number),meta,item,totals);
+}
+
+// Displays one statement containing the invoice and every payment made against it.
+function showSaleStatement() {
+	if(!currentSaleDocumentData) return;
+	const data=currentSaleDocumentData;
+	const summary=salePaymentSummary(data.sale);
+	const printArea=document.querySelector('.sale-print-area');
+	const list=createDocumentText('div','sale-statement-list');
+	list.append(createDocumentText('h3','','Payments'));
+	if(data.payments.length===0) list.append(createDocumentText('p','','No payments have been recorded.'));
+	data.payments.forEach(function(payment) {
+		const row=createDocumentText('div','sale-statement-row');
+		row.append(
+			createDocumentText('span','',formatDate(payment.payment_date)),
+			createDocumentText('span','',payment.receipt_number),
+			createDocumentText('span','',payment.payment_method),
+			createDocumentText('strong','','₦'+formatNumber(payment.amount))
+		);
+		list.append(row);
+	});
+	const totals=createDocumentText('div','sale-document-totals');
+	totals.append(
+		createCardValues('Invoice Amount','₦'+formatNumber(summary.total)),
+		createCardValues('Total Paid','₦'+formatNumber(summary.paid)),
+		createCardValues('Amount Remaining','₦'+formatNumber(summary.remaining))
+	);
+	printArea.replaceChildren(
+		buildSaleDocumentHeading(data,'ACCOUNT STATEMENT',data.sale.invoice_number),list,totals
+	);
+}
+
+// Displays the receipt belonging to one saved payment.
+function showSaleReceipt(payment,paymentIndex) {
+	const data=currentSaleDocumentData;
+	const paidBefore=data.payments.slice(0,paymentIndex+1).reduce(function(total,row) {
+		return total+Number(row.amount);
+	},0);
+	const remaining=Math.max(Number(data.sale.total)-paidBefore,0);
+	const printArea=document.querySelector('.sale-print-area');
+	const details=createDocumentText('div','sale-receipt-details');
+	[
+		['Invoice Number',data.sale.invoice_number],
+		['Payment Date',formatDate(payment.payment_date)],
+		['Amount Received','₦'+formatNumber(payment.amount)],
+		['Payment Method',payment.payment_method],
+		['Bank Reference',payment.reference_number||'Not provided'],
+		['Amount Remaining','₦'+formatNumber(remaining)]
+	].forEach(function(field) { details.append(createCardValues(field[0],field[1])); });
+	printArea.replaceChildren(buildSaleDocumentHeading(data,'RECEIPT',payment.receipt_number),details);
+	printArea.scrollIntoView({ behavior: 'smooth',block: 'start' });
+}
+
+// Opens the small form used to record a new payment against the sale.
+function openSalePaymentDialog() {
+	if(!currentSaleDocumentData) return;
+	const summary=salePaymentSummary(currentSaleDocumentData.sale);
+	if(summary.remaining<=0) {
+		document.querySelector('.sale-document-message').textContent='This invoice has already been paid in full.';
+		return;
+	}
+	const dialog=document.createElement('dialog');
+	dialog.className='employee-finance-dialog sale-payment-dialog';
+	dialog.innerHTML=`<form>
+		<h2>Record Payment</h2>
+		<p>Amount remaining: <strong>₦${formatNumber(summary.remaining)}</strong></p>
+		<label>Amount received<input name="amount" type="number" min="0.01" max="${summary.remaining}" step="0.01" required></label>
+		<label>Payment date<input name="payment_date" type="date" required></label>
+		<label>Payment method<select name="payment_method" required><option value="">Select method</option><option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>POS</option></select></label>
+		<label>Bank reference (optional)<input name="reference_number" type="text"></label>
+		<label>Note (optional)<textarea name="note"></textarea></label>
+		<p class="finance-dialog-message"></p>
+		<div><button type="button" class="finance-cancel">Cancel</button><button type="submit">Save Payment</button></div>
+	</form>`;
+	document.body.appendChild(dialog);
+	dialog.querySelector('[name="payment_date"]').value=new Date().toISOString().slice(0,10);
+	dialog.querySelector('.finance-cancel').addEventListener('click',function() { dialog.close();dialog.remove(); });
+	dialog.querySelector('form').addEventListener('submit',async function(event) {
+		event.preventDefault();
+		const response=await fetch('/api/sales/'+currentSaleDocumentData.sale.sales_id+'/payments',{
+			method: 'POST',headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
+		});
+		const result=await response.json();
+		if(!response.ok) {
+			dialog.querySelector('.finance-dialog-message').textContent=result.err;
+			return;
+		}
+		dialog.close();dialog.remove();
+		await loadSaleDocument();
+		document.querySelector('.sale-document-message').textContent='Payment saved. Receipt '+result.receipt_number+' is now available.';
+	});
+	dialog.showModal();
+}
+
+// Fetches and displays the selected sale, its invoice and payment history.
+async function loadSaleDocument() {
+	const saleId=new URLSearchParams(window.location.search).get('saleId');
+	if(!saleId) return;
+	const page=document.querySelector('#sale-document');
+	const response=await fetch('/api/sales/'+saleId+'/invoice');
+	const data=await response.json();
+	if(!response.ok) {
+		page.querySelector('.sale-document-message').textContent=data.err;
+		return;
+	}
+	currentSaleDocumentData=data;
+	const role=document.documentElement.dataset.userRole;
+	page.querySelector('#record-sale-payment').hidden=role==='storekeeper';
+	const paymentList=page.querySelector('.sale-payment-list');
+	paymentList.replaceChildren();
+	if(data.payments.length===0) paymentList.textContent='No payments have been recorded.';
+	data.payments.forEach(function(payment,index) {
+		const row=createDocumentText('div','sale-payment-row');
+		row.append(
+			createDocumentText('span','',formatDate(payment.payment_date)),
+			createDocumentText('strong','','₦'+formatNumber(payment.amount)),
+			createDocumentText('span','',payment.payment_method)
+		);
+		const receipt=document.createElement('button');
+		receipt.type='button';receipt.textContent='View Receipt';
+		receipt.addEventListener('click',function() { showSaleReceipt(payment,index); });
+		row.append(receipt);paymentList.append(row);
+	});
+	if(page.dataset.ready!=='true') {
+		page.dataset.ready='true';
+		page.querySelector('#show-sale-invoice').addEventListener('click',showSaleInvoice);
+		page.querySelector('#show-sale-statement').addEventListener('click',showSaleStatement);
+		page.querySelector('#record-sale-payment').addEventListener('click',openSalePaymentDialog);
+		page.querySelector('#print-sale-document').addEventListener('click',function() { window.print(); });
+	}
+	showSaleInvoice();
+}
+
 // Handles click events from document.
 document.addEventListener("click",event => {
 	const openCard=document.querySelector(".data-record-card.show-actions");
@@ -784,6 +1207,13 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 			alert("Record was deleted successfully");
 			card.card.remove();
 		});
+			const detailsBtn=card.card.querySelector('.details-btn');
+			if(config.openDetails) {
+				detailsBtn.addEventListener('click',function(event) {
+					event.stopPropagation();
+					config.openDetails(row);
+				});
+			}
 	});
 	loadMoreBtn.hidden=visibleRecord>=list.length;
 }
@@ -852,6 +1282,7 @@ async function renderSalesCard(salesList) {
 	const salesConfig={
 		kind: "sales",
 		formId: "sales-form",
+		openDetails: openSaleDocument,
 		// Returns the record identifier used by the card.
 		id: row => row.sales_id,
 		// Returns the record date used for display and filtering.
@@ -867,7 +1298,7 @@ async function renderSalesCard(salesList) {
 				value: row => row.customer
 			},
 			{
-				label: "Quantity",
+					label: "Quantity",
 				// Derives the displayed field value from the current record.
 				value: row => formatNumber(row.quantity),
 				// Returns the unit displayed beside the current value.
@@ -1627,8 +2058,9 @@ async function loadExpensesData() {
 function editForm() {
 	const record=JSON.parse(sessionStorage.getItem("editRecord"));
 	const kind=sessionStorage.getItem("editKind");
+	const isEditMode=new URLSearchParams(window.location.search).get('mode')==='edit';
 
-	if(!record||!kind) {
+	if(!isEditMode||!record||!kind) {
 		return;
 	}
 
@@ -1857,6 +2289,10 @@ function displayPartners(partnersList,config,allCards) {
 
 		// Handles click events from card.footer.
 		card.footer.addEventListener('click',async function() {
+				if(config.openDetailsPage) {
+					config.openDetailsPage(partner);
+					return;
+				}
 			const existingDetails=card.card.querySelector(config.detailsClass);
 			if(existingDetails) {
 				existingDetails.remove();
@@ -2449,7 +2885,7 @@ function renderSupplierCards(suppliersList) {
 }
 
 // Builds the employee information and system-access sections shown inside an expanded card.
-function renderEmployeeDetails(employee,employeeCard) {
+async function renderEmployeeDetails(employee,employeeCard) {
 	const details=document.createElement('section');
 	const employeeHeading=document.createElement('h5');
 	const employeeInformation=document.createElement('div');
@@ -2458,6 +2894,8 @@ function renderEmployeeDetails(employee,employeeCard) {
 	const actions=document.createElement('div');
 	const editBtn=document.createElement('button');
 	const disableBtn=document.createElement('button');
+	const salaryHeading=document.createElement('h5');
+	const salaryHistory=document.createElement('div');
 
 	details.classList.add('customer-details','employee-details');
 	employeeHeading.classList.add('employee-details-heading');
@@ -2467,15 +2905,19 @@ function renderEmployeeDetails(employee,employeeCard) {
 	actions.classList.add('employee-details-actions');
 	editBtn.classList.add('customer-details-edit-btn');
 	disableBtn.classList.add('customer-details-delete-btn');
+	salaryHeading.classList.add('employee-access-heading');
+	salaryHistory.classList.add('salary-history-list');
 
 	employeeHeading.textContent='Employee Details';
 	accessHeading.textContent='System Access';
-	editBtn.textContent='Edit Employee';
-	disableBtn.textContent='Disable Account';
+	editBtn.textContent='Change Salary';
+	disableBtn.textContent=employee.status==='Inactive'?'Reactivate Employee':'Mark Inactive';
+	salaryHeading.textContent='Salary History';
 
 	const employeeFields=[
 		['Address',employee.address],
-		['Note',employee.note]
+		['Note',employee.note],
+		['Current Salary','₦'+formatNumber(employee.salary||0)]
 	];
 	const accessFields=[
 		['Username',employee.username],
@@ -2497,10 +2939,247 @@ function renderEmployeeDetails(employee,employeeCard) {
 
 	if(document.documentElement.dataset.userRole==='admin') {
 		actions.append(editBtn,disableBtn);
+		editBtn.addEventListener('click',function() {
+			openSalaryChangeDialog(employee);
+		});
+		disableBtn.addEventListener('click',async function() {
+			const makingInactive=employee.status!=='Inactive';
+			let effectiveDate='';
+			if(makingInactive) {
+				effectiveDate=prompt(
+					'Enter the final employment date (YYYY-MM-DD):',
+					new Date().toISOString().slice(0,10)
+				);
+				if(!effectiveDate) return;
+			} else if(!confirm('Reactivate '+employee.name+'?')) {
+				return;
+			}
+			const response=await fetch('/api/employees/'+employee.employee_id+'/status',{
+				method: 'PATCH',headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					status: makingInactive?'Inactive':'Active',
+					effective_date: effectiveDate
+				})
+			});
+			const result=await response.json();
+			if(!response.ok) {
+				alert(result.err);
+				return;
+			}
+			window.location.reload();
+		});
 	}
-	details.append(employeeHeading,employeeInformation,accessHeading,systemAccess,actions);
+	details.append(
+		employeeHeading,employeeInformation,accessHeading,systemAccess,
+		salaryHeading,salaryHistory,actions
+	);
 	employeeCard.appendChild(details);
+
+	try {
+		const response=await fetch('/api/employees/'+employee.employee_id+'/salary-history');
+		const history=await response.json();
+		if(!response.ok) throw new Error(history.err||'Could not load salary history');
+		if(history.length===0) {
+			salaryHistory.textContent='No salary changes recorded.';
+			return;
+		}
+		history.forEach(function(entry) {
+			const row=document.createElement('div');
+			const amount=document.createElement('strong');
+			const information=document.createElement('span');
+			amount.textContent='₦'+formatNumber(entry.new_salary);
+			information.textContent=formatDate(entry.effective_date)+' · '+entry.reason;
+			row.append(amount,information);
+			salaryHistory.appendChild(row);
+		});
+	} catch(error) {
+		salaryHistory.textContent=error.message;
+	}
 }
+
+// Opens a form that records a salary increase without erasing the previous salary.
+function openSalaryChangeDialog(employee) {
+	const dialog=document.createElement('dialog');
+	dialog.classList.add('employee-finance-dialog');
+	dialog.innerHTML=`<form>
+		<h2>Change ${employee.name}'s Salary</h2>
+		<label>New monthly salary<input name="new_salary" type="number" min="0.01" step="0.01" required></label>
+		<label>Effective date<input name="effective_date" type="date" required></label>
+		<label>Reason<textarea name="reason" required></textarea></label>
+		<p class="finance-dialog-message"></p>
+		<div><button type="button" class="finance-cancel">Cancel</button><button type="submit">Save Salary</button></div>
+	</form>`;
+	document.body.appendChild(dialog);
+	dialog.querySelector('[name="new_salary"]').value=employee.salary||'';
+	dialog.querySelector('[name="effective_date"]').value=new Date().toISOString().slice(0,10);
+	dialog.querySelector('.finance-cancel').addEventListener('click',function() {
+		dialog.close();
+		dialog.remove();
+	});
+	dialog.querySelector('form').addEventListener('submit',async function(event) {
+		event.preventDefault();
+		const form=new FormData(event.currentTarget);
+		const response=await fetch('/api/employees/'+employee.employee_id+'/salary-history',{
+			method: 'POST',headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(Object.fromEntries(form))
+		});
+		const result=await response.json();
+		if(!response.ok) {
+			dialog.querySelector('.finance-dialog-message').textContent=result.err;
+			return;
+		}
+		window.location.reload();
+	});
+	dialog.showModal();
+}
+
+// Opens the monthly payroll workspace for the administrator.
+function openPayrollPage() {
+	const payrollPage=document.querySelector('#payroll');
+	const monthInput=payrollPage.querySelector('.payroll-month');
+	const records=payrollPage.querySelector('.payroll-records');
+	const message=payrollPage.querySelector('.finance-dialog-message');
+	const summary=payrollPage.querySelector('.payroll-summary');
+	const periodTitle=payrollPage.querySelector('.payroll-period-title');
+	if(!monthInput.value) monthInput.value=new Date().toISOString().slice(0,7);
+
+	// Formats the selected payroll month as a readable heading.
+	function payrollMonthLabel() {
+		return new Intl.DateTimeFormat('en-NG',{
+			month: 'long',year: 'numeric',timeZone: 'UTC'
+		}).format(new Date(monthInput.value+'-01T00:00:00Z'));
+	}
+
+	async function loadPayroll() {
+		const response=await fetch('/api/payroll?month='+monthInput.value);
+		const payroll=await response.json();
+		if(!response.ok) {
+			message.textContent=payroll.err;
+			return;
+		}
+		records.replaceChildren();
+		periodTitle.textContent=payrollMonthLabel()+' Payroll';
+		if(payroll.length===0) {
+			summary.hidden=true;
+			records.textContent='No payroll has been prepared for this month.';
+			return;
+		}
+		const totals=payroll.reduce(function(output,record) {
+			output.basic+=Number(record.basic_salary)||0;
+			output.bonus+=Number(record.bonus)||0;
+			output.deduction+=Number(record.deduction)||0;
+			output.gross+=(Number(record.basic_salary)||0)+(Number(record.bonus)||0);
+			output.net+=Number(record.total_salary_cost)||0;
+			output[record.payment_status==='Paid'?'paid':'pending']++;
+			return output;
+		},{ basic: 0,bonus: 0,deduction: 0,gross: 0,net: 0,paid: 0,pending: 0 });
+		const summaryValues=[
+			['Employees',payroll.length],
+			['Monthly salaries','₦'+formatNumber(totals.basic)],
+			['Bonuses','₦'+formatNumber(totals.bonus)],
+			['Deductions','₦'+formatNumber(totals.deduction)],
+			['Gross payroll','₦'+formatNumber(totals.gross)],
+			['Net payroll','₦'+formatNumber(totals.net)],
+			['Paid',totals.paid],
+			['Pending',totals.pending]
+		];
+		summary.replaceChildren();
+		summaryValues.forEach(function(item) {
+			const box=document.createElement('div');
+			const label=document.createElement('span');
+			const value=document.createElement('strong');
+			label.textContent=item[0];
+			value.textContent=item[1];
+			box.append(label,value);
+			summary.appendChild(box);
+		});
+		summary.hidden=false;
+		payroll.forEach(function(record) {
+			const card=document.createElement('section');
+			card.classList.add('payroll-record');
+			card.innerHTML=`<button type="button" class="payroll-employee-button" aria-expanded="false"></button>
+			<div class="payroll-record-content" hidden>
+				<div class="payroll-record-heading">
+					<span class="payroll-status-badge"></span>
+					<p class="payroll-basic"></p>
+					<p class="payroll-gross-row"><span>Gross salary</span><strong class="payroll-gross"></strong></p>
+					<p class="payroll-total-row"><span>Net salary</span><strong class="payroll-total"></strong></p>
+				</div>
+				<div class="payroll-record-fields">
+				<label>Bonus<input class="payroll-bonus" type="number" min="0" step="0.01"></label>
+				<label>Deduction<input class="payroll-deduction" type="number" min="0" step="0.01"></label>
+				<label>Status<select class="payroll-status"><option>Pending</option><option>Paid</option></select></label>
+				<label>Payment date<input class="payroll-date" type="date"></label>
+				<button type="button" class="payroll-save">Save Payroll</button>
+				</div>
+			</div>`;
+			const employeeButton=card.querySelector('.payroll-employee-button');
+			const recordContent=card.querySelector('.payroll-record-content');
+			employeeButton.textContent=record.name;
+			employeeButton.addEventListener('click',function() {
+				const willOpen=recordContent.hidden;
+				recordContent.hidden=!willOpen;
+				employeeButton.setAttribute('aria-expanded',String(willOpen));
+			});
+			const statusBadge=card.querySelector('.payroll-status-badge');
+			statusBadge.textContent=record.payment_status;
+			statusBadge.classList.toggle('paid',record.payment_status==='Paid');
+			card.querySelector('.payroll-basic').textContent='Monthly salary: ₦'+formatNumber(record.basic_salary);
+			card.querySelector('.payroll-gross').textContent='₦'+formatNumber(
+				Number(record.basic_salary)+Number(record.bonus)
+			);
+			card.querySelector('.payroll-bonus').value=record.bonus;
+			card.querySelector('.payroll-deduction').value=record.deduction;
+			card.querySelector('.payroll-status').value=record.payment_status;
+			card.querySelector('.payroll-date').value=record.payment_date||'';
+			card.querySelector('.payroll-total').textContent='₦'+formatNumber(record.total_salary_cost);
+			card.querySelector('.payroll-save').addEventListener('click',async function() {
+				const payload={
+					bonus: card.querySelector('.payroll-bonus').value||0,
+					deduction: card.querySelector('.payroll-deduction').value||0,
+					payment_status: card.querySelector('.payroll-status').value,
+					payment_date: card.querySelector('.payroll-date').value||null
+				};
+				const response=await fetch('/api/payroll/'+record.payroll_id,{
+					method: 'PATCH',headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(payload)
+				});
+				const result=await response.json();
+				if(!response.ok) {
+					message.textContent=result.err;
+					return;
+				}
+				message.textContent=record.name+' payroll was saved successfully.';
+				await loadPayroll();
+			});
+			records.appendChild(card);
+		});
+	}
+
+	if(payrollPage.dataset.ready==='true') {
+		loadPayroll();
+		return;
+	}
+	payrollPage.dataset.ready='true';
+	payrollPage.querySelector('.payroll-generate').addEventListener('click',async function() {
+		const response=await fetch('/api/payroll/generate',{
+			method: 'POST',headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ month: monthInput.value })
+		});
+		const result=await response.json();
+		message.textContent=response.ok? result.message:result.err;
+		if(response.ok) await loadPayroll();
+	});
+	monthInput.addEventListener('change',function() {
+		message.textContent='';
+		loadPayroll();
+	});
+	loadPayroll();
+}
+
+managePayrollBtn.addEventListener('click',function() {
+	window.location.hash='payroll';
+});
 
 // Displays employee cards through the shared partner-card configuration and filtering pattern.
 function renderEmployeeCards(employeeRecords) {
@@ -2520,7 +3199,7 @@ function renderEmployeeCards(employeeRecords) {
 		lastBusinessDate: employee => employee.status,
 		formatLastBusiness: false,
 		detailsClass: '.employee-details',
-		renderDetails: renderEmployeeDetails,
+		openDetailsPage: openEmployeePage,
 		fields: [
 			{
 				label: 'Role',
@@ -2536,6 +3215,11 @@ function renderEmployeeCards(employeeRecords) {
 	};
 
 	displayPartners(employeeRecords,employeeConfig,allCards);
+	if(window.location.hash==='#employee-details') {
+		const employeeId=new URLSearchParams(window.location.search).get('employeeId');
+		const selectedEmployee=employeeRecords.find(employee => String(employee.employee_id)===employeeId);
+		if(selectedEmployee) openEmployeePage(selectedEmployee,false);
+	}
 
 	// Filters employees by the name, role, department, or phone number shown on their cards.
 	employeeSearch.addEventListener('input',() => {
@@ -2548,5 +3232,48 @@ function renderEmployeeCards(employeeRecords) {
 		});
 		displayPartners(filteredEmployees,employeeConfig,allCards);
 	});
+}
+
+// Displays one employee's complete record on the dedicated employee profile page.
+function openEmployeePage(employee,updateAddress=true) {
+	const page=document.querySelector('#employee-details');
+	const summary=page.querySelector('.employee-profile-summary');
+	const content=page.querySelector('.employee-profile-content');
+	const photo=document.createElement('div');
+	const identity=document.createElement('div');
+	const name=document.createElement('h2');
+	const role=document.createElement('p');
+	const contact=document.createElement('p');
+	const status=document.createElement('strong');
+
+	photo.classList.add('employee-profile-photo');
+	if(employee.photo_path) {
+		const image=document.createElement('img');
+		image.src=employee.photo_path;
+		image.alt=employee.name+' passport photograph';
+		image.addEventListener('error',function() {
+			photo.replaceChildren('👤');
+		});
+		photo.appendChild(image);
+	} else {
+		photo.textContent='👤';
+	}
+	name.textContent=employee.name;
+	role.textContent=employee.role;
+	contact.textContent=(employee.email||'No email')+' · '+employee.phone_number;
+	status.textContent=employee.status;
+	identity.append(name,role,contact,status);
+	summary.replaceChildren(photo,identity);
+	content.replaceChildren();
+	renderEmployeeDetails(employee,content);
+
+	if(updateAddress) {
+		const address=new URL(window.location.href);
+		address.search='';
+		address.searchParams.set('employeeId',employee.employee_id);
+		address.hash='employee-details';
+		window.history.pushState({},'',address);
+		displaySelectedForm();
+	}
 }
 

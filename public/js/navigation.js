@@ -12,6 +12,7 @@ const customersBtn=document.querySelector('#customers-button');
 const suppliersBtn=document.querySelector('#suppliers-button');
 const employeesBtn=document.querySelector('#employees-button');
 const companyDetailsBtn=document.querySelector('#company-details-button');
+const pricesBtn=document.querySelector('#prices-button');
 const manageUsersBtn=document.querySelector('#manage-users-button');
 const switchAccountBtn=document.createElement('button');
 switchAccountBtn.type='button';
@@ -60,8 +61,10 @@ function displaySubmenuBtn(event) {
 
 // Closes the navigation when the user clicks outside it.
 function removeNav(e) {
-	const clickedMainMenu=mainMenu.contains(e.target);
-	if(clickedMainMenu===false) {
+	const menuIsOpen=submenuAndBtn.classList.contains('show');
+	const clickedPanel=submenuAndBtn.contains(e.target);
+	const clickedMenuButton=menuBtn.contains(e.target);
+	if(menuIsOpen&&!clickedPanel&&!clickedMenuButton) {
 		submenuAndBtn.classList.remove("show");
 		firstBtn.classList.remove("show");
 		secondBtn.classList.remove("show");
@@ -94,7 +97,7 @@ if(secondBtn) {
 	secondBtn.addEventListener("click",displayData);
 }
 
-const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #employees-button, #company-details-button");
+const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #employees-button, #company-details-button, #prices-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {
 	// Handles click events from link.
@@ -140,6 +143,13 @@ if(companyDetailsBtn) {
 	// Opens the database-backed company details page.
 	companyDetailsBtn.addEventListener('click',() => {
 		window.location.href='/forms.html#company-details';
+	});
+}
+
+if(pricesBtn) {
+	// Opens the product price list and price editor.
+	pricesBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#prices';
 	});
 }
 

@@ -83,7 +83,7 @@ const capitalExpenses = [
 // ---------- the simulation ----------
 
 async function seed() {
-  console.log('Adding Electricity to items...');
+  console.log('Adding Electricity and Sludge to items...');
 
   await pool.query(`
     INSERT INTO items (name, item_type)
@@ -93,6 +93,21 @@ async function seed() {
       FROM items
       WHERE LOWER(TRIM(name)) = 'electricity'
     )
+  `);
+
+  await pool.query(`
+    INSERT INTO items (name, item_type)
+    SELECT 'Sludge', 'product'
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM items
+      WHERE LOWER(TRIM(name)) = 'sludge'
+    )
+  `);
+
+  await pool.query(`
+	UPDATE items SET item_type='product'
+	WHERE LOWER(TRIM(name))='sludge'
   `);
 
   console.log('Reading items...');
@@ -105,8 +120,8 @@ async function seed() {
     itemId[item.name] = item.item_id;
   });
 
-  if (!itemId['PKO'] || !itemId['PKC'] || !itemId['P Kernel'] || !itemId['Diesel'] || !itemId['Electricity']) {
-    console.error('Items table must contain PKO, PKC, P Kernel, Diesel and Electricity.');
+  if (!itemId['PKO'] || !itemId['PKC'] || !itemId['P Kernel'] || !itemId['Diesel'] || !itemId['Electricity'] || !itemId['Sludge']) {
+	console.error('Items table must contain PKO, PKC, P Kernel, Diesel, Electricity and Sludge.');
     await pool.end();
     return;
   }
@@ -347,7 +362,13 @@ async function seed() {
         const unitPrice = randomInt(1450, 1820);
 
         await pool.query(
-          'INSERT INTO sales (sales_date, customer_id, item_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+		  `WITH next_sale AS (SELECT nextval('sales_sales_id_seq') AS sales_id)
+		  INSERT INTO sales
+		  (sales_id,sales_date,customer_id,item_id,quantity,unit_price,created_at,due_date,
+		   invoice_number)
+		  SELECT sales_id,$1::date,$2,$3,$4,$5,$6,$1::date,
+		   'INV-'||to_char($1::date,'YYYY')||'-'||lpad(sales_id::text,6,'0')
+		  FROM next_sale`,
           [dateText, randomChoice(pkoCustomerIds), itemId['PKO'], quantity, unitPrice, stampAt(day, randomInt(10, 15), randomInt(0, 59))]
         );
 
@@ -363,7 +384,13 @@ async function seed() {
       const unitPrice = randomInt(195, 265);
 
       await pool.query(
-        'INSERT INTO sales (sales_date, customer_id, item_id, quantity, unit_price, created_at) VALUES ($1, $2, $3, $4, $5, $6)',
+		`WITH next_sale AS (SELECT nextval('sales_sales_id_seq') AS sales_id)
+		INSERT INTO sales
+		(sales_id,sales_date,customer_id,item_id,quantity,unit_price,created_at,due_date,
+		 invoice_number)
+		SELECT sales_id,$1::date,$2,$3,$4,$5,$6,$1::date,
+		 'INV-'||to_char($1::date,'YYYY')||'-'||lpad(sales_id::text,6,'0')
+		FROM next_sale`,
         [dateText, randomChoice(pkcCustomerIds), itemId['PKC'], quantity, unitPrice, stampAt(day, randomInt(10, 15), randomInt(0, 59))]
       );
 

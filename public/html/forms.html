@@ -92,7 +92,13 @@
 
                 <button type="button" class="submenu-button">Settings</button>
 
-                <button type="button" class="submenu-button">Prices</button>
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="prices-button"
+                >
+                    Prices
+                </button>
 
                 <button
                     type="button"
@@ -162,6 +168,7 @@
                                 name="received"
                                 min="0"
                                 step="0.01"
+								inputmode="decimal"
                                 placeholder="0"
                                 required
                             />
@@ -179,6 +186,7 @@
                                 name="issued"
                                 min="0"
                                 step="0.01"
+								inputmode="decimal"
                                 placeholder="0"
                                 required
                             />
@@ -428,7 +436,6 @@
                             required
                         />
                     </div>
-
                     <div class="field">
                         <label for="customer">Customer</label>
                         <select name="customer" id="customer" required>
@@ -461,15 +468,19 @@
                         </div>
 
                         <div class="field">
-                            <label for="unit-price">Unit Price</label>
+                            <label for="unit-price">Unit Price (₦/kg)</label>
                             <input
                                 type="number"
                                 id="unit-price"
                                 name="unit-price"
                                 min="0"
                                 placeholder="0"
+                                readonly
                                 required
                             />
+                            <small id="sales-price-message">
+                                Select a sales date and product to load its price.
+                            </small>
                         </div>
                     </div>
 
@@ -485,7 +496,7 @@
                             <th>Date</th>
                             <th>Customer</th>
                             <th>Item</th>
-                            <th>Quantity (kg)</th>
+							<th>Quantity (kg)</th>
                             <th>Unit Price (₦)</th>
                             <th>Total (₦)</th>
                         </tr>
@@ -532,6 +543,24 @@
                     </button>
                 </div>
             </section>
+			<section class="card sale-document-page" id="sale-document">
+				<div class="sale-document-heading">
+					<div><h1>Sale and Payments</h1><p>View the invoice, record payments and open individual receipts.</p></div>
+					<a href="/forms.html#sales-data">Back to Sales</a>
+				</div>
+				<div class="sale-document-actions">
+					<button type="button" id="show-sale-invoice">Invoice</button>
+					<button type="button" id="show-sale-statement">Account Statement</button>
+					<button type="button" id="record-sale-payment">Record Payment</button>
+					<button type="button" id="print-sale-document">Print / Save PDF</button>
+				</div>
+				<p class="sale-document-message"></p>
+				<section class="sale-print-area"></section>
+				<section class="sale-payment-history">
+					<h2>Payment History</h2>
+					<div class="sale-payment-list"></div>
+				</section>
+			</section>
 
             <section class="card" id="inventory-data">
                 <table class="data-table-view">
@@ -976,6 +1005,7 @@
                 <div class="header">
                     <h1>Employees</h1>
                     <button id="add-employee">+ Add Employee</button>
+					<button type="button" id="manage-payroll">Payroll History</button>
                     <p>Manage employees and view their summary.</p>
                 </div>
                 <div>
@@ -986,6 +1016,34 @@
                     />
                 </div>
                 <div class="employee-cards"></div>
+            </section>
+            <section id="employee-details" class="card employee-profile-page">
+                <div class="employee-profile-heading">
+                    <div>
+                        <h1>Employee Profile</h1>
+                        <p>View the employee's information, access and salary history.</p>
+                    </div>
+                    <a href="/forms.html#employees">Back to Employees</a>
+                </div>
+                <div class="employee-profile-summary"></div>
+                <div class="employee-profile-content"></div>
+            </section>
+            <section id="payroll" class="card payroll-page">
+                <div class="payroll-heading">
+                    <div>
+                        <h1>Payroll History</h1>
+                        <p>Review saved salaries, bonuses, deductions and payments.</p>
+                    </div>
+                    <a href="/forms.html#employees" class="payroll-back">Back to Employees</a>
+                </div>
+                <div class="payroll-controls">
+                    <input type="month" class="payroll-month" required />
+                    <button type="button" class="payroll-generate">Prepare Month</button>
+                </div>
+                <h2 class="payroll-period-title"></h2>
+                <div class="payroll-summary" hidden></div>
+                <p class="finance-dialog-message"></p>
+                <div class="payroll-records"></div>
             </section>
             <section id="company-details" class="card">
                 <div class="company-page-heading">
@@ -1101,6 +1159,37 @@
                             Cancel
                         </button>
                         <button type="submit">Save Changes</button>
+                    </div>
+                </form>
+            </section>
+            <section id="prices" class="card prices-page">
+                <div class="prices-heading">
+                    <div>
+                        <h1>Product Prices</h1>
+                        <p>View the current price and earlier prices for every product.</p>
+                    </div>
+                    <button type="button" id="open-price-form">+ Add Price</button>
+                </div>
+                <div class="price-cards"></div>
+                <p class="price-message" role="status"></p>
+                <form id="price-form" class="price-editor" hidden>
+                    <div class="field">
+                        <label for="price-product">Product</label>
+                        <select id="price-product" required>
+                            <option value="" disabled selected>Select a product</option>
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="price-amount">Unit Price (₦/kg)</label>
+                        <input id="price-amount" type="number" min="0.01" step="0.01" required />
+                    </div>
+                    <div class="field">
+                        <label for="price-effective-date">Price Starts On</label>
+                        <input id="price-effective-date" type="date" required />
+                    </div>
+                    <div class="price-form-actions">
+                        <button type="button" id="cancel-price-form">Cancel</button>
+                        <button type="submit">Save Price</button>
                     </div>
                 </form>
             </section>

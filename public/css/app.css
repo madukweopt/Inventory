@@ -544,7 +544,7 @@ body {
 
 #production-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+	grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -622,6 +622,11 @@ body {
 #dashboard .stock-card.electricity .stock-unit {
 	margin-left: 2px;
 	font-size: 10px;
+}
+
+#dashboard .stock-card.sludge .stock-badge {
+	background: #eee4d5;
+	color: #72532d;
 }
 
 #dashboard .swatch {
@@ -756,6 +761,10 @@ body {
   background: #60320f;
 }
 
+#dashboard .sale-card.sludge .swatch {
+	background: #8b6b3f;
+}
+
 #dashboard .sale-head h3 {
   flex: 1;
   align-self: stretch;
@@ -823,21 +832,26 @@ body {
 
 #dashboard .profit-cards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+	grid-template-columns: 1fr;
   gap: 12px;
 }
 
 #dashboard .profit-card {
   container-type: inline-size;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+	display: block;
   min-width: 0;
   padding: 14px 12px;
   background: #fff;
   border: 1px solid #e9e3d7;
   border-radius: 16px;
   box-shadow: 0 3px 10px rgba(63, 51, 29, 0.04);
+}
+
+#dashboard .profit-product-heading {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	margin-bottom: 12px;
 }
 
 #dashboard .profit-badge {
@@ -860,6 +874,11 @@ body {
   background: #60320f;
 }
 
+#dashboard .profit-card.sludge .profit-badge {
+	background: #8b6b3f;
+	color: #fff;
+}
+
 #dashboard .profit-details {
   display: flex;
   flex-direction: column;
@@ -868,8 +887,96 @@ body {
 }
 
 #dashboard .profit-label {
-  color: #6b7280;
-  font-size: 0.72rem;
+	color: #28352e;
+	font-size: .9rem;
+	font-weight: 800;
+}
+
+#dashboard .profit-metrics {
+	display: grid;
+	grid-template-columns: repeat(2,minmax(0,1fr));
+	gap: 10px;
+}
+
+#dashboard .profit-metrics>div {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 4px;
+	padding: 9px;
+	border-radius: 8px;
+	background: #f8f6f0;
+}
+
+#dashboard .profit-metrics span {
+	color: #6b7280;
+	font-size: .65rem;
+}
+
+#dashboard .profit-metrics strong {
+	overflow: hidden;
+	color: #14532d;
+	font-size: clamp(.72rem,4cqi,.94rem);
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#dashboard .profit-metrics strong.negative {
+	color: #a12c24;
+}
+
+#dashboard .profit-summary {
+	display: grid;
+	gap: 0;
+	margin-top: 14px;
+	overflow: hidden;
+	border: 1px solid #d7dfd6;
+	border-radius: 12px;
+	background: #fff;
+}
+
+#dashboard .profit-summary>div {
+	display: flex;
+	justify-content: space-between;
+	gap: 14px;
+	padding: 11px 13px;
+	border-bottom: 1px solid #e7ebe6;
+}
+
+#dashboard .profit-summary>div:last-child {
+	border-bottom: 0;
+}
+
+#dashboard .profit-summary span {
+	color: #657068;
+	font-size: .76rem;
+}
+
+#dashboard .profit-summary strong {
+	color: #26362c;
+	font-size: .8rem;
+	font-variant-numeric: tabular-nums;
+	text-align: right;
+}
+
+#dashboard .profit-summary .summary-total {
+	background: #eef7ee;
+}
+
+#dashboard .profit-summary .summary-total span,
+#dashboard .profit-summary .summary-total strong {
+	color: #14532d;
+	font-weight: 800;
+}
+
+#dashboard .profit-summary .summary-total.negative {
+	background: #fff1f0;
+}
+
+#dashboard .profit-summary .summary-total.negative span,
+#dashboard .profit-summary .summary-total.negative strong {
+	color: #a12c24;
 }
 
 #dashboard .profit-value {
@@ -1043,7 +1150,7 @@ textarea:focus {
 }
 
 button:hover {
-  background: #1d4ed8;
+  background: #0f3d21;
 }
 
 .data-load-more:hover,
@@ -1424,6 +1531,20 @@ button:hover {
 :is(#customers, #suppliers, #employees) > .header button:active {
   background: #0f4f2b;
   color: #fff;
+}
+
+#employees>.header {
+	grid-template-columns: 54px minmax(0,1fr) auto auto;
+}
+
+#employees>.header #add-employee {
+	grid-column: 3;
+}
+
+#employees>.header #manage-payroll {
+	grid-column: 4;
+	background: #fff;
+	color: #17663a;
 }
 
 :is(#customers, #suppliers, #employees) > div:nth-of-type(2) {
@@ -1852,6 +1973,10 @@ tbody
 
 .inventory-record-page .data-record-card.electricity {
   border-left-color: #0891b2;
+}
+
+.inventory-record-page .data-record-card.sludge {
+	border-left-color: #8b6b3f;
 }
 
 .inventory-record-page .data-record-card.pkc {
@@ -2522,14 +2647,14 @@ tbody
   grid-row: 4;
 }
 
-#employees .employee-details {
+:is(#employees,#employee-details) .employee-details {
   grid-column: 1 / -1;
   grid-row: 5;
   display: grid;
   gap: 10px;
 }
 
-#employees :is(.employee-details-heading, .employee-access-heading) {
+:is(#employees,#employee-details) :is(.employee-details-heading, .employee-access-heading) {
   position: relative;
   margin: 0;
   padding-left: 25px;
@@ -2538,7 +2663,7 @@ tbody
   font-weight: 800;
 }
 
-#employees :is(.employee-details-heading, .employee-access-heading)::before {
+:is(#employees,#employee-details) :is(.employee-details-heading, .employee-access-heading)::before {
   content: "👤";
   position: absolute;
   left: 0;
@@ -2547,58 +2672,781 @@ tbody
   font-size: 0.82rem;
 }
 
-#employees .employee-access-heading {
+:is(#employees,#employee-details) .employee-access-heading {
   margin-top: 4px;
   border-top: 1px solid #dfe9df;
   padding-top: 12px;
 }
 
-#employees .employee-access-heading::before {
+:is(#employees,#employee-details) .employee-access-heading::before {
   content: "◆";
   top: calc(50% + 6px);
   color: #17663a;
   font-size: 0.68rem;
 }
 
-#employees .employee-details-list {
+:is(#employees,#employee-details) .employee-details-list {
   display: grid;
   gap: 7px;
 }
 
-#employees .employee-details-list > div {
+:is(#employees,#employee-details) .employee-details-list > div {
   display: grid;
   grid-template-columns: minmax(105px,.65fr) minmax(0,1.65fr);
   gap: 12px;
   align-items: start;
 }
 
-#employees .employee-details-list span {
+:is(#employees,#employee-details) .employee-details-list span {
   color: #69736d;
   font-size: 0.68rem;
 }
 
-#employees .employee-details-list strong {
+:is(#employees,#employee-details) .employee-details-list strong {
   color: #4b5650;
   font-size: 0.69rem;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
 
-#employees .employee-details-list > div:last-child strong {
+:is(#employees,#employee-details) .employee-details-list > div:last-child strong {
   color: #17663a;
   font-weight: 800;
 }
 
-#employees .employee-details-actions {
+:is(#employees,#employee-details) .employee-details-actions {
   display: grid;
   grid-template-columns: repeat(2,minmax(0,1fr));
   gap: 10px;
   margin-top: 3px;
 }
 
-#employees .employee-details-actions button {
+:is(#employees,#employee-details) .employee-details-actions button {
   width: 100%;
   min-height: 34px;
+}
+
+:is(#employees,#employee-details) .salary-history-list {
+	display: grid;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
+:is(#employees,#employee-details) .salary-history-list>div {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 7px 9px;
+	border-radius: 7px;
+	background: #f4f7f3;
+}
+
+:is(#employees,#employee-details) .salary-history-list strong {
+	color: #17663a;
+	font-size: .72rem;
+}
+
+:is(#employees,#employee-details) .salary-history-list span,
+:is(#employees,#employee-details) .salary-history-list {
+	color: #68736c;
+	font-size: .67rem;
+}
+
+.employee-profile-page {
+	height: auto;
+	min-height: 100vh;
+}
+
+.employee-profile-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 20px;
+}
+
+.employee-profile-heading h1,
+.employee-profile-heading p {
+	margin: 0;
+}
+
+.employee-profile-heading h1 {
+	color: #174f31;
+	font-size: 1.45rem;
+}
+
+.employee-profile-heading p {
+	margin-top: 5px;
+	color: #68736c;
+	font-size: .75rem;
+}
+
+.employee-profile-heading a {
+	flex: 0 0 auto;
+	padding: 9px 12px;
+	border: 1px solid #17663a;
+	border-radius: 7px;
+	background: #fff;
+	color: #17663a;
+	font-size: .72rem;
+	font-weight: 800;
+	text-decoration: none;
+}
+
+.employee-profile-summary {
+	display: grid;
+	grid-template-columns: 150px minmax(0,1fr);
+	gap: 18px;
+	align-items: center;
+	padding: 16px;
+	border: 1px solid #dce7dd;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.employee-profile-photo {
+	display: grid;
+	place-items: center;
+	width: 150px;
+	height: 180px;
+	overflow: hidden;
+	border-radius: 9px;
+	background: #edf6ef;
+	color: #17663a;
+	font-size: 3.5rem;
+}
+
+.employee-profile-photo img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+
+.employee-profile-summary h2 {
+	margin: 0;
+	color: #26362c;
+	font-size: 1.25rem;
+	text-align: left;
+}
+
+.employee-profile-summary p {
+	margin: 6px 0;
+	color: #68736c;
+	font-size: .76rem;
+	overflow-wrap: anywhere;
+}
+
+.employee-profile-summary strong {
+	display: inline-block;
+	margin-top: 4px;
+	padding: 5px 9px;
+	border-radius: 999px;
+	background: #e5f4e7;
+	color: #17663a;
+	font-size: .68rem;
+}
+
+.employee-profile-content .employee-details {
+	margin-top: 14px;
+	padding: 18px;
+	border: 1px solid #dce7dd;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.employee-profile-content .employee-details-actions button {
+	margin: 0;
+	border: 1px solid #17663a;
+	border-radius: 7px;
+	background: #fff;
+	color: #17663a;
+	font-size: .72rem;
+}
+
+.sale-document-page {
+	height: auto;
+	min-height: 100vh;
+}
+
+.sale-document-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 16px;
+}
+
+.sale-document-heading h1,
+.sale-document-heading p {
+	margin: 0;
+}
+
+.sale-document-heading h1 {
+	color: #174f31;
+	font-size: 1.45rem;
+}
+
+.sale-document-heading p {
+	margin-top: 5px;
+	color: #68736c;
+	font-size: .75rem;
+}
+
+.sale-document-heading a {
+	flex: 0 0 auto;
+	padding: 9px 12px;
+	border: 1px solid #17663a;
+	border-radius: 7px;
+	background: #fff;
+	color: #17663a;
+	font-size: .72rem;
+	font-weight: 800;
+	text-decoration: none;
+}
+
+.sale-document-actions {
+	display: grid;
+	grid-template-columns: repeat(4,minmax(0,1fr));
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.sale-document-actions button {
+	min-height: 40px;
+	margin: 0;
+	padding: 8px;
+	border: 1px solid #17663a;
+	background: #fff;
+	color: #17663a;
+	font-size: .7rem;
+}
+
+.sale-document-actions button:hover,
+.sale-document-actions button:focus,
+.sale-document-actions button:active {
+	background: #fff;
+	color: #17663a;
+}
+
+.sale-document-message {
+	min-height: 18px;
+	color: #17663a;
+	font-size: .72rem;
+}
+
+.sale-print-area,
+.sale-payment-history {
+	margin-top: 12px;
+	padding: 22px;
+	border: 1px solid #dbe5dc;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.sale-print-company h2,
+.sale-print-company p,
+.sale-print-title h1 {
+	margin: 0;
+}
+
+.sale-print-company h2 {
+	color: #174f31;
+	text-align: left;
+}
+
+.sale-print-company p,
+.sale-print-customer p {
+	margin: 3px 0;
+	color: #68736c;
+	font-size: .7rem;
+}
+
+.sale-print-title {
+	display: flex;
+	align-items: end;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 20px 0;
+	padding: 12px 0;
+	border-block: 2px solid #17663a;
+	color: #17663a;
+}
+
+.sale-print-title h1 {
+	font-size: 1.35rem;
+}
+
+.sale-print-customer {
+	margin-bottom: 16px;
+}
+
+.sale-print-customer>span {
+	display: block;
+	color: #68736c;
+	font-size: .66rem;
+}
+
+.sale-print-meta,
+.sale-invoice-item,
+.sale-document-totals,
+.sale-receipt-details {
+	display: grid;
+	grid-template-columns: repeat(2,minmax(0,1fr));
+	column-gap: 18px;
+	row-gap: 24px;
+	margin-top: 22px;
+}
+
+.sale-print-meta>div,
+.sale-invoice-item>div,
+.sale-document-totals>div,
+.sale-receipt-details>div {
+	min-width: 0;
+	padding: 6px 0;
+	border: 0;
+	border-radius: 0;
+}
+
+.sale-print-area :is(.sale-print-meta,.sale-invoice-item,.sale-document-totals,.sale-receipt-details) span {
+	display: block;
+	color: #68736c;
+	font-size: .65rem;
+}
+
+.sale-print-area :is(.sale-print-meta,.sale-invoice-item,.sale-document-totals,.sale-receipt-details) strong {
+	display: block;
+	margin-top: 4px;
+	color: #174f31;
+	font-size: .8rem;
+}
+
+.sale-statement-list h3,
+.sale-payment-history h2 {
+	margin: 0 0 10px;
+	color: #174f31;
+	font-size: .95rem;
+	text-align: left;
+}
+
+.sale-statement-row,
+.sale-payment-row {
+	display: grid;
+	grid-template-columns: repeat(4,minmax(0,1fr));
+	gap: 8px;
+	align-items: center;
+	padding: 9px 0;
+	border-bottom: 1px solid #e5ebe6;
+	font-size: .7rem;
+}
+
+.sale-payment-row button {
+	width: auto;
+	min-height: 30px;
+	margin: 0;
+	padding: 5px 8px;
+	border: 1px solid #17663a;
+	background: #fff;
+	color: #17663a;
+	font-size: .65rem;
+}
+
+@media (max-width:600px) {
+	.sale-document-heading {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+	.sale-document-actions {
+		grid-template-columns: repeat(2,minmax(0,1fr));
+	}
+	.sale-statement-row,
+	.sale-payment-row {
+		grid-template-columns: repeat(2,minmax(0,1fr));
+	}
+}
+
+@media print {
+	@page {
+		size: auto;
+		margin: 12mm;
+	}
+	body {
+		min-height: 0;
+		background: #fff;
+	}
+	.main-menu,
+	.page>.card:not(#sale-document),
+	#sale-document>:not(.sale-print-area) {
+		display: none !important;
+	}
+	.page,
+	#sale-document {
+		display: block !important;
+		width: 100%;
+		max-width: none;
+		height: auto;
+		min-height: 0;
+		margin: 0;
+		padding: 0;
+		background: #fff;
+		box-shadow: none;
+	}
+	.sale-print-area {
+		position: static;
+		display: block;
+		width: 100%;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		box-shadow: none;
+		break-inside: avoid;
+	}
+}
+
+@media (max-width:600px) {
+	.employee-profile-heading {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+	.employee-profile-summary {
+		grid-template-columns: 105px minmax(0,1fr);
+		gap: 12px;
+		padding: 12px;
+	}
+	.employee-profile-photo {
+		width: 105px;
+		height: 135px;
+	}
+}
+
+.employee-finance-dialog {
+	width: min(94vw,560px);
+	max-height: 92dvh;
+	padding: 0;
+	overflow-y: auto;
+	border: 0;
+	border-radius: 14px;
+	background: #fffdf8;
+	box-shadow: 0 24px 70px rgba(0,0,0,.3);
+}
+
+.employee-finance-dialog::backdrop {
+	background: rgba(15,25,19,.68);
+}
+
+.employee-finance-dialog>form {
+	display: grid;
+	gap: 12px;
+	padding: 22px;
+}
+
+.employee-finance-dialog h2,
+.employee-finance-dialog h3,
+.employee-finance-dialog p {
+	margin: 0;
+}
+
+.employee-finance-dialog label {
+	display: grid;
+	gap: 5px;
+	color: #4d5b52;
+	font-size: .76rem;
+	font-weight: 700;
+}
+
+.employee-finance-dialog :is(input,select,textarea) {
+	width: 100%;
+	min-height: 42px;
+	padding: 8px 10px;
+	border: 1px solid #ccd7cf;
+	border-radius: 7px;
+	background: #fff;
+	font: inherit;
+}
+
+.employee-finance-dialog>form:not(.payroll-shell)>div:last-child,
+.payroll-heading,
+.payroll-controls {
+	display: flex;
+	justify-content: space-between;
+	gap: 10px;
+}
+
+.employee-finance-dialog button {
+	min-height: 40px;
+	border: 1px solid #17663a;
+	border-radius: 7px;
+	background: #17663a;
+	padding: 8px 13px;
+	color: #fff;
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.employee-finance-dialog .finance-cancel,
+.payroll-heading>button {
+	background: #fff;
+	color: #17663a;
+}
+
+.finance-dialog-message {
+	min-height: 18px;
+	color: #a12c24;
+	font-size: .75rem;
+}
+
+.payroll-dialog {
+	width: min(96vw,760px);
+}
+
+.payroll-page {
+	width: min(100%,900px);
+}
+
+.payroll-page>.payroll-heading {
+	align-items: center;
+}
+
+.payroll-page .payroll-back {
+	display: inline-flex;
+	align-items: center;
+	min-height: 40px;
+	padding: 8px 13px;
+	border: 1px solid #17663a;
+	border-radius: 7px;
+	color: #17663a;
+	font-size: .76rem;
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.payroll-controls input {
+	max-width: none;
+}
+
+.payroll-controls {
+	display: block;
+	margin-bottom: 24px;
+}
+
+.payroll-controls .payroll-generate {
+	width: 100%;
+	margin-top: 9px;
+	border: 1px solid #17663a;
+	background: #fff;
+	color: #17663a;
+}
+
+.payroll-controls .payroll-generate:hover,
+.payroll-controls .payroll-generate:focus,
+.payroll-controls .payroll-generate:active {
+	background: #fff;
+	color: #17663a;
+}
+
+.payroll-records {
+	display: block;
+}
+
+.payroll-records>.payroll-record {
+	display: block;
+	width: 100%;
+}
+
+.payroll-records>.payroll-record+.payroll-record {
+	margin-top: 10px;
+}
+
+.payroll-period-title {
+	color: #174f31;
+	font-size: 1.05rem;
+}
+
+.payroll-summary {
+	display: grid;
+	grid-template-columns: repeat(3,minmax(0,1fr));
+	gap: 8px;
+}
+
+.payroll-summary>div {
+	display: block;
+	gap: 4px;
+	min-width: 0;
+	padding: 10px;
+	border: 1px solid #dce7dd;
+	border-radius: 8px;
+	background: #fff;
+}
+
+.payroll-summary span {
+	display: block;
+	color: #68736c;
+	font-size: .65rem;
+}
+
+.payroll-summary strong {
+	display: block;
+	margin-top: 4px;
+	overflow: hidden;
+	color: #17663a;
+	font-size: .82rem;
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.payroll-record {
+	overflow: hidden;
+	border: 1px solid #dce4dd;
+	border-radius: 10px;
+	background: #fff;
+}
+
+.payroll-employee-button {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	margin: 0;
+	padding: 13px 15px;
+	border: 0;
+	border-radius: 0;
+	background: #fff;
+	color: #174f31;
+	font-size: .88rem;
+	font-weight: 800;
+	text-align: left;
+	cursor: pointer;
+}
+
+.payroll-employee-button::after {
+	content: '\25BC';
+	font-size: .68rem;
+	transition: transform .2s ease;
+}
+
+.payroll-employee-button[aria-expanded="true"]::after {
+	transform: rotate(180deg);
+}
+
+.payroll-employee-button:hover,
+.payroll-employee-button:focus,
+.payroll-employee-button:active,
+.payroll-employee-button[aria-expanded="true"] {
+	background: #fff;
+	color: #174f31;
+}
+
+.payroll-employee-button:focus-visible {
+	outline: 2px solid #17663a;
+	outline-offset: -3px;
+}
+
+.payroll-record-content {
+	display: block;
+}
+
+.payroll-record-heading {
+	display: grid;
+	grid-template-columns: repeat(2,minmax(0,1fr));
+	gap: 10px 16px;
+	padding: 12px 13px;
+}
+
+.payroll-record-heading .payroll-status-badge,
+.payroll-record-heading .payroll-basic {
+	grid-column: 1 / -1;
+}
+
+.payroll-record-heading h3 {
+	display: block;
+	margin-bottom: 8px;
+	overflow: hidden;
+	font-size: .86rem;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.payroll-record-heading .payroll-basic {
+	display: block;
+	margin: 0;
+	color: #69736d;
+	font-size: .67rem;
+}
+
+.payroll-record-heading .payroll-gross,
+.payroll-record-heading .payroll-total {
+	display: block;
+	margin-top: 4px;
+	color: #17663a;
+	font-size: .78rem;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.payroll-gross-row,
+.payroll-total-row {
+	display: block;
+	margin: 0;
+}
+
+.payroll-gross-row>span,
+.payroll-total-row>span {
+	display: block;
+	color: #69736d;
+	font-size: .67rem;
+}
+
+.payroll-record-fields {
+	display: grid;
+	grid-template-columns: repeat(2,minmax(0,1fr));
+	gap: 10px;
+	padding: 13px;
+	border-top: 1px solid #e4e9e4;
+	background: #fbfcfa;
+}
+
+.payroll-record-fields .payroll-save {
+	grid-column: 1 / -1;
+	width: 100%;
+}
+
+.payroll-status-badge {
+	display: inline-block;
+	justify-self: start;
+	padding: 4px 8px;
+	border-radius: 999px;
+	background: #fff2cf;
+	color: #855f00;
+	font-size: .66rem;
+	font-weight: 800;
+}
+
+.payroll-status-badge.paid {
+	background: #e1f4e5;
+	color: #17663a;
+}
+
+@media (max-width:600px) {
+	#employees>.header {
+		grid-template-columns: 54px minmax(0,1fr) auto;
+	}
+	#employees>.header #manage-payroll {
+		grid-column: 3;
+		grid-row: 3;
+		margin-top: 7px;
+	}
+	.payroll-summary {
+		grid-template-columns: repeat(2,minmax(0,1fr));
+	}
+	.payroll-record-heading,
+	.payroll-record-fields {
+		grid-template-columns: 1fr;
+	}
+	.payroll-record-heading .payroll-status-badge,
+	.payroll-record-heading .payroll-basic,
+	.payroll-record-fields .payroll-save {
+		grid-column: 1;
+	}
 }
 
 @media (max-width: 600px) {
@@ -2613,7 +3461,7 @@ tbody
     padding: 7px 9px;
   }
 
-  #employees .employee-details-list > div {
+	:is(#employees,#employee-details) .employee-details-list > div {
     grid-template-columns: 92px minmax(0,1fr);
     gap: 8px;
   }
@@ -2621,4 +3469,257 @@ tbody
 /* Keeps sections forbidden by the signed-in role hidden. */
 [hidden],.permission-hidden {
 	display: none !important;
+}
+
+.prices-page {
+	min-height: calc(100vh - 80px);
+	background: #f7faf7;
+}
+
+.prices-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 20px;
+	padding-bottom: 16px;
+	border-bottom: 1px solid #dce6de;
+}
+
+.prices-heading h1 {
+	margin: 0 0 5px;
+	color: #174f31;
+	white-space: nowrap;
+}
+
+.prices-heading p,.price-message {
+	margin: 0;
+	color: #647269;
+}
+
+#open-price-form {
+	flex: 0 0 auto;
+	width: auto;
+	min-width: 0;
+	margin: 0;
+	padding: 8px 11px;
+	font-size: .78rem;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.price-editor {
+	display: grid;
+	grid-template-columns: 1.3fr 1fr 1fr auto;
+	align-items: end;
+	gap: 14px;
+	margin: 10px 0;
+	padding: 18px;
+	border: 1px solid #dce6de;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.price-editor .field {
+	margin: 0;
+}
+
+.price-editor button {
+	min-height: 43px;
+	white-space: nowrap;
+}
+
+.price-form-actions {
+	display: flex;
+	gap: 8px;
+}
+
+#price-form .price-form-actions button,
+#price-form .price-form-actions button[type="submit"] {
+	display: block;
+	flex: 1 1 0;
+	width: auto;
+	min-width: 105px;
+	min-height: 43px;
+	margin: 0;
+	padding: 9px 12px;
+	border: 1px solid #17663a;
+	border-radius: 8px;
+	font-size: .82rem;
+	font-weight: 700;
+}
+
+#cancel-price-form,
+#cancel-price-form:hover,
+#cancel-price-form:focus,
+#cancel-price-form:active {
+	background: #fff;
+	color: #17663a;
+}
+
+#price-form .price-form-actions button[type="submit"],
+#price-form .price-form-actions button[type="submit"]:hover,
+#price-form .price-form-actions button[type="submit"]:focus,
+#price-form .price-form-actions button[type="submit"]:active {
+	background: #17663a;
+	color: #fff;
+}
+
+.price-message {
+	min-height: 24px;
+	margin: 8px 0;
+	font-weight: 700;
+}
+
+.price-cards {
+	display: grid;
+	grid-template-columns: repeat(auto-fit,minmax(250px,1fr));
+	gap: 16px;
+}
+
+.price-card {
+	overflow: hidden;
+	border: 1px solid #dce6de;
+	border-radius: 12px;
+	background: #fff;
+}
+
+.price-card-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 16px;
+	border-bottom: 1px solid #e7eee8;
+}
+
+.price-card-heading h2 {
+	margin: 0;
+	color: #174f31;
+	font-size: 1rem;
+}
+
+.price-card-heading strong {
+	color: #17663a;
+	font-size: 1.08rem;
+	white-space: nowrap;
+}
+
+.price-current {
+	display: flex;
+	align-items: flex-end;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.price-status {
+	display: inline-block;
+	padding: 3px 7px;
+	border-radius: 999px;
+	font-size: .62rem;
+	font-weight: 800;
+}
+
+.price-status.current {
+	background: #e1f4e5;
+	color: #17663a;
+}
+
+.price-status.upcoming {
+	background: #fff2cf;
+	color: #855f00;
+}
+
+.price-status.previous,
+.price-status.not-set {
+	background: #edf0ee;
+	color: #66736b;
+}
+
+.price-history-button {
+	width: auto;
+	margin: 10px 16px;
+	padding: 7px 10px;
+	background: #fff;
+	color: #17663a;
+	border: 1px solid #17663a;
+	font-size: .74rem;
+	white-space: nowrap;
+}
+
+.price-history-button:hover,
+.price-history-button:focus,
+.price-history-button:active {
+	background: #fff;
+	color: #17663a;
+	border-color: #17663a;
+}
+
+.price-history-button:focus-visible {
+	outline: 2px solid #9ac8aa;
+	outline-offset: 2px;
+}
+
+.price-history-button.is-open,
+.price-history-button.is-open:hover,
+.price-history-button.is-open:focus,
+.price-history-button.is-open:active {
+	background: #17663a;
+	color: #fff;
+}
+
+.price-history-button:disabled {
+	opacity: .55;
+	cursor: not-allowed;
+}
+
+.price-history {
+	padding: 8px 16px;
+}
+
+.price-history p {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
+	margin: 0;
+	padding: 10px 0;
+	border-bottom: 1px solid #eef2ee;
+	color: #66736b;
+	font-size: .84rem;
+}
+
+.price-history p>span:last-child {
+	display: flex;
+	align-items: flex-end;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.price-history p:last-child {
+	border-bottom: 0;
+}
+
+#sales-price-message {
+	display: block;
+	margin-top: 5px;
+	color: #647269;
+	line-height: 1.35;
+}
+
+#unit-price[readonly] {
+	background: #f1f5f2;
+	cursor: not-allowed;
+}
+
+@media (max-width: 760px) {
+	.prices-heading {
+		align-items: flex-start;
+	}
+	.price-editor {
+		grid-template-columns: 1fr;
+	}
+	.price-form-actions,
+	.price-form-actions button {
+		width: 100%;
+	}
 }
