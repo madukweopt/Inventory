@@ -53,6 +53,7 @@ const priceCards=document.querySelector('.price-cards');
 const openPriceFormBtn=document.querySelector('#open-price-form');
 const cancelPriceFormBtn=document.querySelector('#cancel-price-form');
 const salesPriceMessage=document.querySelector('#sales-price-message');
+const managerSalePrice=document.querySelector('#manager-sale-price');
 const weighingTaskList=document.querySelector('.weighing-task-list');
 const weighingTasksMessage=document.querySelector('.weighing-tasks-message');
 const refreshWeighingTasksBtn=document.querySelector('#refresh-weighing-tasks');
@@ -194,22 +195,38 @@ async function loadSelectedSalesPrice() {
 	unitPrice.value='';
 	if(!salesDate.value||!productSold.value) {
 		salesPriceMessage.textContent='Select a sales date and product to load its price.';
+		managerSalePrice.querySelector('strong').textContent='—';
+		managerSalePrice.querySelector('small').textContent='Select the sales date and product.';
+		managerSalePrice.classList.remove('has-price','price-error');
 		return;
 	}
 	salesPriceMessage.textContent='Loading saved price...';
+	managerSalePrice.querySelector('strong').textContent='Loading...';
+	managerSalePrice.querySelector('small').textContent='Checking the Prices page.';
+	managerSalePrice.classList.remove('has-price','price-error');
 	try {
 		const query=new URLSearchParams({ item_id: productSold.value,date: salesDate.value });
 		const response=await fetch('/api/prices/lookup?'+query.toString());
 		const result=await response.json();
 		if(!response.ok) {
 			salesPriceMessage.textContent=result.err||'No price is available for this selection.';
+			managerSalePrice.querySelector('strong').textContent='No price set';
+			managerSalePrice.querySelector('small').textContent=salesPriceMessage.textContent;
+			managerSalePrice.classList.add('price-error');
 			return;
 		}
 		unitPrice.value=Number(result.unit_price).toFixed(2);
 		salesPriceMessage.textContent='Saved price effective from '+formatDate(result.effective_date)+'.';
+		const selectedProduct=productSold.options[productSold.selectedIndex];
+		managerSalePrice.querySelector('strong').textContent='₦'+formatNumber(result.unit_price)+'/'+inventoryUnit(selectedProduct.textContent.trim());
+		managerSalePrice.querySelector('small').textContent='Effective from '+formatDate(result.effective_date)+'.';
+		managerSalePrice.classList.add('has-price');
 	} catch(error) {
 		console.error(error);
 		salesPriceMessage.textContent='The price could not be loaded.';
+		managerSalePrice.querySelector('strong').textContent='Price unavailable';
+		managerSalePrice.querySelector('small').textContent='The saved price could not be loaded.';
+		managerSalePrice.classList.add('price-error');
 	}
 }
 
@@ -608,6 +625,9 @@ async function saveSale(event) {
 		alert("Sale authorised and sent to Storekeeper for weighing.");
 		salesForm.reset();
 		salesPriceMessage.textContent='Select a sales date and product to load its price.';
+		managerSalePrice.querySelector('strong').textContent='—';
+		managerSalePrice.querySelector('small').textContent='Select the sales date and product.';
+		managerSalePrice.classList.remove('has-price','price-error');
 	} catch(err) {
 		console.error("network problem:",err);
 		alert("Network problem. Your entry was NOT saved");

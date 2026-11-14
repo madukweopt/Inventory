@@ -54,6 +54,8 @@ test('Manager authorises work while Storekeeper owns every physical quantity',fu
 	}
 	assert.match(formsJs,/function loadWeighingTasks\(/);
 	assert.match(formsJs,/function completeWeighingTask\(/);
+	assert.match(formsHtml,/id="manager-sale-price"/);
+	assert.match(formsJs,/managerSalePrice\.querySelector\('strong'\)\.textContent='₦'/);
 });
 
 test('mobile navigation uses seventy percent width and closes from its shadow',function() {

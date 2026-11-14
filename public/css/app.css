@@ -3706,6 +3706,43 @@ tbody
 	line-height: 1.35;
 }
 
+.manager-sale-price {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px 14px;
+	flex-wrap: wrap;
+	padding: 12px 14px;
+	border: 1px solid #dce6de;
+	border-radius: 10px;
+	background: #f7faf7;
+	color: #647269;
+}
+
+.manager-sale-price span {
+	font-size: .78rem;
+	font-weight: 700;
+}
+
+.manager-sale-price strong {
+	color: #174f31;
+	font-size: 1.05rem;
+}
+
+.manager-sale-price small {
+	flex-basis: 100%;
+}
+
+.manager-sale-price.has-price {
+	border-color: #9ac8aa;
+	background: #edf5ef;
+}
+
+.manager-sale-price.price-error {
+	border-color: #e0aaa5;
+	background: #fff5f4;
+}
+
 #unit-price[readonly] {
 	background: #f1f5f2;
 	cursor: not-allowed;
