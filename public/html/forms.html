@@ -480,23 +480,12 @@
                                 readonly
                             />
                         </div>
-
-                        <div class="field">
-                            <label for="unit-price">Unit Price (₦/kg)</label>
-                            <input
-                                type="number"
-                                id="unit-price"
-                                name="unit-price"
-                                min="0"
-                                placeholder="0"
-                                readonly
-                                required
-                            />
-                            <small id="sales-price-message">
-                                Select a sales date and product to load its price.
-                            </small>
-                        </div>
                     </div>
+
+                    <input type="hidden" id="unit-price" name="unit-price" />
+                    <small id="sales-price-message" hidden>
+                        Select a sales date and product to load its price.
+                    </small>
 
                     <button type="submit">Authorise Sale</button>
                 </form>

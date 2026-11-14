@@ -36,11 +36,12 @@ test('normal Sales navigation clears stale edit state',function() {
 	assert.match(formsJs,/sessionStorage\.removeItem\('editRecord'\)/);
 });
 
-test('Prices page supplies a locked saved price to the Sales form',function() {
+test('Prices page supplies one visible saved price to the Sales form',function() {
 	for(const id of ['prices-button','prices','price-form','price-product','price-amount','price-effective-date']) {
 		assert.match(formsHtml,new RegExp('id="'+id+'"'));
 	}
-	assert.match(formsHtml,/id="unit-price"[\s\S]*?readonly[\s\S]*?required/);
+	assert.match(formsHtml,/type="hidden" id="unit-price"/);
+	assert.equal((formsHtml.match(/id="manager-sale-price"/g)||[]).length,1);
 	assert.match(formsJs,/function loadSelectedSalesPrice\(/);
 	assert.match(formsJs,/function loadPrices\(/);
 	assert.match(navigationJs,/\/forms\.html#prices/);
