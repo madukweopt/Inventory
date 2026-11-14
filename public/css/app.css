@@ -1177,6 +1177,27 @@ button:hover {
   color: #fff;
 }
 
+:is(#sales-form,#purchases-form,#production-form)>button[type="submit"] {
+	width: min(100%,200px);
+	min-height: 44px;
+	margin: 1.5rem auto 2rem;
+	padding: 10px 16px;
+	border: 1px solid #17663a;
+	border-radius: 8px;
+	background: #17663a;
+	color: #fff;
+	font-size: .86rem;
+	font-weight: 800;
+	box-shadow: 0 3px 8px rgba(23,102,58,.14);
+}
+
+:is(#sales-form,#purchases-form,#production-form)>button[type="submit"]:hover,
+:is(#sales-form,#purchases-form,#production-form)>button[type="submit"]:focus,
+:is(#sales-form,#purchases-form,#production-form)>button[type="submit"]:active {
+	background: #0f4f2b;
+	color: #fff;
+}
+
 
 
 

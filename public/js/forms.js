@@ -118,7 +118,7 @@ async function displaySelectedForm() {
 		sessionStorage.removeItem('editRecord');
 		sessionStorage.removeItem('editKind');
 		sessionStorage.removeItem('checksReturnUrl');
-		salesForm.querySelector('button[type="submit"]').textContent='Submit Sale';
+		salesForm.querySelector('button[type="submit"]').textContent='Authorise Sale';
 	}
 	// Processes each entry in the collection.
 	forms.forEach(form => {
