@@ -27,6 +27,8 @@ test('invoice, statement, payment and print controls exist',function() {
 
 test('Sales terminology remains Quantity and does not reintroduce duplicate weight fields',function() {
 	assert.match(formsHtml,/Quantity \(kg\)/);
+	assert.match(formsHtml,/Quantity Issued \(kg\)/);
+	assert.match(formsHtml,/placeholder="To be entered by Storekeeper"/);
 	assert.doesNotMatch(formsHtml,/Factory Weight|Accepted Weight|Confirm Buyer Weight/);
 	assert.doesNotMatch(formsJs,/buyer_quantity|accepted_quantity|openSaleWeightDialog/);
 });

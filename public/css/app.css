@@ -3901,6 +3901,10 @@ tbody
 	background: #fff5f4;
 }
 
+.sales-storekeeper-quantity {
+	margin-top: 1.4rem;
+}
+
 #unit-price[readonly] {
 	background: #f1f5f2;
 	cursor: not-allowed;
