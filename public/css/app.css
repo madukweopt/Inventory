@@ -1131,8 +1131,8 @@ textarea {
 input:focus,
 select:focus,
 textarea:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  border-color: #287448;
+  box-shadow: 0 0 0 3px rgba(40, 116, 72, 0.15);
   }
 
   button {
@@ -1944,6 +1944,11 @@ tbody
   margin-bottom: 14px;
 }
 
+.inventory-filters.no-item-filter {
+	grid-template-columns: 1fr;
+	margin-bottom: 16px;
+}
+
 .inventory-filters > select,
 .inventory-date-filter {
   border: 1px solid #d8dde3;
@@ -1973,6 +1978,22 @@ tbody
   font-size: 0.82rem;
 }
 
+.data-record-page .data-list-heading {
+	min-height: 34px;
+	margin-top: 4px;
+	margin-bottom: 14px;
+	padding: 0 2px;
+}
+
+.data-record-page .data-list-heading .data-sort {
+	width: auto;
+	margin: 0;
+	padding: 7px 8px;
+	border: 1px solid #d8dde3;
+	border-radius: 7px;
+	background: #fff;
+}
+
 .inventory-list-heading select {
   width: auto;
   padding: 7px;
@@ -1990,12 +2011,35 @@ tbody
   gap: 10px;
 }
 
+.data-record-empty {
+	margin: 8px 0;
+	padding: 22px 14px;
+	border: 1px dashed #cfd9d1;
+	border-radius: 9px;
+	background: #fff;
+	color: #68756d;
+	font-size: .82rem;
+	text-align: center;
+}
+
 .inventory-record-page .data-record-card {
   padding: 11px 12px 12px;
   border-left: 3px solid #15803d;
   border-radius: 9px;
   background: #fff;
   box-shadow: 0 2px 7px rgba(31, 41, 55, 0.13);
+}
+
+.inventory-record-page .data-record-card.has-actions {
+	cursor: pointer;
+}
+
+.inventory-record-page .data-record-card.no-actions {
+	cursor: default;
+}
+
+.inventory-record-page .data-record-card.no-actions .card-actions {
+	display: none !important;
 }
 
 .inventory-record-page .data-record-card.diesel {
@@ -2301,6 +2345,31 @@ tbody
   font-size: 0.58rem;
 }
 
+.inventory-record-page .transaction-ticket {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: minmax(0,1fr) auto;
+	align-items: center;
+	margin-top: 10px;
+	padding: 10px 11px;
+	border: 1px solid #d7e3d9;
+	border-radius: 8px;
+	background: #edf5ef;
+}
+
+.inventory-record-page .transaction-ticket span {
+	color: #17663a;
+}
+
+.inventory-record-page .transaction-ticket strong {
+	text-align: right;
+	overflow-wrap: anywhere;
+}
+
+.inventory-record-page .transaction-ticket small {
+	display: none;
+}
+
 .inventory-load-more {
   margin-top: 12px;
   background: transparent;
@@ -2372,6 +2441,11 @@ tbody
 #purchases-card-view .data-record-values>div{display:grid;grid-template-rows:auto 1fr auto;align-content:start;gap:3px;min-width:0;padding:0 8px;border-right:1px solid #e5e7eb}
 #purchases-card-view .data-record-values>div:first-child{padding-left:0}
 #purchases-card-view .data-record-values>div:last-child{padding-right:0;border-right:0}
+#purchases-card-view .data-record-values>div:nth-child(4){border-right:0}
+#purchases-card-view .transaction-ticket{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;margin-top:10px;padding:10px 11px;border:1px solid #d7e3d9;border-radius:8px;background:#edf5ef}
+#purchases-card-view .transaction-ticket span{color:#17663a}
+#purchases-card-view .transaction-ticket strong{text-align:right;overflow-wrap:anywhere}
+#purchases-card-view .transaction-ticket small{display:none}
 #purchases-card-view .data-record-values span{display:flex;align-items:center;gap:4px;color:#4b5563;font-size:.58rem;white-space:nowrap}
 #purchases-card-view .data-record-values span::before{content:"";width:12px;height:12px;flex:0 0 12px;background:currentColor;-webkit-mask:var(--icon) center/contain no-repeat;mask:var(--icon) center/contain no-repeat}
 #purchases-card-view .data-record-values>div:nth-child(1) span{--icon:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2'%3E%3Ccircle cx='12' cy='8' r='3'/%3E%3Cpath d='M6 21v-2a6 6 0 0 1 12 0v2M5 8a3 3 0 0 0 0 6M19 8a3 3 0 0 1 0 6'/%3E%3C/svg%3E");color:#15803d}

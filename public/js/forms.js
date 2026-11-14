@@ -1041,12 +1041,6 @@ function createCard(date,createdAt,itemName,id,idPrefix='p') {
 
 	header.append(displayDate,submittedAt,item,idNum);
 
-	// Handles click events from card.
-	card.addEventListener("click",() => {
-		card.classList.toggle("show-actions");
-	});
-	card.classList.remove("show-acrions");
-
 	card.append(header,body,actions);
 
 	return {
@@ -1275,11 +1269,6 @@ async function loadSaleDocument() {
 	showSaleInvoice();
 }
 
-// Handles click events from document.
-document.addEventListener("click",event => {
-	const openCard=document.querySelector(".data-record-card.show-actions");
-});
-
 // Creates a labelled value block for a data card.
 function createCardValues(label,value,unit) {
 	const box=document.createElement("div");
@@ -1301,6 +1290,21 @@ function createCardValues(label,value,unit) {
 // Builds and displays transaction cards from a record list and configuration.
 function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 	htmlDataList.replaceChildren();
+	const countSelectors={
+		sales: '#sales-record-count',
+		stock: '#inventory-record-count',
+		purchases: '#purchases-record-count',
+		production: '#production-record-count',
+		expenses: '#expenses-record-count'
+	};
+	const countElement=document.querySelector(countSelectors[config.kind]);
+	if(countElement) countElement.textContent=list.length+' record'+(list.length===1?'':'s');
+	if(list.length===0) {
+		const empty=document.createElement('p');
+		empty.className='data-record-empty';
+		empty.textContent='No records found.';
+		htmlDataList.appendChild(empty);
+	}
 	// Processes each entry in the collection.
 	list.slice(0,visibleRecord).forEach(row => {
 		const card=createCard(
@@ -1315,6 +1319,19 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 		if(config.readonly) {
 			card.card.querySelector('.edit-btn').hidden=true;
 			card.card.querySelector('.delete-btn').hidden=true;
+		}
+		const cardActions=card.card.querySelector('.card-actions');
+		const hasVisibleAction=Array.from(cardActions.querySelectorAll('button'))
+			.some(button => !button.hidden);
+		if(hasVisibleAction) {
+			card.card.classList.add('has-actions');
+			card.card.addEventListener('click',function() {
+				card.card.classList.toggle('show-actions');
+			});
+			cardActions.addEventListener('click',event => event.stopPropagation());
+		} else {
+			card.card.classList.add('no-actions');
+			cardActions.hidden=true;
 		}
 
 		card.card.classList.add(
@@ -1333,7 +1350,7 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 		});
 		htmlDataList.appendChild(card.card);
 
-		editBtn=card.card.querySelector(".edit-btn");
+		const editBtn=card.card.querySelector(".edit-btn");
 		// Handles click events from editBtn.
 		editBtn.addEventListener("click",() => {
 			sessionStorage.setItem("editRecord",JSON.stringify(row));
@@ -1347,7 +1364,7 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 			window.location.href="/forms.html?mode=edit#"+config.formId;
 		});
 
-		deleteBtn=card.card.querySelector(".delete-btn");
+		const deleteBtn=card.card.querySelector(".delete-btn");
 		// Handles click events from deleteBtn.
 		deleteBtn.addEventListener("click",async function() {
 			const confirmed=window.confirm(
@@ -1485,7 +1502,8 @@ async function renderSalesCard(salesList) {
 			},
 			{
 				label: "Scale Ticket",
-				value: row => row.scale_ticket||"Not provided"
+				value: row => row.scale_ticket||"Not provided",
+				className: "transaction-ticket"
 			}
 		]
 	};
@@ -1850,7 +1868,8 @@ async function renderPurchasesCard(purchasesList) {
 			},
 			{
 				label: "Scale Ticket",
-				value: row => row.scale_ticket||"Not provided"
+				value: row => row.scale_ticket||"Not provided",
+				className: "transaction-ticket"
 			}
 		]
 	};

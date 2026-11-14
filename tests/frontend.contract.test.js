@@ -71,4 +71,6 @@ test('mobile navigation uses seventy percent width and closes from its shadow',f
 test('Storekeeper has no empty Forms menu and report cards hide unused Details actions',function() {
 	assert.match(navigationJs,/hide\('\.first',role==='storekeeper'\)/);
 	assert.match(formsJs,/if\(!config\.openDetails\)[\s\S]*?details-btn/);
+	assert.match(formsJs,/hasVisibleAction[\s\S]*?classList\.add\('no-actions'\)/);
+	assert.match(formsJs,/No records found\./);
 });
