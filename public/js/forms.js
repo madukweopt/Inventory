@@ -623,6 +623,7 @@ async function saveSale(event) {
 		const savedSale=await response.json();
 		console.log("saved:",savedSale);
 		alert("Sale authorised and sent to Storekeeper for weighing.");
+		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		salesForm.reset();
 		salesPriceMessage.textContent='Select a sales date and product to load its price.';
 		managerSalePrice.querySelector('strong').textContent='—';
@@ -662,6 +663,7 @@ async function savePurchases(event) {
 		const savedPurchase=await response.json();
 		console.log("saved:",savedPurchase);
 		alert("Purchase authorised and sent to Storekeeper for weighing.");
+		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		purchaseForm.reset();
 	} catch(err) {
 		console.error("Network problem",err);
@@ -735,6 +737,7 @@ async function saveProduction(event) {
 		const savedProduction=await response.json();
 		console.log("saved:",savedProduction);
 		alert("Production authorised and sent to Storekeeper for weighing.");
+		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		productionForm.reset();
 	} catch(err) {
 		console.error(err);
@@ -850,6 +853,7 @@ async function loadWeighingTasks() {
 		const response=await fetch('/api/weighing-requests');
 		if(!response.ok) throw new Error('Could not load pending work');
 		const requests=await response.json();
+		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		weighingTaskList.replaceChildren();
 		requests.forEach(request => weighingTaskList.appendChild(createWeighingTaskCard(request)));
 		if(requests.length===0) weighingTaskList.textContent='There is no activity waiting for weighing.';

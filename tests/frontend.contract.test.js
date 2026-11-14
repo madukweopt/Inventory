@@ -79,3 +79,9 @@ test('Storekeeper has no empty Forms menu and report cards hide unused Details a
 	assert.match(formsJs,/hasVisibleAction[\s\S]*?classList\.add\('no-actions'\)/);
 	assert.match(formsJs,/No records found\./);
 });
+
+test('Pending Weighing navigation displays a live numbered badge',function() {
+	assert.match(formsHtml,/class="pending-weighing-badge" hidden>0/);
+	assert.match(navigationJs,/function refreshPendingWeighingBadge\(/);
+	assert.match(navigationJs,/pendingWeighingBadge\.textContent=String\(requests\.length\)/);
+});

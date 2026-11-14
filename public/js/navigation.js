@@ -14,6 +14,7 @@ const employeesBtn=document.querySelector('#employees-button');
 const companyDetailsBtn=document.querySelector('#company-details-button');
 const pricesBtn=document.querySelector('#prices-button');
 const weighingTasksBtn=document.querySelector('#weighing-tasks-button');
+const pendingWeighingBadge=document.querySelector('.pending-weighing-badge');
 const manageUsersBtn=document.querySelector('#manage-users-button');
 const switchAccountBtn=document.createElement('button');
 switchAccountBtn.type='button';
@@ -25,6 +26,25 @@ if(manageUsersBtn) {
 	manageUsersBtn.insertAdjacentElement('afterend',switchAccountBtn);
 }
 let currentUser=null;
+let pendingBadgeTimer=null;
+
+// Loads the number of activities still waiting for Storekeeper quantities.
+async function refreshPendingWeighingBadge() {
+	if(!pendingWeighingBadge) return;
+	try {
+		const response=await fetch('/api/weighing-requests');
+		if(!response.ok) throw new Error('Could not load pending weighing count');
+		const requests=await response.json();
+		pendingWeighingBadge.textContent=String(requests.length);
+		pendingWeighingBadge.hidden=requests.length===0;
+		weighingTasksBtn.setAttribute('aria-label','Pending Weighing, '+requests.length+' waiting');
+	} catch(error) {
+		console.error(error);
+		pendingWeighingBadge.hidden=true;
+	}
+}
+
+window.refreshPendingWeighingBadge=refreshPendingWeighingBadge;
 
 // Shows only the navigation choices and dashboard sections allowed for the signed-in role.
 function applyRoleVisibility(user) {
@@ -175,6 +195,8 @@ async function loadCurrentUser() {
 		loggedIn.textContent=result.username;
 	}
 	applyRoleVisibility(result);
+	refreshPendingWeighingBadge();
+	if(!pendingBadgeTimer) pendingBadgeTimer=window.setInterval(refreshPendingWeighingBadge,30000);
 	return result;
 }
 
