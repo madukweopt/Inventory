@@ -1325,6 +1325,7 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 				field.value(row),
 				field.unit? field.unit(row):undefined
 			);
+			if(field.className) box.classList.add(field.className);
 			card.body.appendChild(box);
 		});
 		htmlDataList.appendChild(card.card);
@@ -1956,44 +1957,56 @@ function renderProductionCard(productionList) {
 		// Returns the record creation timestamp.
 		createdAt: row => row.created_at,
 		// Returns the record item name.
-		item: row => "pko produced: "+formatNumber(row.pko_produced)+" kg",
+		item: () => "Production output",
 		field: [
 			{
 				label: "Kernel Used",
 				// Derives the displayed field value from the current record.
 				value: row => formatNumber(row.kernel_used),
 				// Returns the unit displayed beside the current value.
-				unit: () => "kg"
+				unit: () => "kg",
+				className: "production-quantity"
 			},
 			{
-				label: "pkc Produced",
+				label: "PKO Produced",
+				value: row => formatNumber(row.pko_produced),
+				unit: () => "kg",
+				className: "production-quantity"
+			},
+			{
+				label: "PKC Produced",
 				// Derives the displayed field value from the current record.
 				value: row => formatNumber(row.pkc_produced),
 				// Returns the unit displayed beside the current value.
-				unit: () => "kg"
+				unit: () => "kg",
+				className: "production-quantity"
 			},
 			{
 				label: "Sludge Produced",
 				value: row => formatNumber(row.sludge_produced),
-				unit: () => "kg"
+				unit: () => "kg",
+				className: "production-quantity"
 			},
 			{
 				label: "Production hours",
 				// Derives the displayed field value from the current record.
 				value: row => row.production_hours,
 				// Returns the unit displayed beside the current value.
-				unit: () => "hrs"
+				unit: () => "hrs",
+				className: "production-time"
 			},
 			{
 				label: "Down time",
 				// Derives the displayed field value from the current record.
 				value: row => row.down_time,
 				// Returns the unit displayed beside the current value.
-				unit: () => "hrs"
+				unit: () => "hrs",
+				className: "production-time"
 			},
 			{
 				label: "Scale Ticket",
-				value: row => row.scale_ticket||"Not provided"
+				value: row => row.scale_ticket||"Not provided",
+				className: "production-ticket"
 			}
 		]
 	};

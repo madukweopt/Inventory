@@ -2069,6 +2069,59 @@ tbody
   color: #dc2626;
 }
 
+#production-card-view .data-record-values {
+	grid-template-columns: repeat(2,minmax(0,1fr));
+	gap: 0;
+}
+
+#production-card-view .data-record-values>div {
+	padding: 9px 10px;
+	border-right: 1px solid #e5e7eb;
+	border-bottom: 1px solid #e5e7eb;
+}
+
+#production-card-view .data-record-values>div:nth-child(even) {
+	border-right: 0;
+}
+
+#production-card-view .production-quantity span {
+	color: #17663a;
+}
+
+#production-card-view .production-time {
+	margin-top: 8px;
+	background: #f8faf8;
+}
+
+#production-card-view .production-time span {
+	color: #6b5d28;
+}
+
+#production-card-view .production-ticket {
+	grid-column: 1 / -1;
+	display: grid;
+	grid-template-columns: minmax(0,1fr) auto;
+	align-items: center;
+	margin-top: 8px;
+	padding: 11px 12px;
+	border: 1px solid #d7e3d9;
+	border-radius: 8px;
+	background: #edf5ef;
+}
+
+#production-card-view .production-ticket span {
+	color: #17663a;
+}
+
+#production-card-view .production-ticket strong {
+	text-align: right;
+	overflow-wrap: anywhere;
+}
+
+#production-card-view .production-ticket small {
+	display: none;
+}
+
 #expenses-card-view .data-record-values {
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
 }
