@@ -59,6 +59,7 @@ test('Manager authorises work while Storekeeper owns every physical quantity',fu
 	for(const label of ['Authorise Sale','Authorise Purchase','Authorise Production']) {
 		assert.match(formsHtml,new RegExp('>'+label+'<'));
 	}
+	assert.equal((formsHtml.match(/manager-authorisation-card/g)||[]).length,3);
 	assert.doesNotMatch(formsJs,/textContent='Submit Sale'/);
 });
 

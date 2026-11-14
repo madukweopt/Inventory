@@ -1198,6 +1198,16 @@ button:hover {
 	color: #fff;
 }
 
+.manager-authorisation-card {
+	height: auto;
+	min-height: calc(100vh - 68px);
+	padding-bottom: 5rem;
+}
+
+:is(#sales-form,#purchases-form,#production-form) {
+	padding-bottom: 2rem;
+}
+
 
 
 
