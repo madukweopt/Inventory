@@ -739,7 +739,7 @@ function createWeighingTaskCard(request) {
 	details.textContent=request.request_type==='Purchase'?
 		(request.item+' from '+request.supplier+' · '+formatDate(request.request_date)+' · ₦'+formatNumber(request.unit_cost)+'/'+inventoryUnit(request.item)):
 		request.request_type==='Sale'?
-		(request.item+' for '+request.customer+' · '+formatDate(request.request_date)+' · ₦'+formatNumber(request.unit_price)+'/'+inventoryUnit(request.item)):
+		(request.item+' for '+request.customer+' · '+formatDate(request.request_date)+' · Price from Prices page: ₦'+formatNumber(request.unit_price)+'/'+inventoryUnit(request.item)):
 		('Production on '+formatDate(request.request_date)+' · '+request.production_hours+' hours · '+request.down_time+' downtime');
 	heading.append(title,details);
 	if(document.documentElement.dataset.userRole==='manager') {
@@ -796,9 +796,18 @@ function createWeighingTaskCard(request) {
 		addInput('PKC received (kg)','pkc_produced',{ min:0.01 });
 		addInput('Sludge received (kg)','sludge_produced',{ min:0 });
 	} else {
-		addInput(request.request_type==='Purchase'?
+		const quantityInput=addInput(request.request_type==='Purchase'?
 			'Quantity received ('+inventoryUnit(request.item)+')':
 			'Quantity issued ('+inventoryUnit(request.item)+')','quantity',{ min:0.01 });
+		if(request.request_type==='Sale') {
+			const total=document.createElement('p');
+			total.className='weighing-sale-total';
+			total.textContent='Sale total: ₦0';
+			quantityInput.addEventListener('input',function() {
+				total.textContent='Sale total: ₦'+formatNumber((Number(quantityInput.value)||0)*Number(request.unit_price));
+			});
+			form.appendChild(total);
+		}
 		addInput('Vehicle number','vehicle_number',{ type:'text',required:false,placeholder:'Optional' });
 	}
 	addInput('Scale ticket number','scale_ticket',{ type:'text',required:false,placeholder:'Optional' });

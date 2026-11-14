@@ -3836,6 +3836,17 @@ tbody
 	margin: 0;
 }
 
+.weighing-sale-total {
+	align-self: center;
+	margin: 0;
+	padding: 10px;
+	border-radius: 8px;
+	background: #edf5ef;
+	color: #174f31;
+	font-size: .82rem;
+	font-weight: 800;
+}
+
 .weighing-task-form button[type="submit"] {
 	width: 100%;
 	min-height: 43px;

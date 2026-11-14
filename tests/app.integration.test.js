@@ -234,6 +234,7 @@ test('sales generate invoices and partial payments generate receipts and balance
 		sales_date: '2026-11-13',customer_id: ids.customer,item_id: ids.PKO,
 		quantity: 400,unit_price: 1
 	}).expect(201);
+	assert.equal(Number(saleRequest.body.unit_price),1000,'Pending Sale must copy the official Prices-page value');
 	const completed=await storekeeper.patch('/api/weighing-requests/'+saleRequest.body.request_id+'/complete').send({
 		quantity: 400,scale_ticket: 'SALE-TICKET-1',vehicle_number: 'TEST-002'
 	}).expect(200);
