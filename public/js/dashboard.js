@@ -299,7 +299,7 @@ if(dateInput) {
 			profitList.append(cards,summary);
 			if(profitCaption) {
 				profitCaption.textContent=
-					period.charAt(0).toUpperCase()+period.slice(1);
+					period.charAt(0).toUpperCase()+period.slice(1)+(profit.costing_provisional?' · Estimated':'');
 			}
 		} catch(error) {
 			console.error(error);

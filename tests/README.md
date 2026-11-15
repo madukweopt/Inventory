@@ -29,3 +29,9 @@ npm run test:frontend
 If a test fails, its name identifies the affected feature. A failed test exits
 with a non-zero status, so deployment services can stop a broken version before
 it is released.
+
+Dependency regression tests cover linked purchase/sale edits and deletes, receipt preservation, generated-inventory protection, production batch consistency, legacy-record safeguards and concurrent payment limits. `node scripts/audit-dependencies.js` separately inspects existing data without changing it; see `docs/dependency-audit.md` for its limits and the remaining findings.
+
+Continuous-production checks cover partial output, repeated independent issues, next-day quantity/value carry-forward, separately recorded loss, profit deduction of loss cost, and blocked reversal of material needed by recorded output. Daily cost/profit estimates may change as a day’s receipts are reconciled.
+
+`tests/seed.integration.test.js` tests the complete reset seed inside its own temporary schema, including repeatable resets, preserved accounts, clean stock links, positive demo profit, invoices, existing payment receipts and new receipt/invoice generation after the seed. It never resets application data.

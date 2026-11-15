@@ -599,14 +599,26 @@ async function loadForms() {
 loadForms();
 
 // Validates the submitted sale data and sends it to the server for saving.
+function authorisationKey(type,payload) {
+    const slot='authorisation:'+type+':'+JSON.stringify(payload);
+    let key=sessionStorage.getItem(slot);
+    if(!key) { key=crypto.randomUUID();sessionStorage.setItem(slot,key); }
+    return {key,slot};
+}
 async function saveSale(event) {
 	event.preventDefault();
+    if(salesForm.dataset.saving==='true') return;
 	const sale={
 		sales_date: salesDate.value,
 		customer_id: customer.value,
 		item_id: productSold.value,
 		unit_price: unitPrice.value
 	};
+    const retry=authorisationKey('Sale',sale);
+    sale.authorisation_key=retry.key;
+    salesForm.dataset.saving='true';
+    const submit=salesForm.querySelector('button[type="submit"]');
+    submit.disabled=true;
 	try {
 		const response=await fetch("/api/sales",{
 			method: "POST",
@@ -624,6 +636,7 @@ async function saveSale(event) {
 		console.log("saved:",savedSale);
 		alert("Sale authorised and sent to Storekeeper for weighing.");
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
+		sessionStorage.removeItem(retry.slot);
 		salesForm.reset();
 		salesPriceMessage.textContent='Select a sales date and product to load its price.';
 		managerSalePrice.querySelector('strong').textContent='—';
@@ -631,8 +644,11 @@ async function saveSale(event) {
 		managerSalePrice.classList.remove('has-price','price-error');
 	} catch(err) {
 		console.error("network problem:",err);
-		alert("Network problem. Your entry was NOT saved");
-	}
+		alert("Could not confirm the result. Retry the same entry to check it safely.");
+    } finally {
+        salesForm.dataset.saving='false';
+        submit.disabled=false;
+    }
 }
 
 if(salesForm) {
@@ -642,12 +658,18 @@ if(salesForm) {
 // Validates the submitted purchases data and sends it to the server for saving.
 async function savePurchases(event) {
 	event.preventDefault();
+    if(purchaseForm.dataset.saving==='true') return;
 	const purchase={
 		purchase_date: purchaseDate.value,
 		supplier_id: supplier.value,
 		item_id: materialSupplied.value,
 		unit_cost: unitCost.value
 	};
+    const retry=authorisationKey('Purchase',purchase);
+    purchase.authorisation_key=retry.key;
+    purchaseForm.dataset.saving='true';
+    const submit=purchaseForm.querySelector('button[type="submit"]');
+    submit.disabled=true;
 	try {
 		const response=await fetch("/api/purchases",{
 			method: "POST",
@@ -664,11 +686,15 @@ async function savePurchases(event) {
 		console.log("saved:",savedPurchase);
 		alert("Purchase authorised and sent to Storekeeper for weighing.");
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
+		sessionStorage.removeItem(retry.slot);
 		purchaseForm.reset();
 	} catch(err) {
 		console.error("Network problem",err);
-		alert("Network problem. Failed to submit");
-	}
+		alert("Could not confirm the result. Retry the same entry to check it safely.");
+    } finally {
+        purchaseForm.dataset.saving='false';
+        submit.disabled=false;
+    }
 }
 
 if(purchaseForm) {
@@ -702,7 +728,7 @@ async function saveInventory(event) {
 		inventoryForm.reset();
 	} catch(err) {
 		console.error(err);
-		alert("Network problem. Failed to submit");
+		alert("Could not confirm the result. Retry the same entry to check it safely.");
 	}
 }
 if(inventoryForm) {
@@ -741,11 +767,110 @@ async function saveProduction(event) {
 		productionForm.reset();
 	} catch(err) {
 		console.error(err);
-		alert("Network problem. Failed to submit");
+		alert("Could not confirm the result. Retry the same entry to check it safely.");
 	}
 }
 if(productionForm) {
 	productionForm.addEventListener("submit",saveProduction);
+}
+
+async function editProductionBatch(request,batch,reverse=false) {
+    if(reverse) {
+        if(!confirm('Reverse this entry? Its quantities will be removed from the daily totals and stock.')) return;
+        try {
+            const response=await fetch('/api/weighing-requests/'+request.request_id+'/batches/'+batch.batch_id,{
+                method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({version:batch.version})});
+            const result=await response.json();
+            if(response.ok) await loadWeighingTasks();
+            weighingTasksMessage.textContent=result.message||result.err;
+        } catch(error) {weighingTasksMessage.textContent='Could not reverse batch.';}
+        return;
+    }
+    const dialog=document.createElement('dialog');
+    dialog.className='employee-finance-dialog';
+    const form=document.createElement('form');
+    const title=document.createElement('h2');title.textContent='Correct production entry';form.appendChild(title);
+    for(const [key,label] of [['kernel_used','Kernel issued (kg)'],['pko_produced','PKO received (kg)'],['pkc_produced','PKC received (kg)'],['sludge_produced','Sludge received (kg)'],['scale_ticket','Scale ticket']]) {
+        const field=document.createElement('label');field.textContent=label;
+        const input=document.createElement('input');input.name=key;input.type=key==='scale_ticket'?'text':'number';
+        if(input.type==='number'){input.min='0';input.step='0.01';input.required=true;}
+        input.value=batch[key]??'';field.appendChild(input);form.appendChild(field);
+    }
+    const message=document.createElement('p');message.setAttribute('role','status');
+    const actions=document.createElement('div');
+    const close=document.createElement('button');close.type='button';close.textContent='Cancel';close.onclick=()=>{dialog.close();dialog.remove();};
+    const save=document.createElement('button');save.type='submit';save.textContent='Save Correction';actions.append(close,save);form.append(message,actions);
+    form.onsubmit=async(event)=>{
+        event.preventDefault();save.disabled=true;
+        try {
+            const response=await fetch('/api/weighing-requests/'+request.request_id+'/batches/'+batch.batch_id,{
+                method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({...Object.fromEntries(new FormData(form)),version:batch.version})});
+            const result=await response.json();
+            if(!response.ok){message.textContent=result.err;return;}
+            dialog.close();dialog.remove();await loadWeighingTasks();weighingTasksMessage.textContent=result.message;
+        } catch(error){message.textContent='Could not save correction.';} finally{save.disabled=false;}
+    };
+    dialog.appendChild(form);document.body.appendChild(dialog);dialog.showModal();
+}
+
+function createLegacyReview() {
+    const section=document.createElement('details');section.className='weighing-task-entry';
+    const summary=document.createElement('summary');summary.textContent='Review older records without stock links';section.appendChild(summary);
+    let loaded=false;
+    section.addEventListener('toggle',async()=>{
+        if(!section.open||loaded)return;loaded=true;
+        const list=document.createElement('div');list.className='weighing-task-group';section.appendChild(list);
+        try {
+            const response=await fetch('/api/legacy-links');const records=await response.json();
+            if(!response.ok)throw new Error(records.err);
+            summary.textContent='Older records needing stock links ('+records.length+')';
+            let shown=0;
+            const more=document.createElement('button');more.type='button';more.textContent='Show more records';
+            function appendMore(){
+                records.slice(shown,shown+20).forEach(record=>{
+                    const card=document.createElement('details');card.className='weighing-task-card';
+                    const label=document.createElement('summary');label.textContent=record.kind+' · '+formatDate(record.day)+' · reference '+record.id;card.appendChild(label);
+                    let reviewed=false;
+                    card.addEventListener('toggle',async()=>{
+                        if(!card.open||reviewed)return;reviewed=true;
+                        try {
+                            const response=await fetch('/api/legacy-links/'+record.kind+'/'+record.id);const proposal=await response.json();
+                            if(!response.ok)throw new Error(proposal.err);
+                            const form=document.createElement('form');form.className='weighing-task-form';
+                            let complete=true;
+                            proposal.options.forEach(option=>{
+                                if(!option.required&&!option.matches.length)return;
+                                const field=document.createElement('label');field.textContent=option.part+' · received '+option.received+' / issued '+option.issued;
+                                const select=document.createElement('select');select.name=option.part;select.required=option.required;
+                                const empty=document.createElement('option');empty.value='';empty.textContent=option.matches.length?'Choose the original stock entry':'No exact match — manual review needed';select.appendChild(empty);
+                                option.matches.forEach(match=>{
+                                    const choice=document.createElement('option');choice.value=match.count_id;
+                                    choice.textContent=match.name+' · stock reference '+match.count_id+' · '+new Date(match.created_at).toLocaleString();select.appendChild(choice);
+                                });
+                                if(option.required&&!option.matches.length)complete=false;
+                                field.appendChild(select);form.appendChild(field);
+                            });
+                            const notice=document.createElement('p');notice.className='weighing-task-guidance';
+                            notice.textContent=complete?'Confirm these are the original entries using your delivery notes or scale tickets. Linking will not change quantities.':'Some quantities have no exact match. Leave this record for manual reconciliation; no stock will be guessed.';
+                            const save=document.createElement('button');save.type='submit';save.textContent='Confirm Stock Links';save.disabled=!complete;form.append(notice,save);
+                            form.onsubmit=async(event)=>{
+                                event.preventDefault();if(!confirm('Confirm you have checked these stock entries against the original record?'))return;save.disabled=true;
+                                try {
+                                    const response=await fetch('/api/legacy-links/'+record.kind+'/'+record.id,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({movements:Object.fromEntries(new FormData(form))})});
+                                    const result=await response.json();notice.textContent=result.message||result.err;if(response.ok){form.remove();label.textContent+=' · Linked';}
+                                }catch(error){notice.textContent='Could not save links.';}finally{save.disabled=false;}
+                            };
+                            card.appendChild(form);
+                        }catch(error){const message=document.createElement('p');message.textContent=error.message;card.appendChild(message);reviewed=false;}
+                    });
+                    list.appendChild(card);
+                });
+                shown+=20;more.hidden=shown>=records.length;
+            }
+            more.onclick=appendMore;appendMore();section.appendChild(more);
+        } catch(error){list.textContent=error.message;loaded=false;}
+    });
+    return section;
 }
 
 // Builds one Storekeeper card for an activity already authorised by the Manager.
@@ -755,7 +880,7 @@ function createWeighingTaskCard(request) {
 	const title=document.createElement('h2');
 	const details=document.createElement('p');
 	const form=document.createElement('form');
-	const requestLabel=request.request_type+' #'+request.request_id;
+	const requestLabel=request.request_type+' '+request.daily_number;
 	card.className='weighing-task-card';
 	heading.className='weighing-task-card-heading';
 	title.textContent=requestLabel;
@@ -765,7 +890,67 @@ function createWeighingTaskCard(request) {
 		(request.item+' for '+request.customer+' · '+formatDate(request.request_date)+' · Price from Prices page: ₦'+formatNumber(request.unit_price)+'/'+inventoryUnit(request.item)):
 		('Production on '+formatDate(request.request_date)+' · '+request.production_hours+' hours · '+request.down_time+' downtime');
 	heading.append(title,details);
-	if(document.documentElement.dataset.userRole==='manager') {
+    if(request.request_type==='Production') {
+        const totals=document.createElement('p');
+        totals.className='weighing-task-totals';
+        [['Kernel',request.kernel_used],['PKO',request.pko_produced],['PKC',request.pkc_produced],['Sludge',request.sludge_produced]].forEach(([name,value]) => {
+            const metric=document.createElement('span');
+            const label=document.createElement('span');
+            const amount=document.createElement('strong');
+            label.textContent=name;
+            amount.textContent=formatNumber(value||0)+' kg';
+            metric.append(label,amount);
+            totals.appendChild(metric);
+        });
+        heading.appendChild(totals);
+        const history=document.createElement('details');
+        history.className='weighing-task-history';
+        const summary=document.createElement('summary');
+        summary.textContent=(request.batches||[]).length+' production entries';
+        history.appendChild(summary);
+        (request.batches||[]).forEach(batch => {
+            const row=document.createElement('p');
+            row.textContent=(batch.legacy_batch?'Historical daily total · ':'')+new Date(batch.created_at).toLocaleString()+' · '+batch.recorded_by_name+
+                ' · Kernel '+batch.kernel_used+' · PKO '+batch.pko_produced+' · PKC '+batch.pkc_produced+
+                ' · Sludge '+batch.sludge_produced+' kg'+(batch.scale_ticket?' · Ticket '+batch.scale_ticket:'');
+            if(batch.voided) row.append(' · Reversed');
+            if(document.documentElement.dataset.userRole==='admin'&&request.status==='Awaiting Storekeeper'&&!batch.voided) {
+                const actions=document.createElement('span');actions.className='weighing-task-actions';
+                const edit=document.createElement('button');edit.type='button';edit.className='weighing-task-secondary';edit.textContent='Correct Entry';edit.onclick=()=>editProductionBatch(request,batch);
+                const reverse=document.createElement('button');reverse.type='button';reverse.className='cancel-weighing-request';reverse.textContent='Reverse Entry';reverse.onclick=()=>editProductionBatch(request,batch,true);
+                actions.append(edit,reverse);row.appendChild(actions);
+            }
+            history.appendChild(row);
+        });
+        heading.appendChild(history);
+    }
+    if(request.status==='Completed') {
+        card.appendChild(heading);
+        if(document.documentElement.dataset.userRole==='admin'&&request.request_type==='Production') {
+            const reopen=document.createElement('button');
+            reopen.type='button';
+            reopen.className='weighing-task-secondary';
+            reopen.textContent='Reopen Production';
+            reopen.addEventListener('click',async () => {
+                if(!window.confirm('Reopen this production day so more batches can be recorded?')) return;
+                reopen.disabled=true;
+                try {
+                    const response=await fetch('/api/weighing-requests/'+request.request_id+'/reopen',{ method:'PATCH' });
+                    const result=await response.json();
+                    if(response.ok) await loadWeighingTasks();
+                    weighingTasksMessage.textContent=result.message||result.err;
+                } catch(error) {
+                    weighingTasksMessage.textContent='Could not reopen production.';
+                } finally { reopen.disabled=false; }
+            });
+            const actions=document.createElement('div');
+            actions.className='weighing-task-actions';
+            actions.appendChild(reopen);
+            card.appendChild(actions);
+        }
+        return card;
+    }
+	if(['admin','manager'].includes(document.documentElement.dataset.userRole)) {
 		const managerActions=document.createElement('div');
 		const waiting=document.createElement('strong');
 		const cancel=document.createElement('button');
@@ -774,8 +959,11 @@ function createWeighingTaskCard(request) {
 		cancel.type='button';
 		cancel.className='cancel-weighing-request';
 		cancel.textContent='Cancel Authorisation';
+        cancel.hidden=!request.can_cancel;
 		cancel.addEventListener('click',async function() {
 			if(!window.confirm('Cancel this authorisation?')) return;
+            cancel.disabled=true;
+            try {
 			const response=await fetch('/api/weighing-requests/'+request.request_id+'/cancel',{ method:'PATCH' });
 			const result=await response.json();
 			if(response.ok) {
@@ -784,14 +972,18 @@ function createWeighingTaskCard(request) {
 			} else {
 				weighingTasksMessage.textContent=result.err||'Could not cancel authorisation';
 			}
+            } catch(error) {
+                weighingTasksMessage.textContent='Could not cancel authorisation. Please try again.';
+            } finally { cancel.disabled=false; }
 		});
 		managerActions.className='weighing-task-manager-actions';
 		managerActions.append(waiting,cancel);
 		card.append(heading,managerActions);
-		return card;
+		if(document.documentElement.dataset.userRole==='manager') return card;
 	}
 	form.className='weighing-task-form';
 	form.dataset.requestId=request.request_id;
+    if(request.request_type==='Production') form.dataset.submissionKey=crypto.randomUUID();
 
 	// Adds a labelled input used to complete the authorised activity.
 	function addInput(labelText,name,options={}) {
@@ -813,11 +1005,31 @@ function createWeighingTaskCard(request) {
 		return input;
 	}
 
-	if(request.request_type==='Production') {
-		addInput('Kernel issued (kg)','kernel_used',{ min:0.01 });
-		addInput('PKO received (kg)','pko_produced',{ min:0.01 });
-		addInput('PKC received (kg)','pkc_produced',{ min:0.01 });
-		addInput('Sludge received (kg)','sludge_produced',{ min:0 });
+    if(request.request_type==='Production') {
+        const kernelInput=addInput('Kernel issued (kg)','kernel_used',{min:0.01});
+        const productLabel=document.createElement('label');
+        const productText=document.createElement('span');productText.textContent='Product received';
+        const productSelect=document.createElement('select');productSelect.name='received_product';
+        productSelect.innerHTML='<option value="">Select a product</option><option value="pko_produced">Oil (PKO)</option><option value="pkc_produced">Cake (PKC)</option><option value="sludge_produced">Sludge</option>';
+        productLabel.append(productText,productSelect);form.appendChild(productLabel);
+        const receivedInput=addInput('Quantity received (kg)','received_quantity',{min:0.01});
+        const guidance=document.createElement('p');guidance.className='weighing-task-guidance';
+        guidance.textContent='Receive one product per entry. Select the product and enter its weighed quantity.';
+        const choice=document.createElement('label');choice.textContent='Production activity';
+        const select=document.createElement('select');
+        select.innerHTML='<option value="Issue">Issue Kernel</option><option value="Receive">Receive Product</option>';
+        choice.appendChild(select);form.prepend(choice);
+        form.dataset.entryType='Issue';
+        function switchActivity(){
+            const issue=select.value==='Issue';form.dataset.entryType=select.value;
+            kernelInput.closest('label').hidden=!issue;kernelInput.disabled=!issue;kernelInput.required=issue;
+            productLabel.hidden=issue;productSelect.disabled=issue;productSelect.required=!issue;
+            receivedInput.closest('label').hidden=issue;receivedInput.disabled=issue;receivedInput.required=!issue;
+            const button=form.querySelector('button[type="submit"]');
+            if(button)button.textContent=issue?'Save Kernel Issue':'Save Product Receipt';
+        }
+        select.onchange=switchActivity;queueMicrotask(switchActivity);
+        form.appendChild(guidance);
 	} else {
 		const quantityInput=addInput(request.request_type==='Purchase'?
 			'Quantity received ('+inventoryUnit(request.item)+')':
@@ -837,10 +1049,41 @@ function createWeighingTaskCard(request) {
 	const submit=document.createElement('button');
 	submit.type='submit';
 	submit.textContent=request.request_type==='Purchase'?'Confirm Receipt':
-		request.request_type==='Sale'?'Confirm Dispatch':'Confirm Production Quantities';
-	form.appendChild(submit);
+		request.request_type==='Sale'?'Confirm Dispatch':'Save Kernel Issue';
+    const formActions=document.createElement('div');
+    formActions.className='weighing-task-actions';
+    formActions.appendChild(submit);
+    form.appendChild(formActions);
 	form.addEventListener('submit',completeWeighingTask);
-	card.append(heading,form);
+    if(!card.contains(heading)) card.appendChild(heading);
+    if(document.documentElement.dataset.userRole==='admin') {
+        const entry=document.createElement('details');
+        entry.className='weighing-task-entry';
+        const summary=document.createElement('summary');
+        summary.textContent=request.request_type==='Production'?'Issue kernel or receive products':'Record weighed quantities';
+        entry.append(summary,form);
+        card.appendChild(entry);
+    } else { card.appendChild(form); }
+    if(request.request_type==='Production') {
+        const finish=document.createElement('button');
+        finish.type='button';
+        finish.className='weighing-task-secondary';
+        finish.textContent='Finish Day';
+        finish.disabled=!(request.batches||[]).length;
+        finish.addEventListener('click',async () => {
+            if(!window.confirm('Finish this production day? No further batches can be added.')) return;
+            finish.disabled=true;
+            try {
+                const response=await fetch('/api/weighing-requests/'+request.request_id+'/finish',{ method:'PATCH' });
+                const result=await response.json();
+                if(response.ok) await loadWeighingTasks();
+                weighingTasksMessage.textContent=result.message||result.err;
+            } catch(error) {
+                weighingTasksMessage.textContent='Could not finish production day.';
+            } finally { finish.disabled=false; }
+        });
+        formActions.appendChild(finish);
+    }
 	return card;
 }
 
@@ -850,13 +1093,29 @@ async function loadWeighingTasks() {
 	weighingTaskList.textContent='Loading pending work...';
 	weighingTasksMessage.textContent='';
 	try {
-		const response=await fetch('/api/weighing-requests');
+		const response=await fetch('/api/weighing-requests'+
+            (document.documentElement.dataset.userRole==='admin'?'?include_completed=true':''));
 		if(!response.ok) throw new Error('Could not load pending work');
 		const requests=await response.json();
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		weighingTaskList.replaceChildren();
-		requests.forEach(request => weighingTaskList.appendChild(createWeighingTaskCard(request)));
+        if(document.documentElement.dataset.userRole==='admin') {
+            [['Awaiting Storekeeper','Pending authorisations'],['Completed','Finished production days']].forEach(([status,label]) => {
+                const group=requests.filter(request => request.status===status);
+                if(!group.length) return;
+                const section=document.createElement('section');
+                section.className='weighing-task-group';
+                const title=document.createElement('h2');
+                title.textContent=label+' ('+group.length+')';
+                section.appendChild(title);
+                group.forEach(request => section.appendChild(createWeighingTaskCard(request)));
+                weighingTaskList.appendChild(section);
+            });
+        } else {
+            requests.forEach(request => weighingTaskList.appendChild(createWeighingTaskCard(request)));
+        }
 		if(requests.length===0) weighingTaskList.textContent='There is no activity waiting for weighing.';
+        if(document.documentElement.dataset.userRole==='admin') weighingTaskList.appendChild(createLegacyReview());
 	} catch(error) {
 		console.error(error);
 		weighingTaskList.textContent='Pending work could not be loaded.';
@@ -871,6 +1130,14 @@ async function completeWeighingTask(event) {
 	submit.disabled=true;
 	weighingTasksMessage.textContent='Saving physical quantities...';
 	const values=Object.fromEntries(new FormData(form).entries());
+    if(form.dataset.submissionKey) values.submission_key=form.dataset.submissionKey;
+    if(form.dataset.entryType) {
+        values.entry_type=form.dataset.entryType;
+        values.kernel_used=values.entry_type==='Issue'?values.kernel_used:'0';
+        for(const key of ['pko_produced','pkc_produced','sludge_produced'])values[key]='0';
+        if(values.entry_type==='Receive')values[values.received_product]=values.received_quantity;
+        delete values.received_quantity;
+    }
 	try {
 		const response=await fetch('/api/weighing-requests/'+form.dataset.requestId+'/complete',{
 			method: 'PATCH',
@@ -927,7 +1194,7 @@ async function saveExpenses(event) {
 		console.log("submitted:",savedExpense);
 	} catch(err) {
 		console.error(err);
-		alert("Network problem. Failed to submit");
+		alert("Could not confirm the result. Retry the same entry to check it safely.");
 	}
 }
 if(expensesForm) {
@@ -1355,6 +1622,10 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 		htmlDataList.appendChild(card.card);
 
 		const editBtn=card.card.querySelector(".edit-btn");
+        if(config.kind==='stock'&&(row.source_type!=='Manual'||row.source_id!=null)) {
+            editBtn.hidden=true;
+            card.card.querySelector('.delete-btn').hidden=true;
+        }
 		// Handles click events from editBtn.
 		editBtn.addEventListener("click",() => {
 			sessionStorage.setItem("editRecord",JSON.stringify(row));
@@ -2030,9 +2301,12 @@ function renderProductionCard(productionList) {
 				className: "production-time"
 			},
 			{
-				label: "Scale Ticket",
-				value: row => row.scale_ticket||"Not provided",
-				className: "production-ticket"
+                label: "Weighing history",
+                value: row => (row.batches||[]).length?(row.batches.map(batch =>
+                    new Date(batch.created_at).toLocaleString()+' — Kernel '+batch.kernel_used+
+                    ', PKO '+batch.pko_produced+', PKC '+batch.pkc_produced+', Sludge '+batch.sludge_produced+
+                    ' kg'+(batch.scale_ticket?' · '+batch.scale_ticket:'')).join('; ')):(row.scale_ticket||'Not provided'),
+                className: "production-ticket"
 			}
 		]
 	};
@@ -3180,9 +3454,10 @@ async function renderEmployeeDetails(employee,employeeCard) {
 					new Date().toISOString().slice(0,10)
 				);
 				if(!effectiveDate) return;
-			} else if(!confirm('Reactivate '+employee.name+'?')) {
-				return;
-			}
+			} else {
+                effectiveDate=prompt('Enter the return-to-work date (YYYY-MM-DD):',new Date().toISOString().slice(0,10));
+                if(!effectiveDate)return;
+            }
 			const response=await fetch('/api/employees/'+employee.employee_id+'/status',{
 				method: 'PATCH',headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
@@ -3351,7 +3626,7 @@ function openPayrollPage() {
 				employeeButton.setAttribute('aria-expanded',String(willOpen));
 			});
 			const statusBadge=card.querySelector('.payroll-status-badge');
-			statusBadge.textContent=record.payment_status;
+			statusBadge.textContent=record.payment_status+(record.needs_review?' · Review required':'');
 			statusBadge.classList.toggle('paid',record.payment_status==='Paid');
 			card.querySelector('.payroll-basic').textContent='Monthly salary: ₦'+formatNumber(record.basic_salary);
 			card.querySelector('.payroll-gross').textContent='₦'+formatNumber(

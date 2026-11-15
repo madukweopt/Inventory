@@ -380,6 +380,11 @@ async function openCorrection(check) {
 				quantity? formatQuantity(value):(value||'\u2014')));
 			details.appendChild(detail);
 		});
+        if(kind==='stock'&&(record.source_type!=='Manual'||record.source_id!=null)) {
+            edit.hidden=true;
+            deleteButton.hidden=true;
+            content.appendChild(make('p','','Correct this quantity through its linked purchase, sale or production record.'));
+        }
 		edit.type='button';
 		// Handles click events from edit.
 		edit.addEventListener('click',(e) => {
@@ -460,5 +465,5 @@ function editCheck(record,kind) {
 		window.location.pathname+window.location.search);
 
 	window.location.href=
-		formFields[kind];
+		formFields[kind].replace('/forms.html#','/forms.html?mode=edit#');
 }

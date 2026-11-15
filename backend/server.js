@@ -4,6 +4,10 @@ const path=require("path");
 const crypto=require("crypto");
 const fs=require("fs");
 const multer=require("multer");
+const { correctRecord,correctManualStock }=require('./record-corrections');
+const { snapshotInvoice,preparePayroll,markPayrollReview,authorise,reopenProduction }=require('./dependency-services');
+const {lockStock}=require('./stock-safety');
+const {calculateContinuousCosts}=require('./continuous-costing');
 const app=express();
 const PORT=process.env.PORT||3000;
 const isProduction=process.env.NODE_ENV==='production';
@@ -517,10 +521,10 @@ app.get('/api/employees',requireRole(['admin','manager']),function(req,res) {
 		address,
 		email,
 		role,
-		salary,
+        COALESCE((SELECT h.new_salary FROM salary_history h WHERE h.employee_id=employees.employee_id AND h.effective_date<=CURRENT_DATE ORDER BY h.effective_date DESC,h.salary_history_id DESC LIMIT 1),salary) AS salary,
 		note,
 		department,
-		status,
+        COALESCE((SELECT c.status FROM employment_period_changes c WHERE c.employee_id=employees.employee_id AND c.effective_date<=CURRENT_DATE ORDER BY c.effective_date DESC,c.change_id DESC LIMIT 1),status) AS status,
 		TO_CHAR(inactive_date,'YYYY-MM-DD') AS inactive_date,
 		username,
 		permissions,
@@ -599,6 +603,7 @@ app.post('/api/employees',requireRole(['admin']),function(req,res) {
 					photoPath
 				]
 				);
+                await client.query("INSERT INTO employment_period_changes(employee_id,effective_date,status) VALUES ($1,$2,'Active')",[result.rows[0].employee_id,employee.start_date]);
 				if(employee.salary) {
 					await client.query(
 						`INSERT INTO salary_history
@@ -654,6 +659,7 @@ app.post('/api/employees/:id/salary-history',requireRole(['admin']),async functi
 	const client=await pool.connect();
 	try {
 		await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(91001)');
 		const employee=await client.query(
 			'SELECT salary FROM employees WHERE employee_id=$1 FOR UPDATE',
 			[employeeId]
@@ -668,7 +674,10 @@ app.post('/api/employees/:id/salary-history',requireRole(['admin']),async functi
 			VALUES ($1,$2,$3,$4,$5,$6)`,
 			[employeeId,employee.rows[0].salary,newSalary,effectiveDate,reason,req.session.user_id]
 		);
-		await client.query('UPDATE employees SET salary=$1 WHERE employee_id=$2',[newSalary,employeeId]);
+		await client.query(`UPDATE employees SET salary=COALESCE((SELECT h.new_salary FROM salary_history h
+            WHERE h.employee_id=$1 AND h.effective_date<=CURRENT_DATE ORDER BY h.effective_date DESC,h.salary_history_id DESC LIMIT 1),salary)
+            WHERE employee_id=$1`,[employeeId]);
+        await markPayrollReview(client,employeeId,effectiveDate);
 		await client.query('COMMIT');
 		return res.json({ message: 'Salary changed successfully' });
 	} catch(error) {
@@ -688,23 +697,27 @@ app.patch('/api/employees/:id/status',requireRole(['admin']),async function(req,
 	if(
 		!Number.isInteger(employeeId)||employeeId<1||
 		!['Active','Inactive'].includes(status)||
-		(status==='Inactive'&&!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate))
+		((status==='Inactive'||effectiveDate)&&!/^\d{4}-\d{2}-\d{2}$/.test(effectiveDate))
 	) {
 		return res.status(400).json({ err: 'Choose a valid employee status and date' });
 	}
-	try {
-		const result=await pool.query(
-			`UPDATE employees SET status=$1::varchar,
-			inactive_date=CASE WHEN $1::varchar='Inactive' THEN $2::date ELSE NULL END
-			WHERE employee_id=$3 RETURNING employee_id,status,inactive_date`,
-			[status,status==='Inactive'? effectiveDate:null,employeeId]
-		);
-		if(result.rowCount===0) return res.status(404).json({ err: 'Employee not found' });
-		return res.json(result.rows[0]);
-	} catch(error) {
-		console.error(error);
-		return res.status(500).json({ err: 'Could not change employee status' });
-	}
+    const client=await pool.connect();
+    try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(91001)');
+        const employee=await client.query('SELECT * FROM employees WHERE employee_id=$1 FOR UPDATE',[employeeId]);
+        if(!employee.rowCount) { await client.query('ROLLBACK');return res.status(404).json({err:'Employee not found'}); }
+        const date=effectiveDate||new Date().toISOString().slice(0,10);
+        await client.query(`INSERT INTO employment_period_changes(employee_id,effective_date,status)
+            VALUES($1,CASE WHEN $3::varchar='Inactive' THEN $2::date+1 ELSE $2::date END,$3::varchar)
+            ON CONFLICT(employee_id,effective_date) DO UPDATE SET status=EXCLUDED.status`,[employeeId,date,status]);
+        const result=await client.query(`UPDATE employees SET status=$1::varchar,
+            inactive_date=CASE WHEN $1::varchar='Inactive' THEN $2::date ELSE NULL END WHERE employee_id=$3 RETURNING employee_id,status,inactive_date`,[status,date,employeeId]);
+        await markPayrollReview(client,employeeId,date);
+        await client.query('COMMIT');
+        return res.json(result.rows[0]);
+    } catch(error) { await client.query('ROLLBACK');console.error(error);return res.status(500).json({err:'Could not change employee status'}); }
+    finally {client.release();}
 });
 
 // Loads payroll records for a selected month.
@@ -715,7 +728,7 @@ app.get('/api/payroll',requireRole(['admin']),async function(req,res) {
 		const result=await pool.query(
 			`SELECT payroll.payroll_id,payroll.employee_id,employees.name,
 			payroll.basic_salary,payroll.bonus,payroll.deduction,payroll.total_salary_cost,
-			payroll.payment_status,TO_CHAR(payroll.payment_date,'YYYY-MM-DD') AS payment_date
+			payroll.needs_review,payroll.payment_status,TO_CHAR(payroll.payment_date,'YYYY-MM-DD') AS payment_date
 			FROM payroll INNER JOIN employees ON employees.employee_id=payroll.employee_id
 			WHERE payroll.payroll_month=$1::date ORDER BY employees.name`,
 			[month+'-01']
@@ -731,76 +744,8 @@ app.get('/api/payroll',requireRole(['admin']),async function(req,res) {
 app.post('/api/payroll/generate',requireRole(['admin']),async function(req,res) {
 	const month=String(req.body.month||'');
 	if(!/^\d{4}-\d{2}$/.test(month)) return res.status(400).json({ err: 'Choose a payroll month' });
-	try {
-		const result=await pool.query(
-			`INSERT INTO payroll
-			(employee_id,payroll_month,basic_salary,bonus,deduction,total_salary_cost)
-			SELECT employee_id,$1::date,earned_salary,0,0,earned_salary
-			FROM (
-				SELECT employees.employee_id,ROUND(SUM(
-					COALESCE(
-						(SELECT salary_history.new_salary
-						 FROM salary_history
-						 WHERE salary_history.employee_id=employees.employee_id
-						 AND salary_history.effective_date<=work_day::date
-						 ORDER BY salary_history.effective_date DESC,salary_history.salary_history_id DESC
-						 LIMIT 1),
-						employees.salary
-					)/EXTRACT(day FROM ($1::date+INTERVAL '1 month - 1 day'))
-				),2) AS earned_salary
-				FROM employees
-				CROSS JOIN LATERAL generate_series(
-					GREATEST(employees.start_date,$1::date),
-					LEAST(
-						($1::date+INTERVAL '1 month - 1 day')::date,
-						COALESCE(employees.inactive_date,($1::date+INTERVAL '1 month - 1 day')::date)
-					),
-					INTERVAL '1 day'
-				) AS work_day
-				WHERE employees.salary IS NOT NULL
-				AND employees.start_date<($1::date+INTERVAL '1 month')
-				AND (employees.inactive_date IS NULL OR employees.inactive_date>=$1::date)
-				GROUP BY employees.employee_id
-			) AS monthly_salary
-			ON CONFLICT (employee_id,payroll_month) DO NOTHING
-			RETURNING payroll_id`,
-			[month+'-01']
-		);
-		const summary=await pool.query(
-			`SELECT
-			(SELECT COUNT(*)::int FROM payroll WHERE payroll_month=$1::date) AS prepared,
-			(SELECT COUNT(*)::int FROM employees
-			 WHERE salary IS NULL AND start_date<($1::date+INTERVAL '1 month')
-			 AND (inactive_date IS NULL OR inactive_date>=$1::date)) AS missing_salary`,
-			[month+'-01']
-		);
-		const prepared=summary.rows[0].prepared;
-		const missingSalary=summary.rows[0].missing_salary;
-		let message;
-		if(result.rowCount>0) {
-			message=result.rowCount+' payroll record'+
-				(result.rowCount===1?' was':'s were')+' created.';
-		} else if(prepared>0) {
-			message='Payroll already contains '+prepared+' employee'+
-				(prepared===1?'':'s')+' for this month.';
-		} else {
-			message='No payroll records were created.';
-		}
-		if(missingSalary>0) {
-			message+=' '+missingSalary+' employee'+
-				(missingSalary===1?' was':'s were')+
-				' skipped because no salary has been added.';
-		}
-		return res.status(result.rowCount>0?201:200).json({
-			message: message,
-			created: result.rowCount,
-			prepared: prepared,
-			missing_salary: missingSalary
-		});
-	} catch(error) {
-		console.error(error);
-		return res.status(500).json({ err: 'Could not prepare payroll' });
-	}
+    try {return res.status(200).json(await preparePayroll(pool,month));}
+    catch(error) {console.error(error);return res.status(500).json({err:'Could not prepare payroll'});}
 });
 
 // Saves payroll adjustments and payment information.
@@ -817,10 +762,10 @@ app.patch('/api/payroll/:id',requireRole(['admin']),async function(req,res) {
 		const result=await pool.query(
 			`UPDATE payroll SET bonus=$1,deduction=$2,
 			total_salary_cost=GREATEST(basic_salary+$1-$2,0),payment_status=$3,payment_date=$4
-			WHERE payroll_id=$5 RETURNING *`,
+			WHERE payroll_id=$5 AND NOT needs_review RETURNING *`,
 			[bonus,deduction,status,paymentDate,payrollId]
 		);
-		if(result.rowCount===0) return res.status(404).json({ err: 'Payroll record not found' });
+		if(result.rowCount===0) return res.status(409).json({err:'Payroll is missing or needs review. Recalculate unpaid payroll before saving; paid records requiring review must remain unchanged.'});
 		return res.json(result.rows[0]);
 	} catch(error) {
 		console.error(error);
@@ -902,13 +847,8 @@ app.patch('/api/company',requireRole(['admin']),function(req,res) {
 				]
 			);
 
-			if(currentLogo!==logoPath) {
-				removeCustomImage(
-					currentLogo,
-					'/images/company/',
-					companyLogosDirectory
-				);
-			}
+            // Retain old logos: issued invoices may still reference them.
+
 			return res.status(200).json(result.rows[0]);
 		} catch(error) {
 			removeUploadedEmployeePhoto(req.file);
@@ -1085,7 +1025,7 @@ app.get('/api/sales/:id/invoice',requireRole(['admin','manager','storekeeper']),
 		const saleResult=await pool.query(`SELECT
 			s.sales_id,to_char(s.sales_date,'YYYY-MM-DD') AS sales_date,
 			to_char(s.due_date,'YYYY-MM-DD') AS due_date,s.invoice_number,
-			s.quantity,s.unit_price,s.quantity*s.unit_price AS total,
+			s.invoice_snapshot,s.quantity,s.unit_price,s.quantity*s.unit_price AS total,
 			c.customer_id,c.name AS customer,c.phone_number AS customer_phone,
 			c.email AS customer_email,c.address AS customer_address,i.name AS item,
 			COALESCE((SELECT SUM(amount) FROM sale_payments WHERE sales_id=s.sales_id),0) AS amount_paid
@@ -1099,7 +1039,10 @@ app.get('/api/sales/:id/invoice',requireRole(['admin','manager','storekeeper']),
 			amount,payment_method,reference_number,note,created_at
 		FROM sale_payments WHERE sales_id=$1 ORDER BY payment_date,created_at,payment_id`,[req.params.id]);
 		const companyResult=await pool.query('SELECT * FROM company_details WHERE company_id=1');
-		return res.json({ sale: saleResult.rows[0],payments: paymentsResult.rows,company: companyResult.rows[0]||{} });
+		const sale=saleResult.rows[0];
+        const snapshot=sale.invoice_snapshot;
+        if(snapshot) for(const key of ['customer','customer_phone','customer_email','customer_address','item']) sale[key]=snapshot[key];
+        return res.json({sale,payments:paymentsResult.rows,company:snapshot?.company||companyResult.rows[0]||{}});
 	} catch(error) {
 		console.error(error);
 		return res.status(500).json({ err: 'Could not load invoice details' });
@@ -1109,23 +1052,23 @@ app.get('/api/sales/:id/invoice',requireRole(['admin','manager','storekeeper']),
 // Records one customer payment and creates its permanent receipt number.
 app.post('/api/sales/:id/payments',requireRole(['admin','manager']),async function(req,res) {
 	const payment=req.body;
-	const amount=Number(payment.amount);
-	if(!payment.payment_date||!payment.payment_method||!Number.isFinite(amount)||amount<=0) {
+	const amount=readInventoryQuantity(payment.amount);
+	if(!payment.payment_date||!payment.payment_method||amount===null||amount<=0) {
 		return res.status(400).json({ err: 'Enter a valid payment date, amount and method' });
 	}
 	const client=await pool.connect();
 	try {
 		await client.query('BEGIN');
 		const saleResult=await client.query(`SELECT
-			sales_id,quantity*unit_price AS total,
-			COALESCE((SELECT SUM(amount) FROM sale_payments WHERE sales_id=sales.sales_id),0) AS amount_paid
+			sales_id,quantity*unit_price AS total
 		FROM sales WHERE sales_id=$1 FOR UPDATE`,[req.params.id]);
 		if(saleResult.rows.length===0) {
 			await client.query('ROLLBACK');
 			return res.status(404).json({ err: 'Sale not found' });
 		}
 		const sale=saleResult.rows[0];
-		if(amount>Number(sale.total)-Number(sale.amount_paid)) {
+        sale.amount_paid=(await client.query('SELECT COALESCE(SUM(amount),0) AS amount_paid FROM sale_payments WHERE sales_id=$1',[req.params.id])).rows[0].amount_paid;
+		if((await client.query('SELECT $1::numeric > $2::numeric-$3::numeric AS excessive',[amount,sale.total,sale.amount_paid])).rows[0].excessive) {
 			await client.query('ROLLBACK');
 			return res.status(400).json({ err: 'Payment cannot be greater than the remaining amount' });
 		}
@@ -1153,7 +1096,7 @@ app.post('/api/sales/:id/payments',requireRole(['admin','manager']),async functi
 // Handles GET /api/stock_counts requests.
 app.get("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
 	pool.query(
-		"SELECT stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.count_date DESC, stock_counts.created_at DESC, stock_counts.count_id DESC",
+		"SELECT stock_counts.source_type, stock_counts.source_id, stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.count_date DESC, stock_counts.created_at DESC, stock_counts.count_id DESC",
 		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
@@ -1235,9 +1178,11 @@ app.get("/api/production",requireRole(['admin','manager','storekeeper']),functio
 		production.sludge_produced,ROUND((production.pko_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pko_yield,
 		ROUND((production.pkc_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pkc_yield,
 		to_char(production.production_hours,'HH24:MI') AS production_hours,
-		to_char(production.down_time,'HH24:MI') AS down_time,wr.scale_ticket,wr.completed_by AS weighed_by
+		to_char(production.down_time,'HH24:MI') AS down_time,wr.scale_ticket,wr.completed_by AS weighed_by,wr.status,
+        (SELECT COALESCE(json_agg(pb ORDER BY pb.batch_id),'[]'::json)
+         FROM production_batches pb WHERE pb.request_id=wr.request_id) AS batches
 		FROM production LEFT JOIN weighing_requests wr
-		ON wr.request_type='Production' AND wr.completed_record_id=production.production_id AND wr.status='Completed'
+		ON wr.request_type='Production' AND wr.completed_record_id=production.production_id AND wr.status IN ('Completed','Awaiting Storekeeper')
 		ORDER BY production.created_at DESC`,
 		// Handles the result of the preceding database query.
 		function(err,result) {
@@ -1294,7 +1239,7 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 			return res.status(400).json({ err: 'No price has been set for this product on the selected date' });
 		}
 		const savedUnitPrice=priceResult.rows[0].unit_price;
-		const inserted=await pool.query(
+		const inserted=await authorise(pool,'Sale',sales,req.session.user_id,
 			`INSERT INTO weighing_requests
 			(request_type,request_date,customer_id,item_id,unit_price,created_by)
 			VALUES ('Sale',$1::date,$2,$3,$4,$5) RETURNING *`,[
@@ -1307,7 +1252,7 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 		return res.status(201).json(inserted.rows[0]);
 	} catch(error) {
 		console.error(error);
-		return res.status(500).json({ err: 'Could not save sale' });
+		return res.status(error.status||500).json({ err: error.status?error.message: 'Could not save sale' });
 	}
 });
 
@@ -1326,7 +1271,7 @@ app.post("/api/purchases",requireRole(['admin','manager']),async function(req,re
 		});
 	}
 	try {
-		const result=await pool.query(
+		const result=await authorise(pool,'Purchase',purchase,req.session.user_id,
 			`INSERT INTO weighing_requests
 			(request_type,request_date,supplier_id,item_id,unit_cost,created_by)
 			VALUES ('Purchase',$1::date,$2,$3,$4,$5) RETURNING *`,[
@@ -1339,12 +1284,12 @@ app.post("/api/purchases",requireRole(['admin','manager']),async function(req,re
 		return res.status(201).json(result.rows[0]);
 	} catch(error) {
 		console.error(error);
-		return res.status(500).json({ err: 'Could not send purchase to Storekeeper' });
+		return res.status(error.status||500).json({ err: error.status?error.message: 'Could not send purchase to Storekeeper' });
 	}
 });
 
 // Handles POST /api/stock_counts requests.
-app.post("/api/stock_counts",requireRole(['admin']),function(req,res) {
+app.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
 	const stockInventory=req.body;
 	const receivedQuantity=readInventoryQuantity(stockInventory.received);
 	const issuedQuantity=readInventoryQuantity(stockInventory.issued);
@@ -1358,26 +1303,14 @@ app.post("/api/stock_counts",requireRole(['admin']),function(req,res) {
 		return res.status(400).json({
 			error: "Could not submit stock"
 		});
-	}
-	pool.query(
-		"INSERT INTO stock_counts(count_date, item_id, received, issued) VALUES ($1, $2, $3, $4) RETURNING *",
-		[
-			stockInventory.count_date,
-			stockInventory.item_id,
-			receivedQuantity,
-			issuedQuantity
-		],
-		// Handles the result of the preceding database query.
-		function(err,result) {
-			if(err) {
-				console.log(err);
-				return res.status(500).json({
-					err: "Server encountered a problem saving purchase"
-				});
-			}
-			res.status(201).json(result.rows[0]);
-		}
-	);
+	}    const client=await pool.connect();
+    try {
+        await client.query('BEGIN');await lockStock(client);
+        const result=await client.query('INSERT INTO stock_counts(count_date,item_id,received,issued) VALUES($1,$2,$3,$4) RETURNING *',
+            [stockInventory.count_date,stockInventory.item_id,receivedQuantity,issuedQuantity]);
+        await client.query('COMMIT');return res.status(201).json(result.rows[0]);
+    }catch(error){await client.query('ROLLBACK');return res.status(500).json({err:'Could not save stock adjustment'});}
+    finally{client.release();}
 });
 
 // Accepts a non-negative inventory quantity with no more than two decimal places.
@@ -1415,6 +1348,7 @@ app.post("/api/production",requireRole(['admin','manager']),async function(req,r
 		return res.status(201).json(result.rows[0]);
 	} catch(error) {
 		console.error(error);
+        if(error.code==='23505') return res.status(409).json({ err:'A production authorisation already exists for this date' });
 		return res.status(500).json({ err: 'Could not send production to Storekeeper' });
 	}
 });
@@ -1422,20 +1356,34 @@ app.post("/api/production",requireRole(['admin','manager']),async function(req,r
 // Lists authorised activities that are waiting for the Storekeeper's physical quantities.
 app.get('/api/weighing-requests',requireRole(['admin','manager','storekeeper']),async function(req,res) {
 	try {
-		const result=await pool.query(`SELECT
-			wr.request_id,wr.request_type,TO_CHAR(wr.request_date,'YYYY-MM-DD') AS request_date,
+		const result=await pool.query(`WITH numbered_requests AS (
+            SELECT weighing_requests.*,ROW_NUMBER() OVER (
+                PARTITION BY request_type,request_date ORDER BY request_id
+            ) AS daily_number FROM weighing_requests
+        ) SELECT
+			(wr.status='Awaiting Storekeeper' AND wr.completed_record_id IS NULL
+            AND ($2::text='admin' OR wr.created_by=$1)) AS can_cancel,
+            COALESCE((SELECT p.process_loss FROM production p WHERE p.production_id=wr.completed_record_id),0) AS process_loss,
+            wr.request_id,wr.daily_number,wr.request_type,TO_CHAR(wr.request_date,'YYYY-MM-DD') AS request_date,
 			wr.item_id,items.name AS item,wr.supplier_id,suppliers.name AS supplier,
 			wr.customer_id,customers.name AS customer,wr.unit_cost,wr.unit_price,
 			TO_CHAR(wr.production_hours,'HH24:MI') AS production_hours,
-			TO_CHAR(wr.down_time,'HH24:MI') AS down_time,wr.status,wr.created_at,
+			TO_CHAR(wr.down_time,'HH24:MI') AS down_time,wr.status,wr.created_at,wr.kernel_used,wr.pko_produced,wr.pkc_produced,wr.sludge_produced,
+			(SELECT COALESCE(json_agg(b ORDER BY b.batch_id),'[]'::json) FROM
+			 (SELECT pb.*,u.username AS recorded_by_name FROM production_batches pb
+			 LEFT JOIN users u ON u.user_id=pb.recorded_by WHERE pb.request_id=wr.request_id) b) AS batches,
 			users.username AS authorised_by
-		FROM weighing_requests wr
+		FROM numbered_requests wr
 		LEFT JOIN items ON items.item_id=wr.item_id
 		LEFT JOIN suppliers ON suppliers.supplier_id=wr.supplier_id
 		LEFT JOIN customers ON customers.customer_id=wr.customer_id
 		LEFT JOIN users ON users.user_id=wr.created_by
-		WHERE wr.status='Awaiting Storekeeper'
-		ORDER BY wr.request_date,wr.created_at,wr.request_id`);
+        WHERE (wr.status='Awaiting Storekeeper'
+            OR ($3::boolean AND wr.request_type='Production' AND wr.status='Completed'))
+            AND (wr.request_type<>'Production' OR wr.completed_record_id IS NULL
+                OR EXISTS (SELECT 1 FROM production p WHERE p.production_id=wr.completed_record_id))
+		ORDER BY wr.request_date,wr.created_at,wr.request_id`,
+        [req.session.user_id,req.session.role,req.session.role==='admin'&&req.query.include_completed==='true']);
 		return res.json(result.rows);
 	} catch(error) {
 		console.error(error);
@@ -1448,15 +1396,10 @@ app.patch('/api/weighing-requests/:id/cancel',requireRole(['admin','manager']),a
 	const requestId=Number(req.params.id);
 	if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err: 'Invalid request' });
 	try {
-		const parameters=[requestId];
-		let ownerRule='';
-		if(req.session.role==='manager') {
-			parameters.push(req.session.user_id);
-			ownerRule=' AND created_by=$2';
-		}
 		const result=await pool.query(`UPDATE weighing_requests SET status='Cancelled'
-			WHERE request_id=$1 AND status='Awaiting Storekeeper'${ownerRule} RETURNING request_id`,parameters);
-		if(result.rows.length===0) return res.status(404).json({ err: 'Pending request not found or cannot be cancelled' });
+			WHERE request_id=$1 AND status='Awaiting Storekeeper' AND completed_record_id IS NULL AND ($2::text='admin' OR created_by=$3)
+            RETURNING request_id`,[requestId,req.session.role,req.session.user_id]);
+		if(result.rows.length===0) return res.status(404).json({ err: 'Authorisation not found, already closed, or has saved quantities; production with saved batches must be finished' });
 		return res.json({ message: 'Authorisation cancelled' });
 	} catch(error) {
 		console.error(error);
@@ -1464,13 +1407,41 @@ app.patch('/api/weighing-requests/:id/cancel',requireRole(['admin','manager']),a
 	}
 });
 
-// Completes an authorised activity using quantities entered once by the Storekeeper.
+// Closes a production day without adding quantities a second time.
+app.patch('/api/weighing-requests/:id/finish',requireRole(['admin','storekeeper']),async function(req,res) {
+    const requestId=Number(req.params.id);
+    if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err:'Invalid request' });
+    try {
+    const result=await pool.query(`UPDATE weighing_requests SET status='Completed',
+        completed_by=$1,completed_at=CURRENT_TIMESTAMP
+        WHERE request_id=$2 AND request_type='Production' AND status='Awaiting Storekeeper'
+        AND completed_record_id IS NOT NULL RETURNING request_id`,[req.session.user_id,requestId]);
+    if(!result.rows.length) return res.status(409).json({ err:'Save at least one batch before finishing an open production day' });
+    return res.json({ message:'Production day finished' });
+    } catch(error) {
+        console.error(error);
+        return res.status(500).json({ err:'Could not finish production day' });
+    }
+});
+
+// Only Admin can reopen the same daily authorisation; quantities and stock stay intact.
+app.patch('/api/weighing-requests/:id/reopen',requireRole(['admin']),async function(req,res) {
+    const requestId=Number(req.params.id);
+    if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err:'Invalid request' });
+    try {
+        await reopenProduction(pool,requestId,req.session.user_id);
+        return res.json({message:'Production reopened; Storekeeper can add more batches'});
+    }catch(error){return res.status(error.status||500).json({err:error.status?error.message:'Could not reopen production'});}
+});
+
+// Purchases and sales complete once; production submissions add batches to an open day.
 app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeeper']),async function(req,res) {
 	const requestId=Number(req.params.id);
 	if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err: 'Invalid request' });
 	const client=await pool.connect();
 	try {
 		await client.query('BEGIN');
+        await lockStock(client);
 		const requestResult=await client.query(
 			`SELECT * FROM weighing_requests WHERE request_id=$1 FOR UPDATE`,[requestId]
 		);
@@ -1483,6 +1454,35 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 			await client.query('ROLLBACK');
 			return res.status(409).json({ err: 'This request has already been completed' });
 		}
+        if(request.request_type==='Production') {
+            if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.body.submission_key||'')) {
+                throw Object.assign(new Error('A valid batch submission key is required'),{ status:400 });
+            }
+            const previous=await client.query('SELECT * FROM production_batches WHERE submission_key=$1',[req.body.submission_key]);
+            if(previous.rows.length) {
+                if(previous.rows[0].request_id!==requestId) throw Object.assign(new Error('Batch key belongs to another authorisation'),{ status:409 });
+                const batch=previous.rows[0];
+                if(batch.voided) throw Object.assign(new Error('This batch has been reversed. Start a new batch.'),{status:409});
+                if(['kernel_used','pko_produced','pkc_produced','sludge_produced'].some(key =>
+                    readInventoryQuantity(req.body[key])!==Number(batch[key]))||
+                    (String(req.body.scale_ticket||'').trim()||null)!==batch.scale_ticket) {
+                    throw Object.assign(new Error('This batch was already saved with different quantities or ticket. Refresh before recording another batch.'),{ status:409 });
+                }
+                await client.query('COMMIT');
+                return res.json({ message:'Batch already saved',record_id:request.completed_record_id });
+            }
+        }
+        if(request.request_type==='Production'&&req.body.entry_type) {
+            const kernel=readInventoryQuantity(req.body.kernel_used);
+            const products=['pko_produced','pkc_produced','sludge_produced'].map(key=>readInventoryQuantity(req.body[key]));
+            if(!['Issue','Receive'].includes(req.body.entry_type)||
+                (req.body.entry_type==='Issue'&&(!(kernel>0)||products.some(value=>value!==0)))||
+                (req.body.entry_type==='Receive'&&(kernel!==0||products.filter(value=>value>0).length!==1||
+                    (req.body.received_product&&(!['pko_produced','pkc_produced','sludge_produced'].includes(req.body.received_product)||
+                     !(readInventoryQuantity(req.body[req.body.received_product])>0)))))) {
+                throw Object.assign(new Error('Record a kernel issue or receive exactly one selected product per entry'),{status:400});
+            }
+        }
 		const scaleTicket=String(req.body.scale_ticket||'').trim()||null;
 		const vehicleNumber=String(req.body.vehicle_number||'').trim()||null;
 		let completedRecordId;
@@ -1511,6 +1511,7 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 				FROM next_sale RETURNING sales_id`,
 			[request.request_date,request.customer_id,request.item_id,quantity,request.unit_price]);
 			completedRecordId=sale.rows[0].sales_id;
+            await snapshotInvoice(client,completedRecordId);
 			await client.query(`INSERT INTO stock_counts
 				(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
 				VALUES ($1,$2,0,$3,'Sale',$4,'Issued',$5)`,
@@ -1523,15 +1524,23 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 				pkc_produced: readInventoryQuantity(req.body.pkc_produced),
 				sludge_produced: readInventoryQuantity(req.body.sludge_produced)
 			};
-			if(quantities.kernel_used===null||quantities.kernel_used<=0||
-				quantities.pko_produced===null||quantities.pko_produced<=0||
-				quantities.pkc_produced===null||quantities.pkc_produced<=0||
-				quantities.sludge_produced===null||quantities.sludge_produced<0) {
-				throw Object.assign(new Error('Check all production quantities; use no more than two decimal places'),{ status:400 });
-			}
+            if(Object.values(quantities).some(value => value===null||value<0)||
+                !Object.values(quantities).some(value => value>0)) {
+                throw Object.assign(new Error('Enter at least one positive batch quantity, using no more than two decimal places'),{ status:400 });
+            }
+            await client.query(`INSERT INTO production_batches
+                (request_id,submission_key,kernel_used,pko_produced,pkc_produced,sludge_produced,scale_ticket,recorded_by)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,[requestId,req.body.submission_key,
+                quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,scaleTicket,req.session.user_id]);
 			const production=await client.query(`INSERT INTO production
 				(production_date,kernel_used,pko_produced,pkc_produced,sludge_produced,production_hours,down_time)
-				VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING production_id`,
+				VALUES ($1,$2,$3,$4,$5,$6,$7)
+                ON CONFLICT (production_date) DO UPDATE SET
+                kernel_used=production.kernel_used+EXCLUDED.kernel_used,
+                pko_produced=production.pko_produced+EXCLUDED.pko_produced,
+                pkc_produced=production.pkc_produced+EXCLUDED.pkc_produced,
+                sludge_produced=production.sludge_produced+EXCLUDED.sludge_produced
+                RETURNING production_id`,
 			[request.request_date,quantities.kernel_used,quantities.pko_produced,
 				quantities.pkc_produced,quantities.sludge_produced,request.production_hours,request.down_time]);
 			completedRecordId=production.rows[0].production_id;
@@ -1548,19 +1557,22 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 			for(const movement of movements) {
 				await client.query(`INSERT INTO stock_counts
 					(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
-					VALUES ($1,$2,$3,$4,'Production',$5,$6,$7)`,
+					VALUES ($1,$2,$3,$4,'Production',$5,$6,$7)
+                    ON CONFLICT (source_type,source_id,source_part) WHERE source_id IS NOT NULL
+                    DO UPDATE SET received=stock_counts.received+EXCLUDED.received,
+                    issued=stock_counts.issued+EXCLUDED.issued,recorded_by=EXCLUDED.recorded_by`,
 				[request.request_date,movement[0],movement[1],movement[2],requestId,movement[3],req.session.user_id]);
 			}
-			await client.query(`UPDATE weighing_requests SET kernel_used=$1,pko_produced=$2,
-				pkc_produced=$3,sludge_produced=$4 WHERE request_id=$5`,
+			await client.query(`UPDATE weighing_requests SET kernel_used=COALESCE(kernel_used,0)+$1,pko_produced=COALESCE(pko_produced,0)+$2,
+				pkc_produced=COALESCE(pkc_produced,0)+$3,sludge_produced=COALESCE(sludge_produced,0)+$4 WHERE request_id=$5`,
 			[quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,requestId]);
 		}
-		await client.query(`UPDATE weighing_requests SET status='Completed',completed_by=$1,
+		await client.query(`UPDATE weighing_requests SET status=CASE WHEN request_type='Production' THEN 'Awaiting Storekeeper' ELSE 'Completed' END,completed_by=$1,
 			completed_record_id=$2,scale_ticket=$3,vehicle_number=$4,completed_at=CURRENT_TIMESTAMP
 			WHERE request_id=$5`,
 		[req.session.user_id,completedRecordId,scaleTicket,vehicleNumber,requestId]);
 		await client.query('COMMIT');
-		return res.json({ message: request.request_type+' completed successfully',record_id: completedRecordId });
+		return res.json({ message: request.request_type==='Production'?'Production entry saved; daily totals and stock updated':request.request_type+' completed successfully',record_id: completedRecordId });
 	} catch(error) {
 		await client.query('ROLLBACK');
 		console.error(error);
@@ -1609,8 +1621,11 @@ app.post("/api/expenses",requireRole(['admin','manager']),function(req,res) {
 });
 
 // Calculates weighted inventory and production costs from transaction history.
-async function calculateCosts() {
-	const RawPurchasesRecords=await pool.query(`
+async function calculateCosts(existingClient) {
+    const costClient=existingClient||await pool.connect();
+    try {
+    if(!existingClient) await costClient.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+	const RawPurchasesRecords=await costClient.query(`
     SELECT
     items.item_id,
     items.name,
@@ -1636,7 +1651,7 @@ async function calculateCosts() {
 	 * Raw materials and consumables issued for production.
 	 * Product dispatches are handled separately.
 	 */
-	const rawIssues=await pool.query(`
+	const rawIssues=await costClient.query(`
     SELECT
     items.item_id,
     items.name,
@@ -1657,11 +1672,18 @@ async function calculateCosts() {
     'raw_material',
     'consumable'
     )
+    AND NOT (stock_counts.source_type='Production' AND EXISTS(SELECT 1 FROM production_batches pb
+        WHERE pb.request_id=stock_counts.source_id))
+    UNION ALL SELECT i.item_id,i.name,i.item_type,to_char(w.request_date,'YYYY-MM-DD'),
+        pb.created_at,pb.kernel_used,'out',1 FROM production_batches pb
+        JOIN weighing_requests w ON w.request_id=pb.request_id JOIN production p ON p.production_id=w.completed_record_id
+        JOIN items i ON LOWER(i.name)='p kernel'
+        WHERE NOT pb.voided AND w.status<>'Cancelled' AND pb.kernel_used>0
     `);
 
 	const issues=rawIssues.rows;
 
-	const RawProduction=await pool.query(`
+	const RawProduction=await costClient.query(`
     SELECT
     to_char(
     production.production_date,
@@ -1672,11 +1694,16 @@ async function calculateCosts() {
     production.pko_produced,
     production.pkc_produced,
     'produce' AS type,
-    2 AS event_order
-    FROM production
+    2 AS event_order,NULL::integer AS batch_id,true AS legacy_batch
+    FROM production WHERE NOT EXISTS(SELECT 1 FROM weighing_requests w JOIN production_batches pb ON pb.request_id=w.request_id
+        WHERE w.request_type='Production' AND w.completed_record_id=production.production_id AND w.status<>'Cancelled')
+    UNION ALL SELECT to_char(w.request_date,'YYYY-MM-DD'),pb.created_at,pb.kernel_used,pb.pko_produced,pb.pkc_produced,
+        'produce',2,pb.batch_id,pb.legacy_batch FROM production_batches pb JOIN weighing_requests w ON w.request_id=pb.request_id
+        JOIN production p ON p.production_id=w.completed_record_id WHERE NOT pb.voided AND w.status<>'Cancelled'
     `);
 
 	const production=RawProduction.rows;
+    const productItems=(await costClient.query("SELECT item_id,name FROM items WHERE LOWER(name) IN ('pko','pkc','sludge')")).rows;
 
 	/*
 	 * Storekeeper's finished-product records.
@@ -1684,7 +1711,7 @@ async function calculateCosts() {
 	 * received = quantity put into finished-product stock
 	 * issued   = quantity dispatched or sold
 	 */
-	const RawProductStock=await pool.query(`
+	const RawProductStock=await costClient.query(`
     SELECT
     items.item_id,
     items.name,
@@ -1695,7 +1722,7 @@ async function calculateCosts() {
     ) AS date,
     stock_counts.created_at,
     stock_counts.received,
-    stock_counts.issued
+    stock_counts.issued,stock_counts.source_type,stock_counts.source_id
     FROM stock_counts
     INNER JOIN items
     ON stock_counts.item_id = items.item_id
@@ -1708,451 +1735,11 @@ async function calculateCosts() {
 
 	const productStock=RawProductStock.rows;
 
-	/*
-	 * Group finished products received by date.
-	 */
-	const productReceiptsByDate={};
-
-	// Processes each entry in the collection.
-	productStock.forEach(item => {
-		const quantityReceived=Number(item.received)||0;
-
-		if(quantityReceived<=0) {
-			return;
-		}
-
-		if(!productReceiptsByDate[item.date]) {
-			productReceiptsByDate[item.date]={};
-		}
-
-		if(!productReceiptsByDate[item.date][item.item_id]) {
-			productReceiptsByDate[item.date][item.item_id]={
-				item_id: item.item_id,
-				name: item.name,
-				quantity: 0,
-				created_at: item.created_at
-			};
-		}
-
-		productReceiptsByDate[item.date][item.item_id].quantity+=
-			quantityReceived;
-	});
-
-	/*
-	 * Create dispatch events for finished products.
-	 */
-	const productDispatches=[];
-
-	// Processes each entry in the collection.
-	productStock.forEach(item => {
-		const quantityIssued=Number(item.issued)||0;
-
-		if(quantityIssued<=0) {
-			return;
-		}
-
-		productDispatches.push({
-			item_id: item.item_id,
-			name: item.name,
-			item_type: item.item_type,
-			date: item.date,
-			created_at: item.created_at,
-			quantity: quantityIssued,
-			type: "product_out",
-			event_order: 3
-		});
-	});
-
-	const events=[];
-
-	events.push(...purchases);
-	events.push(...issues);
-	events.push(...production);
-	events.push(...productDispatches);
-
-	/*
-	 * Same-day order:
-	 *
-	 * 0 = purchases
-	 * 1 = raw-material and consumable issues
-	 * 2 = production and finished-product receipt
-	 * 3 = product dispatch
-	 */
-	events.sort((a,b) => {
-		return (
-			a.date.localeCompare(b.date)||
-			a.event_order-b.event_order||
-			new Date(a.created_at)-new Date(b.created_at)
-		);
-	});
-
-	/*
-	 * Raw-material and consumable inventory.
-	 */
-	const stock={};
-
-	/*
-	 * Finished-product inventory.
-	 *
-	 * Each product keeps a running quantity and value.
-	 */
-	const finishedStock={};
-
-	const output=[];
-	const dispatchOutput=[];
-	const issueCostByDate={};
-
-	// Handles the avg operation.
-	function avg(itemId) {
-		const stockName=stock[itemId];
-
-		if(!stockName) {
-			stock[itemId]={
-				quantity: 0,
-				value: 0
-			};
-
-			return 0;
-		}
-
-		if(stockName.quantity===0) {
-			return 0;
-		}
-
-		return stockName.value/stockName.quantity;
-	}
-
-	// Handles the finished avg operation.
-	function finishedAvg(itemId) {
-		const product=finishedStock[itemId];
-
-		if(!product||product.quantity===0) {
-			return 0;
-		}
-
-		return product.value/product.quantity;
-	}
-
-	// Handles the add finished product operation.
-	function addFinishedProduct(receipt,productCost) {
-		if(!receipt||receipt.quantity<=0) {
-			return 0;
-		}
-
-		const itemId=receipt.item_id;
-
-		if(!finishedStock[itemId]) {
-			finishedStock[itemId]={
-				item_id: itemId,
-				name: receipt.name,
-				quantity: 0,
-				value: 0
-			};
-		}
-
-		finishedStock[itemId].quantity+=receipt.quantity;
-
-		finishedStock[itemId].value+=productCost;
-
-		return finishedAvg(itemId);
-	}
-
-	// Processes each entry in the collection.
-	events.forEach(event => {
-		if(event.type==="in") {
-			const itemId=event.item_id;
-
-			if(!stock[itemId]) {
-				stock[itemId]={
-					quantity: 0,
-					value: 0
-				};
-			}
-
-			const quantity=Number(event.quantity);
-			const value=Number(event.value);
-
-			stock[itemId].quantity+=quantity;
-			stock[itemId].value+=value;
-		} else if(event.type==="out") {
-			const itemId=event.item_id;
-
-			if(!stock[itemId]) {
-				stock[itemId]={
-					quantity: 0,
-					value: 0
-				};
-			}
-
-			const quantity=Number(event.quantity);
-			const averageCost=avg(itemId);
-			const issueCost=averageCost*quantity;
-
-			stock[itemId].quantity-=quantity;
-			stock[itemId].value-=issueCost;
-
-			if(!issueCostByDate[event.date]) {
-				issueCostByDate[event.date]={};
-			}
-
-			if(!issueCostByDate[event.date][itemId]) {
-				issueCostByDate[event.date][itemId]={
-					item_id: itemId,
-					name: event.name,
-					item_type: event.item_type,
-					quantity: 0,
-					cost: 0
-				};
-			}
-
-			issueCostByDate[event.date][itemId].quantity+=quantity;
-
-			issueCostByDate[event.date][itemId].cost+=issueCost;
-		} else if(event.type==="produce") {
-			const dailyIssueCosts=issueCostByDate[event.date]||{};
-
-			const materialsCosted=Object.values(dailyIssueCosts);
-
-			/*
-			 * There is currently one raw material.
-			 *
-			 * Its name is not hardcoded.
-			 */
-			const rawMaterial=materialsCosted.find(material => {
-				return material.item_type==="raw_material";
-			});
-
-			/*
-			 * The storekeeper's issued raw-material
-			 * quantity controls costing.
-			 */
-			const kernelIssued=rawMaterial? rawMaterial.quantity:0;
-
-			const avgKernelCost=
-				rawMaterial&&rawMaterial.quantity>0
-					? rawMaterial.cost/rawMaterial.quantity
-					:0;
-
-			const totalKernelCost=rawMaterial? rawMaterial.cost:0;
-
-			/*
-			 * The manager's kernel figure is retained
-			 * only for comparison.
-			 */
-			const managerKernelUsed=Number(event.kernel_used)||0;
-
-			const kernelVariance=managerKernelUsed-kernelIssued;
-
-			const kernelVariancePercentage=
-				kernelIssued>0? (kernelVariance/kernelIssued)*100:0;
-
-			/*
-			 * Includes every raw material and
-			 * consumable issued that day.
-			 */
-			const totalCost=materialsCosted.reduce((total,material) => {
-				return total+material.cost;
-			},0);
-
-			/*
-			 * Current cost-allocation rule.
-			 */
-			const managerPkoProduced=Number(event.pko_produced)||0;
-
-			const managerPkcProduced=Number(event.pkc_produced)||0;
-
-			const dailyProductReceipts=
-				productReceiptsByDate[event.date]||{};
-
-			const productReceipts=Object.values(dailyProductReceipts);
-
-			/*
-			 * PKO and PKC remain named here because
-			 * your production table itself has fixed
-			 * pko_produced and pkc_produced columns.
-			 */
-			const pkoReceipt=productReceipts.find(product => {
-				return product.name.trim().toUpperCase()==="PKO";
-			});
-
-			// Finds the first collection entry that matches the condition.
-			const pkcReceipt=productReceipts.find(product => {
-				return product.name.trim().toUpperCase()==="PKC";
-			});
-
-			const sludgeReceipt=productReceipts.find(product => {
-				return product.name.trim().toUpperCase()==="SLUDGE";
-			});
-
-			/*
-			 * Old production days have no Sludge inventory record, so they retain
-			 * the original 75/25 split. Reported Sludge receives a 2% share.
-			 */
-			const pkoProductionCost=totalCost*(sludgeReceipt? 0.73:0.75);
-
-			const pkcProductionCost=totalCost*0.25;
-
-			const sludgeProductionCost=totalCost*(sludgeReceipt? 0.02:0);
-
-			/*
-			 * The storekeeper's received quantities
-			 * increase finished-product inventory.
-			 */
-			const pkoReceived=pkoReceipt? pkoReceipt.quantity:0;
-
-			const pkcReceived=pkcReceipt? pkcReceipt.quantity:0;
-
-			const sludgeReceived=sludgeReceipt? sludgeReceipt.quantity:0;
-
-			const pkoVariance=managerPkoProduced-pkoReceived;
-
-			const pkcVariance=managerPkcProduced-pkcReceived;
-
-			/*
-			 * Add the day's products and allocated
-			 * production costs to the running stock.
-			 *
-			 * This creates the weighted-average tank
-			 * value.
-			 */
-			const pkoTankAverageCost=addFinishedProduct(
-				pkoReceipt,
-				pkoProductionCost
-			);
-
-			const pkcStockAverageCost=addFinishedProduct(
-				pkcReceipt,
-				pkcProductionCost
-			);
-
-			const sludgeStockAverageCost=addFinishedProduct(
-				sludgeReceipt,
-				sludgeProductionCost
-			);
-
-			// Transforms collection entries into the required output shape.
-			const materials=materialsCosted.map(material => {
-				return {
-					item_id: material.item_id,
-					name: material.name,
-					item_type: material.item_type,
-					quantity_issued: material.quantity,
-					average_cost:
-						material.quantity>0
-							? material.cost/material.quantity
-							:0,
-					total_cost: material.cost
-				};
-			});
-
-			output.push({
-				production_date: event.date,
-				created_at: event.created_at,
-
-				kernel_issued: kernelIssued,
-				manager_kernel_used: managerKernelUsed,
-				kernel_variance: kernelVariance,
-				kernel_variance_percentage: kernelVariancePercentage,
-
-				avg_kernel_cost: avgKernelCost,
-				total_kernel_cost: totalKernelCost,
-
-				materials_costed: materials,
-				total_cost: totalCost,
-
-				manager_pko_produced: managerPkoProduced,
-				storekeeper_pko_received: pkoReceived,
-				pko_variance: pkoVariance,
-
-				manager_pkc_produced: managerPkcProduced,
-				storekeeper_pkc_received: pkcReceived,
-				pkc_variance: pkcVariance,
-
-				pko_production_cost: pkoProductionCost,
-				pkc_production_cost: pkcProductionCost,
-					sludge_received: sludgeReceived,
-					sludge_production_cost: sludgeProductionCost,
-
-				pko_daily_cost_per_kg:
-					pkoReceived>0? pkoProductionCost/pkoReceived:0,
-
-				pkc_daily_cost_per_kg:
-					pkcReceived>0? pkcProductionCost/pkcReceived:0,
-
-					sludge_daily_cost_per_kg:
-						sludgeReceived>0? sludgeProductionCost/sludgeReceived:0,
-
-				/*
-				 * Weighted average after adding this
-				 * day's production to existing stock.
-				 */
-				pko_tank_average_cost: pkoTankAverageCost,
-
-				pkc_stock_average_cost: pkcStockAverageCost,
-
-					sludge_stock_average_cost: sludgeStockAverageCost,
-
-				receipt_status:
-						pkoReceipt&&pkcReceipt&&sludgeReceipt?
-							"received":"pending_receipt"
-			});
-		} else if(event.type==="product_out") {
-			const itemId=event.item_id;
-			const quantity=Number(event.quantity);
-
-			if(!finishedStock[itemId]) {
-				finishedStock[itemId]={
-					item_id: itemId,
-					name: event.name,
-					quantity: 0,
-					value: 0
-				};
-			}
-
-			/*
-			 * The average is calculated before the
-			 * dispatch reduces the tank balance.
-			 */
-			const averageCost=finishedAvg(itemId);
-
-			const costOfDispatch=averageCost*quantity;
-
-			finishedStock[itemId].quantity-=quantity;
-
-			finishedStock[itemId].value-=costOfDispatch;
-
-			dispatchOutput.push({
-				dispatch_date: event.date,
-				created_at: event.created_at,
-				item_id: itemId,
-				name: event.name,
-				quantity_dispatched: quantity,
-				weighted_average_cost: averageCost,
-				cost_of_dispatch: costOfDispatch,
-				remaining_quantity: finishedStock[itemId].quantity,
-				remaining_value: finishedStock[itemId].value
-			});
-		}
-	});
-
-	// Transforms collection entries into the required output shape.
-	const finishedStockBalance=Object.values(finishedStock).map(product => {
-		return {
-			item_id: product.item_id,
-			name: product.name,
-			quantity: product.quantity,
-			value: product.value,
-			weighted_average_cost:
-				product.quantity>0? product.value/product.quantity:0
-		};
-	});
-
-	const costs={
-		production_costs: output,
-		product_dispatch_costs: dispatchOutput,
-		finished_stock: finishedStockBalance
-	};
+    const losses=(await costClient.query("SELECT to_char(production_date,'YYYY-MM-DD') AS date,process_loss AS quantity FROM production WHERE process_loss>0")).rows;
+    const costs=calculateContinuousCosts({purchases,issues,production,productStock,productItems,losses});
+    if(!existingClient) await costClient.query('COMMIT');
 	return costs;
+    } catch(error) {if(!existingClient) await costClient.query('ROLLBACK');throw error;} finally {if(!existingClient)costClient.release();}
 }
 
 // Handles GET /api/average_cost requests.
@@ -2471,6 +2058,9 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 
 		output.month.cost_of_goods_sold=dispatchPeriods.month;
 
+        const lossPeriods=calculateDispatchPeriods(costs.production_in_progress.map(day=>({
+            dispatch_date:day.date,name:'PKO',cost_of_dispatch:day.loss_cost
+        })),selectedDate);
 		const periodGrossProfit={};
 		for(let period in output) {
 			const pkcPeriodSales=output[period].sales.PKC?.total_sales||0;
@@ -2478,6 +2068,9 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 			const sludgePeriodSales=output[period].sales.Sludge?.total_sales||0;
 			const periodExpenses=output[period].expenses.total_expenses;
 			const periodPayroll=output[period].payroll_cost;
+            const lossCost=lossPeriods[period].pko;
+            output[period].production_loss_cost=lossCost;
+            output[period].costing_provisional=true;
 			const pkoPeriodCost=output[period].cost_of_goods_sold.pko;
 			const pkcPeriodCost=output[period].cost_of_goods_sold.pkc;
 			const sludgePeriodCost=output[period].cost_of_goods_sold.sludge;
@@ -2492,7 +2085,7 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 			output[period].period_gross_profit=periodGrossProfit[period];
 			const totalNetProfit=
 				pkoGrossProfit+pkcGrossProfit+sludgeGrossProfit-
-				periodExpenses-periodPayroll;
+				periodExpenses-periodPayroll-lossCost;
 			output[period].total_net_profit=totalNetProfit;
 		}
 		res.status(200).json(output);
@@ -2556,282 +2149,35 @@ function calculateDispatchPeriods(productDispatchCosts,selectedDate) {
 
 // Calculates inventory consistency checks from production, purchase, and sales data.
 async function calculateChecks() {
-	const checks=[];
-	const pkoProduction=await pool.query(`SELECT 'PKO' AS item,
-    to_char(COALESCE(sc.count_date,
-    production.production_date), 'YYYY-MM-DD') AS check_date,
-    'pko_received vs produced' AS check_type,
-    COALESCE (sc.received, 0) AS
-    storekeeper_says,
-    COALESCE (production.pko_produced, 0)
-    AS manager_says,
-    COALESCE (sc.received, 0) -
-    COALESCE (production.pko_produced, 0) AS
-    difference,
-    'production' AS related_source
-
-    FROM
-    (SELECT
-    stock_counts.count_date,
-    SUM(stock_counts.received) AS received
-    FROM stock_counts
-    INNER JOIN items
-    ON
-    stock_counts.item_id = items.item_id
-    WHERE items.name = 'PKO'
-    GROUP BY
-    stock_counts.count_date) AS sc
-    FULL OUTER JOIN production
-    ON production.production_date =
-    sc.count_date
-    WHERE COALESCE (sc.received, 0) <>
-    COALESCE (production.pko_produced, 0)`);
-	// Processes each entry in the collection.
-	pkoProduction.rows.forEach(row => {
-		checks.push({
-			check_date: row.check_date,
-			item: row.item,
-			check_type: row.check_type,
-			storekeeper_says: row.storekeeper_says,
-			manager_says: row.manager_says,
-			difference: row.difference
-		});
-	});
-
-	const pkcProduction=
-		await pool.query(`SELECT 'PKC' AS item, to_char(COALESCE
-    (sc.count_date, pr.production_date),
-    'YYYY-MM-DD') AS check_date,
-    'pkc_received vs produced' AS check_type,
-    COALESCE (sc.received, 0)
-    AS storekeeper_says,
-    COALESCE(pr.pkc_produced, 0) AS manager_says,
-    COALESCE(sc.received, 0) -
-    COALESCE(pr.pkc_produced, 0) AS
-    difference,
-    'production' AS related_source
-    FROM
-    (SELECT stock_counts.count_date,
-    SUM(stock_counts.received) AS received
-    FROM items
-    INNER JOIN stock_counts ON
-    stock_counts.item_id = items.item_id
-    WHERE
-    items.name = 'PKC'
-    GROUP BY stock_counts.count_date) AS sc
-    FULL OUTER JOIN production pr
-    ON pr.production_date = sc.count_date
-    WHERE COALESCE(sc.received, 0)
-    <> COALESCE(pr.pkc_produced, 0)`);
-	// Processes each entry in the collection.
-	pkcProduction.rows.forEach(row => {
-		checks.push({
-			check_date: row.check_date,
-			item: row.item,
-			check_type: row.check_type,
-			storekeeper_says: row.storekeeper_says,
-			manager_says: row.manager_says,
-			difference: row.difference
-		});
-	});
-
-	const kernelUsage=
-		await pool.query(`SELECT 'P Kernel' AS item, to_char(COALESCE
-    (sc.count_date, pr.production_date),
-    'YYYY-MM-DD') AS check_date,
-    'kernel_issued vs used' AS check_type,
-    COALESCE (sc.issued, 0)
-    AS storekeeper_says,
-    COALESCE(pr.kernel_used, 0) AS manager_says,
-    COALESCE(sc.issued, 0) -
-    COALESCE(pr.kernel_used, 0) AS
-    difference,
-    'production' AS related_source
-    FROM
-    (SELECT stock_counts.count_date,
-    SUM(stock_counts.issued) AS
-    issued
-    FROM items
-    INNER JOIN stock_counts ON
-    stock_counts.item_id = items.item_id
-    WHERE
-    items.name = 'P Kernel'
-    GROUP BY stock_counts.count_date) AS sc
-    FULL OUTER JOIN production pr
-    ON pr.production_date = sc.count_date
-    WHERE COALESCE(sc.issued, 0)
-    <> COALESCE(pr.kernel_used, 0)`);
-	// Processes each entry in the collection.
-	kernelUsage.rows.forEach(row => {
-		checks.push({
-			check_date: row.check_date,
-			item: row.item,
-			check_type: row.check_type,
-			storekeeper_says: row.storekeeper_says,
-			manager_says: row.manager_says,
-			difference: row.difference
-		});
-	});
-
-	const kernelPurchased=await pool.query(`SELECT
-    'P Kernel' AS item,
-    to_char(
-    COALESCE(sc.count_date, pu.purchase_date),
-    'YYYY-MM-DD'
-    ) AS check_date,
-    'kernel_received vs purchased' AS check_type,
-    COALESCE(sc.received, 0)
-    AS storekeeper_says,
-    COALESCE(pu.purchased, 0)
-    AS manager_says,
-    COALESCE(sc.received, 0) -
-    COALESCE(pu.purchased, 0)
-    AS difference,
-    'purchases' AS related_source
-    FROM (
-    SELECT
-    stock_counts.count_date,
-    SUM(stock_counts.received) AS received
-    FROM stock_counts
-    INNER JOIN items
-    ON stock_counts.item_id = items.item_id
-    WHERE items.name = 'P Kernel'
-    GROUP BY stock_counts.count_date
-    ) AS sc
-    FULL OUTER JOIN (
-    SELECT
-    purchases.purchase_date,
-    SUM(purchases.quantity_supplied) AS purchased
-    FROM purchases
-    INNER JOIN items
-    ON purchases.item_id = items.item_id
-    WHERE items.name = 'P Kernel'
-    GROUP BY purchases.purchase_date
-    ) AS pu
-    ON pu.purchase_date = sc.count_date
-    WHERE
-    COALESCE(sc.received, 0) <>
-    COALESCE(pu.purchased, 0)`);
-
-	// Processes each entry in the collection.
-	kernelPurchased.rows.forEach(row => {
-		checks.push({
-			check_date: row.check_date,
-			item: row.item,
-			check_type: row.check_type,
-			storekeeper_says: row.storekeeper_says,
-			manager_says: row.manager_says,
-			difference: row.difference
-		});
-	});
-
-	const pkoSold=await pool.query(`SELECT
-    'PKO' AS item,
-    to_char(
-    COALESCE(sc.count_date, sa.sales_date),
-    'YYYY-MM-DD'
-    ) AS check_date,
-    'pko_issued vs sold' AS check_type,
-    COALESCE(sc.issued, 0)
-    AS storekeeper_says,
-    COALESCE(sa.sold, 0)
-    AS manager_says,
-    COALESCE(sc.issued, 0) -
-    COALESCE(sa.sold, 0)
-    AS difference,
-    'sales' AS related_source
-    FROM (
-    SELECT
-    stock_counts.count_date,
-    SUM(stock_counts.issued) AS issued
-    FROM stock_counts
-    INNER JOIN items
-    ON stock_counts.item_id = items.item_id
-    WHERE items.name = 'PKO'
-    GROUP BY stock_counts.count_date
-    ) AS sc
-    FULL OUTER JOIN (
-    SELECT
-    sales.sales_date,
-    SUM(sales.quantity) AS sold
-    FROM sales
-    INNER JOIN items
-    ON sales.item_id = items.item_id
-    WHERE items.name = 'PKO'
-    GROUP BY sales.sales_date
-    ) AS sa
-    ON sa.sales_date = sc.count_date
-    WHERE
-    COALESCE(sc.issued, 0) <>
-    COALESCE(sa.sold, 0)`);
-	// Processes each entry in the collection.
-	pkoSold.rows.forEach(row => {
-		checks.push({
-			check_date: row.check_date,
-			item: row.item,
-			check_type: row.check_type,
-			storekeeper_says: row.storekeeper_says,
-			manager_says: row.manager_says,
-			difference: row.difference
-		});
-	});
-
-	const pkcSold=await pool.query(`SELECT
-    'PKC' AS item,
-    to_char(
-    COALESCE(sc.count_date, sa.sales_date),
-    'YYYY-MM-DD'
-    ) AS check_date,
-    'pkc_issued vs sold' AS check_type,
-    COALESCE(sc.issued, 0)
-    AS storekeeper_says,
-    COALESCE(sa.sold, 0)
-    AS manager_says,
-    COALESCE(sc.issued, 0) -
-    COALESCE(sa.sold, 0)
-    AS difference,
-    'sales' AS related_source
-    FROM (
-    SELECT
-    stock_counts.count_date,
-    SUM(stock_counts.issued) AS issued
-    FROM stock_counts
-    INNER JOIN items
-    ON stock_counts.item_id = items.item_id
-    WHERE items.name = 'PKC'
-    GROUP BY stock_counts.count_date
-    ) AS sc
-    FULL OUTER JOIN (
-    SELECT
-    sales.sales_date,
-    SUM(sales.quantity) AS sold
-    FROM sales
-    INNER JOIN items
-    ON sales.item_id = items.item_id
-    WHERE items.name = 'PKC'
-    GROUP BY sales.sales_date
-    ) AS sa
-    ON sa.sales_date = sc.count_date
-    WHERE
-    COALESCE(sc.issued, 0) <>
-    COALESCE(sa.sold, 0)`);
-	// Processes each entry in the collection.
-	pkcSold.rows.forEach(row => {
-		checks.push({
-			check_date: row.check_date,
-			item: row.item,
-			check_type: row.check_type,
-			storekeeper_says: row.storekeeper_says,
-			manager_says: row.manager_says,
-			difference: row.difference
-		});
-	});
-	// Processes each entry in the collection.
-	checks.sort((first,second) => {
-		const dateOrder=first.check_date.localeCompare(second.check_date);
-		return dateOrder||first.item.localeCompare(second.item);
-	});
-	return checks;
+    const result=await pool.query(`WITH expected AS (
+        SELECT w.request_id,'Purchase'::text AS source_type,'Received'::text AS source_part,p.purchase_date AS day,
+            p.item_id,p.quantity_supplied AS received,0::numeric AS issued,'purchases'::text AS related_source
+        FROM purchases p JOIN weighing_requests w ON w.request_type='Purchase' AND w.completed_record_id=p.purchase_id AND w.status<>'Cancelled'
+        UNION ALL SELECT w.request_id,'Sale','Issued',s.sales_date,s.item_id,0,s.quantity,'sales'
+        FROM sales s JOIN weighing_requests w ON w.request_type='Sale' AND w.completed_record_id=s.sales_id AND w.status<>'Cancelled'
+        UNION ALL SELECT w.request_id,'Production',v.part,p.production_date,i.item_id,v.received,v.issued,'production'
+        FROM production p JOIN weighing_requests w ON w.request_type='Production' AND w.completed_record_id=p.production_id AND w.status<>'Cancelled'
+        CROSS JOIN LATERAL (VALUES ('p kernel','Kernel Issued',0::numeric,p.kernel_used),
+            ('pko','PKO Received',p.pko_produced,0),('pkc','PKC Received',p.pkc_produced,0),('sludge','Sludge Received',p.sludge_produced,0)) v(name,part,received,issued)
+        JOIN items i ON LOWER(i.name)=v.name
+    ) SELECT to_char(COALESCE(e.day,sc.count_date),'YYYY-MM-DD') AS check_date,
+        COALESCE(i.name,actual_item.name) AS item,COALESCE(e.related_source,CASE sc.source_type WHEN 'Purchase' THEN 'purchases' WHEN 'Sale' THEN 'sales' ELSE 'production' END) AS related_source,
+        CASE WHEN e.source_type='Purchase' THEN LOWER(i.name)||'_received_vs_purchased'
+             WHEN e.source_type='Sale' THEN LOWER(i.name)||'_issued_vs_sold'
+             WHEN e.source_part='Kernel Issued' THEN 'kernel_issued_vs_used' ELSE LOWER(i.name)||'_received_vs_produced' END AS check_type,
+        COALESCE(sc.received,0)+COALESCE(sc.issued,0) AS storekeeper_says,
+        COALESCE(e.received,0)+COALESCE(e.issued,0) AS manager_says,
+        COALESCE(sc.received,0)+COALESCE(sc.issued,0)-COALESCE(e.received,0)-COALESCE(e.issued,0) AS difference,
+        e.request_id,CASE WHEN sc.item_id IS DISTINCT FROM e.item_id THEN 'Item or stock entry does not match'
+            WHEN sc.count_date IS DISTINCT FROM e.day THEN 'Inventory date does not match' ELSE 'Quantity does not match' END AS detail
+        FROM expected e FULL JOIN (SELECT * FROM stock_counts WHERE source_type<>'Manual') sc
+            ON sc.source_id=e.request_id AND sc.source_type=e.source_type AND sc.source_part=e.source_part
+        LEFT JOIN items i ON i.item_id=e.item_id LEFT JOIN items actual_item ON actual_item.item_id=sc.item_id
+        WHERE (e.request_id IS NULL OR COALESCE(sc.received,0)<>e.received OR COALESCE(sc.issued,0)<>e.issued
+            OR (sc.count_id IS NOT NULL AND (sc.item_id<>e.item_id OR sc.count_date<>e.day))
+            OR (sc.count_id IS NULL AND e.received+e.issued>0))
+        ORDER BY check_date,item`);
+    return result.rows;
 }
 
 // Handles GET /api/checks requests.
@@ -2950,106 +2296,27 @@ app.get("/api/correction",requireRole(['admin']),async function(req,res) {
 	}
 });
 
+require('./batch-corrections')(app,pool,requireRole);
+require('./legacy-links')(app,pool,requireRole);
+
 // Handles PATCH /api/correction_edit requests.
 app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) {
 	try {
 		const kind=req.body.kind;
 		const record=req.body.record;
 
+        if(kind==='stock') {
+            const corrected=await correctManualStock(pool,record,'edit');
+            return res.json(corrected);
+        }
+        if(['purchases','sales','production'].includes(kind)) {
+            const corrected=await correctRecord(pool,kind,record,'edit');
+            return res.status(200).json(corrected);
+        }
+
 		let updated;
 
-		if(kind==="stock") {
-				const receivedQuantity=readInventoryQuantity(record.received);
-				const issuedQuantity=readInventoryQuantity(record.issued);
-				if(
-					!record.count_date||
-					!record.item_id||
-					receivedQuantity===null||
-					issuedQuantity===null||
-					(receivedQuantity===0&&issuedQuantity===0)
-				) {
-					return res.status(400).json({
-						err: 'Inventory quantities must use no more than two decimal places'
-					});
-				}
-			updated=await pool.query(
-				`UPDATE stock_counts
-        SET count_date = $1::date,
-        item_id = $2,
-        received = $3,
-        issued = $4
-        WHERE count_id = $5
-        RETURNING *`,
-				[
-					record.count_date,
-					record.item_id,
-						receivedQuantity,
-						issuedQuantity,
-					record.count_id
-				]
-			);
-		} else if(kind==="production") {
-			updated=await pool.query(
-				`UPDATE production
-        SET production_date = $1::date,
-        kernel_used = $2,
-        pko_produced = $3,
-        pkc_produced = $4,
-        sludge_produced = $5,
-        production_hours = $6::interval,
-        down_time = $7::interval
-        WHERE production_id = $8
-        RETURNING *`,
-				[
-					record.production_date,
-					record.kernel_used,
-					record.pko_produced,
-					record.pkc_produced,
-					record.sludge_produced||0,
-					record.production_hours,
-					record.down_time,
-					record.production_id
-				]
-			);
-		} else if(kind==="sales") {
-			updated=await pool.query(
-				`UPDATE sales
-        SET sales_date = $1::date,
-        customer_id = $2,
-        item_id = $3,
-        quantity = $4,
-        unit_price = $5
-        WHERE sales_id = $6
-        RETURNING *`,
-				[
-					record.sales_date,
-					record.customer_id,
-					record.item_id,
-					record.quantity,
-					record.unit_price,
-					record.sales_id
-				]
-			);
-		} else if(kind==="purchases") {
-			updated=await pool.query(
-				`UPDATE purchases
-        SET purchase_date = $1::date,
-        supplier_id = $2,
-        item_id = $3,
-        quantity_supplied = $4,
-        unit_cost = $5
-        WHERE purchase_id = $6
-        RETURNING *`,
-				[
-					record.purchase_date,
-					record.supplier_id,
-					record.item_id,
-					record.quantity_supplied,
-					record.unit_cost,
-					record.purchase_id
-				]
-			);
-		} else if(kind==='expenses') {
+		if(kind==='expenses') {
 			updated=await pool.query(
 				`UPDATE expenses
 				SET expense_date = $1::date,
@@ -3075,12 +2342,13 @@ app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) 
 			});
 		}
 
+        if(!updated.rowCount) return res.status(409).json({ err:'Record not found or generated inventory cannot be edited directly; edit its source purchase, sale or production instead' });
 		return res.status(200).json(updated.rows[0]);
 	} catch(error) {
 		console.log(error);
 
-		return res.status(500).json({
-			err: "Could not update record"
+		return res.status(error.status||500).json({
+			err: error.status?error.message:"Could not update record"
 		});
 	}
 });
@@ -3090,29 +2358,18 @@ app.delete("/api/correction_delete",requireRole(['admin']),async function(req,re
 	try {
 		const kind=req.body.kind;
 		const record=req.body.record;
+        if(kind==='stock') {
+            const corrected=await correctManualStock(pool,record,'delete');
+            return res.json({message:'Record deleted successfully'});
+        }
+        if(['purchases','sales','production'].includes(kind)) {
+            await correctRecord(pool,kind,record,'delete');
+            return res.status(200).json({ message:'Record deleted successfully' });
+        }
+
 		let deleted;
 
-		if(kind==="stock") {
-			deleted=await pool.query(
-				"DELETE FROM stock_counts WHERE count_id = $1 RETURNING *",
-				[record.count_id]
-			);
-		} else if(kind==="production") {
-			deleted=await pool.query(
-				"DELETE FROM production WHERE production_id = $1 RETURNING *",
-				[record.production_id]
-			);
-		} else if(kind==="sales") {
-			deleted=await pool.query(
-				"DELETE FROM sales WHERE sales_id = $1 RETURNING *",
-				[record.sales_id]
-			);
-		} else if(kind==="purchases") {
-			deleted=await pool.query(
-				"DELETE FROM purchases WHERE purchase_id = $1 RETURNING *",
-				[record.purchase_id]
-			);
-		} else if(kind==='expenses') {
+		if(kind==='expenses') {
 			deleted=await pool.query(
 				`DELETE FROM expenses WHERE expense_id = $1 RETURNING *`,
 				[record.expense_id]
@@ -3126,7 +2383,7 @@ app.delete("/api/correction_delete",requireRole(['admin']),async function(req,re
 
 		if(deleted.rowCount===0) {
 			return res.status(404).json({
-				err: "Record was not found"
+				err: "Record not found or generated inventory cannot be deleted directly; delete its source purchase, sale or production instead"
 			});
 		}
 
@@ -3135,8 +2392,8 @@ app.delete("/api/correction_delete",requireRole(['admin']),async function(req,re
 		});
 	} catch(error) {
 		console.log(error);
-		return res.status(500).json({
-			err: "Could not delete record"
+		return res.status(error.status||500).json({
+			err: error.status?error.message:"Could not delete record"
 		});
 	}
 });
@@ -3412,6 +2669,7 @@ app.delete('/api/users/:id',requireRole(['admin']),async function(req,res) {
 	} catch(error) {
 		await client.query('ROLLBACK');
 		console.error(error);
+		if(error.code==='23503') return res.status(409).json({ err:'This account is referenced by business records and cannot be deleted without losing its audit history' });
 		return res.status(500).json({ err: 'Could not delete the user account' });
 	} finally {
 		client.release();
@@ -3617,5 +2875,5 @@ if(require.main===module) {
 	});
 }
 
-module.exports={ app,pool };
+module.exports={ app,pool,calculateCosts,calculateChecks };
 

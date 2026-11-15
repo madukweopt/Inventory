@@ -4052,3 +4052,45 @@ tbody
 	margin: 0;
 	padding: 9px 12px;
 }
+
+/* Authorisation cards keep status, history, entry and actions in separate rows. */
+.weighing-task-group { display: grid; gap: 16px; min-width: 0; }
+.weighing-task-group > h2 { margin: 12px 0 0; color: #33453a; font-size: 1rem; }
+.weighing-task-card { display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 22px; }
+.weighing-task-card-heading p { line-height: 1.6; overflow-wrap: anywhere; }
+.weighing-task-card-heading .weighing-task-totals { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 16px 0; padding: 14px; background: #f2f6f2; border-radius: 10px; }
+.weighing-task-totals > span { display: flex; flex-direction: column; gap: 5px; }
+.weighing-task-totals strong { color: #174f31; font-size: .95rem; }
+.weighing-task-history { border-top: 1px solid #e4ebe5; padding-top: 12px; }
+.weighing-task-card summary { cursor: pointer; color: #174f31; font-size: .85rem; font-weight: 700; line-height: 1.5; }
+.weighing-task-history p { margin: 12px 0 0; padding: 10px; background: #f7faf7; border-radius: 6px; }
+.weighing-task-manager-actions { flex-wrap: wrap; }
+.weighing-task-entry { border-top: 1px solid #e4ebe5; padding-top: 16px; }
+.weighing-task-entry[open] > summary { margin-bottom: 18px; }
+.weighing-task-card .weighing-task-form { width: 100%; margin: 0; padding: 0; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.weighing-task-form label { display: flex; flex-direction: column; min-width: 0; margin: 0; gap: 6px; }
+.weighing-task-form label span { margin: 0; line-height: 1.5; }
+.weighing-task-form input { box-sizing: border-box; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #cbd8ce; border-radius: 8px; background: #fff; color: #243c2c; font: inherit; }
+.weighing-task-form input:focus { outline: 2px solid #27834e; outline-offset: 2px; }
+.weighing-task-guidance { grid-column: 1 / -1; margin: 0; color: #647269; font-size: .8rem; line-height: 1.6; }
+.weighing-task-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px; padding-top: 16px; border-top: 1px solid #e4ebe5; }
+.weighing-tasks-page button { box-sizing: border-box; width: auto; min-height: 42px; margin: 0; padding: 10px 16px; border: 1px solid #17613b; border-radius: 8px; background: #17613b; color: #fff; font: inherit; font-size: .82rem; font-weight: 700; cursor: pointer; }
+.weighing-tasks-page button:hover { background: #104d2d; color: #fff; }
+.weighing-task-form .weighing-task-actions button[type="submit"] { width: auto; }
+.weighing-tasks-page .weighing-task-secondary, .weighing-tasks-page #refresh-weighing-tasks { background: #edf5ef; border-color: #c5d9ca; color: #174f31; }
+.weighing-tasks-page .weighing-task-secondary:hover, .weighing-tasks-page #refresh-weighing-tasks:hover { background: #dcecdf; color: #174f31; }
+.weighing-tasks-page .cancel-weighing-request { background: #fff5f3; border-color: #ebc2bc; color: #a32b20; }
+.weighing-tasks-page .cancel-weighing-request:hover { background: #fbe4df; color: #8c2118; }
+.weighing-tasks-page button:focus-visible { outline: 2px solid #27834e; outline-offset: 3px; }
+.weighing-tasks-page button:disabled { opacity: .5; cursor: not-allowed; }
+.weighing-tasks-page [hidden] { display: none !important; }
+@media (max-width: 600px) {
+    .weighing-task-card { padding: 16px; }
+    .weighing-task-card-heading .weighing-task-totals { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .weighing-task-card .weighing-task-form { grid-template-columns: minmax(0,1fr); }
+    .weighing-task-actions { flex-direction: column; }
+    .weighing-task-actions button { width: 100% !important; }
+    .weighing-tasks-heading { align-items: flex-start; }
+}
+.weighing-task-form select { box-sizing:border-box; width:100%; min-width:0; min-height:44px; padding:10px 12px; border:1px solid #cbd8ce; border-radius:8px; background:#fff; color:#243c2c; font:inherit; }
+.weighing-task-history .weighing-task-actions { display:flex; margin-top:10px; }

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node backend/server.js",
     "dev": "node --watch backend/server.js",
-    "test": "node --check backend/server.js && node --check backend/seed.js && node --check public/js/forms.js && node --check public/js/dashboard.js && node --check public/js/checks.js && node --test --test-concurrency=1 tests/*.test.js",
+    "seed": "node backend/seed.js",
+    "test": "node --check backend/server.js && node --check backend/record-corrections.js && node --check backend/dependency-services.js && node --check backend/batch-corrections.js && node --check backend/legacy-links.js && node --check backend/stock-safety.js && node --check backend/continuous-costing.js && node --check scripts/audit-dependencies.js && node --check scripts/repair-orphaned-stock.js && node --check backend/seed.js && node --check public/js/forms.js && node --check public/js/dashboard.js && node --check public/js/checks.js && node --test --test-concurrency=1 tests/*.test.js",
     "test:integration": "node --test --test-concurrency=1 tests/app.integration.test.js",
     "test:frontend": "node --test tests/frontend.contract.test.js"
   },

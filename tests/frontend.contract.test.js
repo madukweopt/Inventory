@@ -85,3 +85,8 @@ test('Pending Weighing navigation displays a live numbered badge',function() {
 	assert.match(navigationJs,/function refreshPendingWeighingBadge\(/);
 	assert.match(navigationJs,/pendingWeighingBadge\.textContent=String\(requests\.length\)/);
 });
+
+
+test('Unfinished production stays internal to costing and adds no operational panel or loss controls',function() {
+    assert.doesNotMatch(formsJs,/showProductionInProgress|productionLossControl|Material still in production|production-in-progress|production-loss/);
+});
