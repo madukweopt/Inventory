@@ -1,3 +1,4 @@
+const {movementPart}=require('./production-movements');
 const {lockStock,stockFloor,protectStock}=require('./stock-safety');
 function quantity(value) {
     const text=String(value??'');
@@ -19,6 +20,9 @@ module.exports=function(app,pool,requireRole) {
             const keys=['kernel_used','pko_produced','pkc_produced','sludge_produced'];
             const values=keys.map(key=>reverse?Number(batch[key]):quantity(req.body[key]));
             if(!reverse&&!values.some(value=>value>0)) throw Object.assign(new Error('Enter a positive quantity or use Reverse Batch'),{status:400});
+            if(!reverse&&keys.some((key,index)=>Number(batch[key])===0&&values[index]>0)) {
+                throw Object.assign(new Error('Correct only the material or product recorded in this entry. Record other issues or receipts separately.'),{status:400});
+            }
             const deltas=keys.map((key,index)=>reverse?-Number(batch[key]):values[index]-Number(batch[key]));
             await client.query(`UPDATE production_batches SET kernel_used=$1,pko_produced=$2,pkc_produced=$3,sludge_produced=$4,
                 scale_ticket=$5,version=version+1,voided=$6 WHERE batch_id=$7`,[...values,reverse?batch.scale_ticket:String(req.body.scale_ticket||'').trim()||null,reverse,batch.batch_id]);
@@ -28,7 +32,7 @@ module.exports=function(app,pool,requireRole) {
                 pkc_produced=pkc_produced+$3,sludge_produced=sludge_produced+$4 WHERE request_id=$5`,[...deltas,request.request_id]);
             for(const [index,part] of ['Kernel Issued','PKO Received','PKC Received','Sludge Received'].entries()) {
                 await client.query(`UPDATE stock_counts SET received=received+$1,issued=issued+$2
-                    WHERE source_type='Production' AND source_id=$3 AND source_part=$4`,[index===0?0:deltas[index],index===0?deltas[index]:0,request.request_id,part]);
+                    WHERE source_type='Production' AND source_id=$3 AND source_part=$4`,[index===0?0:deltas[index],index===0?deltas[index]:0,request.request_id,movementPart(part,batch.movement_date||request.request_date,request.request_date)]);
             }
             await protectStock(client,before);
             await client.query('COMMIT');return res.json({message:reverse?'Production entry reversed; daily totals and stock updated':'Production entry corrected; daily totals and stock updated'});

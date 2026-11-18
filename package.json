@@ -7,7 +7,7 @@
     "start": "node backend/server.js",
     "dev": "node --watch backend/server.js",
     "seed": "node backend/seed.js",
-    "test": "node --check backend/server.js && node --check backend/record-corrections.js && node --check backend/dependency-services.js && node --check backend/batch-corrections.js && node --check backend/legacy-links.js && node --check backend/stock-safety.js && node --check backend/continuous-costing.js && node --check scripts/audit-dependencies.js && node --check scripts/repair-orphaned-stock.js && node --check backend/seed.js && node --check public/js/forms.js && node --check public/js/dashboard.js && node --check public/js/checks.js && node --test --test-concurrency=1 tests/*.test.js",
+    "test": "node --check backend/server.js && node --check backend/delivery-notes.js && node --check public/js/delivery-notes.js && node --check backend/weighing-history.js && node --check backend/sops.js && node --check public/js/sops.js && node --check scripts/build-sops.js && node --check backend/record-corrections.js && node --check backend/dependency-services.js && node --check backend/batch-corrections.js && node --check backend/legacy-links.js && node --check backend/stock-safety.js && node --check backend/continuous-costing.js && node --check scripts/audit-dependencies.js && node --check scripts/repair-orphaned-stock.js && node --check backend/seed.js && node --check public/js/forms.js && node --check public/js/consumable-usage.js && node --check public/js/record-references.js && node --check public/js/workspace-references.js && node --check public/js/data-pages.js && node --check public/js/date-filters.js && node --check public/js/kernel-impurity.js && node --check public/js/dashboard.js && node --check public/js/checks.js && node --test --test-concurrency=1 tests/*.test.js",
     "test:integration": "node --test --test-concurrency=1 tests/app.integration.test.js",
     "test:frontend": "node --test tests/frontend.contract.test.js"
   },
@@ -20,8 +20,11 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "htmlparser2": "12.0.0",
     "multer": "^2.4.0",
-    "pg": "^8.22.0"
+    "pdfkit": "0.20.2",
+    "pg": "^8.22.0",
+    "sanitize-html": "2.18.2"
   },
   "devDependencies": {
     "supertest": "^7.3.2"

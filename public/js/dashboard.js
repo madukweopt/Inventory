@@ -2,8 +2,23 @@ const dateInput=document.querySelector("#dashboard-date");
 const today=document.querySelector(".today");
 const stockPanel=document.querySelector("#stock-panel");
 
+// Fit complete quantities to each grid cell, including when the viewport changes.
+const dashboardNumberObserver=new ResizeObserver(entries=>{
+    entries.forEach(({target})=>{
+        target.style.removeProperty('font-size');
+        const available=target.clientWidth;
+        if(!available)return;
+        const range=document.createRange();range.selectNodeContents(target);
+        const needed=range.getBoundingClientRect().width;
+        if(needed>available){
+            const size=parseFloat(getComputedStyle(target).fontSize);
+            target.style.setProperty('font-size',(Math.floor(size*available/needed*10)/10)+'px','important');
+        }
+    });
+});
 // Adjusts dashboard number sizing to fit long values.
 function sizeDashboardNumber(element,value) {
+    dashboardNumberObserver.observe(element);
 	const digits=Math.trunc(Math.abs(Number(value))).toString().length;
 	if(digits>=7) {
 		element.classList.add("number-small");
@@ -37,7 +52,9 @@ async function showStockLevels() {
 			stockQuantity.classList.add("stock-quantity");
 			stockUnit.classList.add("stock-unit");
 
-			stockQuantity.textContent=Number(row.remaining).toLocaleString(
+			stockCard.dataset.product=row.item.toLowerCase().replaceAll(' ','-');
+            stockQuantity.classList.toggle('negative',Number(row.remaining)<0);
+            stockQuantity.textContent=Number(row.remaining).toLocaleString(
 				"en-NG",
 				{
 					minimumFractionDigits: 2,
@@ -69,9 +86,9 @@ async function showStockLevels() {
 				stockUnit.textContent="kg";
 			}
 
-			stockQuantity.appendChild(stockUnit);
-			stockDetails.appendChild(stockName);
-			stockDetails.appendChild(stockQuantity);
+			const productIcon={'Electricity':'electricity','PKC':'sack','PKO':'oil','Sludge':'flask','Diesel':'fuel','P Kernel':'seed'}[row.item]||'cubes';
+            stockBadge.replaceChildren(AppUI.icon(productIcon));
+            stockDetails.append(stockName,stockQuantity,stockUnit);
 			stockCard.appendChild(stockBadge);
 			stockCard.appendChild(stockDetails);
 			stockGrid.appendChild(stockCard);
@@ -131,6 +148,10 @@ if(dateInput) {
 			const prodUnit=document.createElement("small");
 
 			prodCard.classList.add("stock-card");
+            prodCard.dataset.product=name.toLowerCase();
+            const badge=document.createElement('span');badge.className='stock-badge';
+            badge.appendChild(AppUI.icon(/kernel/.test(name)?'seed':/pko/.test(name)?'oil':/pkc/.test(name)?'sack':'flask'));
+            prodCard.appendChild(badge);
 			prodDetails.classList.add("stock-details");
 			prodName.classList.add("stock-name");
 			prodQuantity.classList.add("stock-quantity");
@@ -144,9 +165,7 @@ if(dateInput) {
 			prodName.textContent=name.replace("_"," ");
 			prodUnit.textContent="kg";
 
-			prodQuantity.appendChild(prodUnit);
-			prodDetails.appendChild(prodName);
-			prodDetails.appendChild(prodQuantity);
+			prodDetails.append(prodName,prodQuantity,prodUnit);
 			prodCard.appendChild(prodDetails);
 			prodGrid.appendChild(prodCard);
 		});
@@ -156,6 +175,9 @@ if(dateInput) {
 				minimumFractionDigits: 2,
 				maximumFractionDigits: 2
 			})+"%";
+        let yieldStatus=document.querySelector('#oil-yield-status');
+        if(!yieldStatus){yieldStatus=document.createElement('small');yieldStatus.id='oil-yield-status';oilYield.after(yieldStatus);}
+        yieldStatus.textContent=production.yield_status||'';
 	}
 	// Loads and displays period profit.
 	async function showPeriodProfit(period) {
@@ -228,7 +250,7 @@ if(dateInput) {
 				name.classList.add("profit-label");
 				metrics.classList.add("profit-metrics");
 
-				badge.textContent=product.name==="Sludge"? "SLG":product.name;
+				badge.appendChild(AppUI.icon(product.key==='pko'?'oil':product.key==='pkc'?'sack':'flask'));
 				name.textContent=product.name;
 				heading.append(badge,name);
 
@@ -251,6 +273,7 @@ if(dateInput) {
 					}
 					box.append(label,value);
 					metrics.appendChild(box);
+                    dashboardNumberObserver.observe(value);
 				});
 
 				card.append(heading,metrics);
@@ -272,11 +295,18 @@ if(dateInput) {
 			const payrollCost=Number(profit.payroll_cost)||0;
 			const netAmount=Number(profit.total_net_profit)||0;
 			const netMargin=totalSales!==0? (netAmount/totalSales)*100:0;
+			// Losses are shown on their own lines so they are not hidden inside the cost of products sold.
+			const lossRows=[
+				["Delivery shortfall",Number(profit.delivery_shortfall_cost)||0],
+				...Object.entries(profit.stock_loss_costs||{}).map(([reason,cost]) => ["Stock loss · "+reason,Number(cost)||0]),
+				["Production loss",Number(profit.production_loss_cost)||0]
+			].filter(row => row[1]>0).map(row => [row[0],currency.format(row[1])]);
 
 			[
 				["Total sales",currency.format(totalSales)],
 				["Total cost of products sold",currency.format(totalCost)],
 				["Gross profit",currency.format(totalGross)],
+				...lossRows,
 				["Expenses",currency.format(totalExpenses)],
 				["Employee salaries",currency.format(payrollCost)],
 				["Net profit",currency.format(netAmount),"net"],
@@ -294,12 +324,19 @@ if(dateInput) {
 				if(row[2]==="net"&&netAmount<0) line.classList.add("negative");
 				line.append(label,value);
 				summary.appendChild(line);
+                dashboardNumberObserver.observe(value);
 			});
 
-			profitList.append(cards,summary);
+			profitList.appendChild(cards);
+            let summaryPanel=document.querySelector('#profit-summary-panel');
+            if(!summaryPanel){
+                summaryPanel=document.createElement('section');summaryPanel.id='profit-summary-panel';summaryPanel.className='panel';summaryPanel.setAttribute('aria-label','Profit summary');
+                document.querySelector('#profit-panel').after(summaryPanel);
+            }
+            summaryPanel.replaceChildren(summary);
 			if(profitCaption) {
 				profitCaption.textContent=
-					period.charAt(0).toUpperCase()+period.slice(1)+(profit.costing_provisional?' · Estimated':'');
+					new Date(selectedDate+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+' · '+period.charAt(0).toUpperCase()+period.slice(1)+(profit.costing_provisional?' · Estimated':'');
 			}
 		} catch(error) {
 			console.error(error);
@@ -317,6 +354,7 @@ if(dateInput) {
 	dateInput.addEventListener("change",function() {
 		showPeriodProduction("day");
 		showPeriodSales("day");
+
 		showPeriodProfit("day");
 		dashboardChecks("day");
 		stockPanel.style.display="block";
@@ -332,6 +370,7 @@ if(dateInput) {
 	dayBtn.addEventListener("click",function() {
 		showPeriodProduction("day");
 		showPeriodSales("day");
+
 		showPeriodProfit("day");
 		dashboardChecks("day");
 		dayBtn.classList.add("active");
@@ -394,7 +433,7 @@ if(dateInput) {
 			const salesGrid=document.querySelector("#sales-grid");
 			salesGrid.innerHTML="";
 			// Processes each entry in the collection.
-			salesArray.forEach(row => {
+			salesArray.sort((a,b)=>['PKO','PKC','Sludge'].indexOf(a.product)-['PKO','PKC','Sludge'].indexOf(b.product)).forEach(row => {
 				const salesCard=document.createElement("article");
 				const salesHeader=document.createElement("header");
 				const productName=document.createElement("h3");
@@ -445,7 +484,7 @@ if(dateInput) {
 				});
 				salesRowTwo.append(avgPrice,avgPriceValue);
 
-				total.textContent="total";
+				total.textContent="Total";
 				totalValue.textContent=Number(row.total_sales).toLocaleString(
 					"en-NG",
 					{
@@ -469,18 +508,26 @@ if(dateInput) {
 						productIcon.textContent="◉";
 				}
 
-				salesDetails.append(salesRowOne,salesRowTwo,salesRowThree);
+				badge.replaceChildren(AppUI.icon(row.product==='PKO'?'oil':row.product==='PKC'?'sack':'flask'));
+                salesDetails.append(salesRowTwo,salesRowOne,salesRowThree);
 				cardBody.append(productIcon,salesDetails);
 
 				salesHeader.append(badge,productName);
 				salesCard.append(salesHeader,cardBody);
 				salesGrid.appendChild(salesCard);
+                salesCard.querySelectorAll('strong').forEach(value=>dashboardNumberObserver.observe(value));
 			});
 		} catch(error) {
 			console.log(error);
 		}
 	}
 	showPeriodSales("day");
+    const salesDateCaption=document.querySelector('#sales-caption');
+    function updateSalesDateCaption(){
+        salesDateCaption.replaceChildren(AppUI.icon('calendar'),document.createTextNode(new Date(dateInput.value+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})));
+    }
+    dateInput.addEventListener('change',updateSalesDateCaption);
+    updateSalesDateCaption();
 
 	// Loads and displays dashboard checks.
 	async function dashboardChecks(period) {
@@ -495,7 +542,7 @@ if(dateInput) {
 			if(!response.ok) {
 				const problem=await response.json();
 
-				alert(problem.err);
+				appNotify(problem.err);
 				console.log(problem.err);
 				return;
 			}
@@ -578,3 +625,11 @@ if(dateInput) {
 			encodeURIComponent(selectedDate);
 	});
 }
+
+// Decorative dashboard icons follow the same vocabulary as the stock cards.
+document.querySelectorAll('#dashboard .panel-title').forEach(title=>{
+    const name=title.closest('#stock-panel')?'cubes':title.closest('#production-panel')?'production':title.closest('#sales-panel')?'cart':'chart';
+    title.prepend(AppUI.icon(name));
+});
+document.querySelectorAll('#period-tabs .tab').forEach(button=>button.prepend(AppUI.icon('calendar')));
+document.querySelector('.datebar .today')?.prepend(AppUI.icon('calendar'));

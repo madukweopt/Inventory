@@ -6,6 +6,10 @@
         <title>Forms and Records</title>
         <link rel="stylesheet" href="/css/navigation.css" />
         <link rel="stylesheet" href="/css/app.css" />
+        <link rel="stylesheet" href="/css/theme.css" />
+        <link rel="stylesheet" href="/css/data-pages.css" />
+        <link rel="stylesheet" href="/css/record-references.css" />
+        <link rel="stylesheet" href="/css/workspace-references.css" />
     </head>
     <body>
         <nav class="main-menu">
@@ -101,9 +105,11 @@
                 </button>
 
                 <button type="button" class="submenu-button" id="weighing-tasks-button">
-                    <span class="pending-weighing-badge" hidden>0</span>
                     <span>Pending Weighing</span>
+                    <span class="pending-weighing-badge" hidden>0</span>
                 </button>
+                <button type="button" class="submenu-button" id="consumable-usage-button" hidden>Daily Usage</button>
+                <button type="button" class="submenu-button" id="sops-button">SOPs</button>
 
                 <button
                     type="button"
@@ -160,6 +166,20 @@
                         </select>
                     </div>
 
+                    <div class="field">
+                        <label for="stock-reason">Reason for change</label>
+                        <select id="stock-reason" name="stock-reason" required>
+                            <option value="" disabled selected>
+                                Select a reason
+                            </option>
+                            <option>Spill</option>
+                            <option>Disposal</option>
+                            <option>Count difference</option>
+                            <option>Return to store</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
+
                     <div class="field-row">
                         <div class="field">
                             <label for="received">
@@ -199,6 +219,19 @@
                     </div>
 
                     <button type="submit">Submit Inventory</button>
+                </form>
+            </section>
+
+            <section class="card" id="consumable-usage">
+                <h2>Daily Consumable Usage</h2>
+                <p class="form-description">Record the electricity, diesel or other consumables actually used. This reduces stock and updates the day's closing balance.</p>
+                <form id="consumable-usage-form">
+                    <div class="field"><label for="usage-date">Date used</label><input id="usage-date" type="date" required /></div>
+                    <div class="field"><label for="usage-item">Consumable</label><select id="usage-item" required><option value="" disabled selected>Select a consumable</option></select></div>
+                    <div class="field"><label for="usage-quantity">Quantity used (<span id="usage-unit">select an item</span>)</label><input id="usage-quantity" type="number" min="0.01" step="0.01" inputmode="decimal" required /></div>
+                    <p class="form-description">Record each quantity once. Purchases are received through Pending Weighing.</p>
+                    <button type="submit">Save Daily Usage</button>
+                    <a href="/forms.html#inventory-data">View daily inventory balances</a>
                 </form>
             </section>
 
@@ -317,12 +350,16 @@
                                 >Production Hours</label
                             >
                             <input
-                                type="time"
+                                type="text"
                                 id="production-hours"
                                 name="production-hours"
-                                step="60"
+                                placeholder="00:30"
+                                pattern="[0-9]{2}:[0-5][0-9]"
+                                title="Enter hours and minutes, for example 00:30 or 08:50"
+                                aria-describedby="production-hours-help"
                                 required
                             />
+                            <small id="production-hours-help">Hours:minutes — 00:30 means 30 minutes; 08:30 means 8 hours 30 minutes.</small>
                         </div>
                     </div>
 
@@ -335,12 +372,16 @@
                     <div class="field">
                         <label for="down-time">Down Time</label>
                         <input
-                            type="time"
+                            type="text"
                             id="down-time"
                             name="down-time"
-                            step="60"
+                            placeholder="00:50"
+                            pattern="[0-9]{2}:[0-5][0-9]"
+                            title="Enter hours and minutes, for example 00:00 or 00:50"
+                            aria-describedby="down-time-help"
                             required
                         />
+                        <small id="down-time-help">Hours:minutes — enter 00:00 for no downtime, or 00:50 for 50 minutes.</small>
                     </div>
 
                     <button type="submit">Authorise Production</button>
@@ -479,10 +520,19 @@
                         </div>
                     </div>
 
+                    <div class="field"><label for="sales-billing-basis">Payment weight</label><select id="sales-billing-basis" required><option value="Factory">Factory weight</option><option value="Customer">Customer’s agreed weight</option></select></div>
+                    <div class="field"><label for="sales-representative">Accompanying representative</label><select id="sales-representative" required><option value="">Loading representatives…</option></select><small>The Director can assign another approved staff member. The Manager accompanies their own deliveries.</small></div>
                     <input type="hidden" id="unit-price" name="unit-price" />
                     <small id="sales-price-message" hidden>
                         Select a sales date and product to load its price.
                     </small>
+
+                    <div class="field" id="sales-correction-field" hidden>
+                        <label for="sales-correction-price">Unit price (₦)</label>
+                        <input type="number" id="sales-correction-price" min="0.01" step="0.01" inputmode="decimal" />
+                        <label for="sales-correction-reason">Reason for correction</label>
+                        <textarea id="sales-correction-reason" name="sales-correction-reason" maxlength="300"></textarea>
+                    </div>
 
                     <button type="submit">Authorise Sale</button>
                 </form>
@@ -543,6 +593,12 @@
                     </button>
                 </div>
             </section>
+            <section class="card" id="delivery-note">
+                <div class="delivery-note-toolbar"><h1>Delivery Note</h1><a href="/forms.html#sales-data">Back to Sales</a><button type="button" id="print-delivery-note">Print / Save PDF</button></div>
+                <p id="delivery-note-message" role="status"></p>
+                <article id="delivery-note-document"></article>
+                <div id="delivery-note-controls"></div>
+            </section>
 			<section class="card sale-document-page" id="sale-document">
 				<div class="sale-document-heading">
 					<div><h1>Sale and Payments</h1><p>View the invoice, record payments and open individual receipts.</p></div>
@@ -578,6 +634,7 @@
                 </table>
                 <div
                     class="data-card-view data-record-page inventory-record-page"
+                    id="inventory-card-view"
                 >
                     <h2>INVENTORY RECORD</h2>
                     <div class="data-filters inventory-filters">
@@ -1206,8 +1263,16 @@
                 <div class="weighing-task-list"></div>
             </section>
         </main>
+        <script src="/js/ui.js"></script>
         <script src="/js/debug-tools.js"></script>
         <script src="/js/navigation.js"></script>
+        <script src="/js/kernel-impurity.js"></script>
+        <script src="/js/record-references.js"></script>
+        <script src="/js/workspace-references.js"></script>
         <script src="/js/forms.js"></script>
+        <script src="/js/consumable-usage.js"></script>
+        <script src="/js/delivery-notes.js"></script>
+        <script src="/js/data-pages.js"></script>
+        <script src="/js/date-filters.js"></script>
     </body>
 </html>

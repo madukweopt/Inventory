@@ -1,5 +1,5 @@
 /* Rebuild the application's TEST data as one linked, validated transaction.
- * CLI: node backend/seed.js --reset [--start YYYY-MM-DD --end YYYY-MM-DD]
+ * CLI: node backend/seed.js --reset --confirm-database <name> [--start YYYY-MM-DD --end YYYY-MM-DD]
  * Existing logins are preserved. A verified database dump is mandatory in CLI mode.
  */
 require('dotenv').config({quiet:true});
@@ -10,9 +10,11 @@ const fs=require('fs');
 const path=require('path');
 const {spawn}=require('child_process');
 const {calculateContinuousCosts}=require('./continuous-costing');
-const TABLES=['sale_payments','production_batches','stock_counts','weighing_requests','sales','production','purchases',
+const TABLES=['sale_corrections','delivery_note_evidence','delivery_notes','daily_consumable_checks','sop_revisions','kernel_impurity_tests','sale_payments','production_batches','stock_counts','weighing_requests','sales','production','purchases',
     'product_prices','payroll','salary_history','employment_period_changes','employees','expenses','company_details','customers','suppliers','items','session','users'];
-const DEFAULT_START='2026-06-01',DEFAULT_END='2026-11-18';
+const DEFAULT_START='2026-06-01',DEFAULT_END='2026-11-17';
+// A tiny valid PNG used for test signatures and weighing evidence.
+const SAMPLE_PNG=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a9sAAAAASUVORK5CYII=','base64');
 function datesBetween(start,end){
     const date=new Date(start+'T00:00:00Z'),last=new Date(end+'T00:00:00Z'),days=[];
     if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{4}-\d{2}-\d{2}$/.test(end)||!Number.isFinite(+date)||!Number.isFinite(+last)||date.toISOString().slice(0,10)!==start||last.toISOString().slice(0,10)!==end||date>last)throw new Error('Invalid seed date range');
@@ -26,7 +28,7 @@ const uuid=label=>{const h=crypto.createHash('sha256').update('inventory-test-se
 function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
     const days=datesBetween(start,end),data=Object.fromEntries(TABLES.map(table=>[table,[]])),next={};
     function add(table,row){
-        const idField=({users:'user_id',items:'item_id',customers:'customer_id',suppliers:'supplier_id',employees:'employee_id',salary_history:'salary_history_id',employment_period_changes:'change_id',product_prices:'price_id',payroll:'payroll_id',expenses:'expense_id',purchases:'purchase_id',production:'production_id',weighing_requests:'request_id',production_batches:'batch_id',sales:'sales_id',sale_payments:'payment_id',stock_counts:'count_id'})[table];
+        const idField=({sale_corrections:'correction_id',kernel_impurity_tests:'test_id',delivery_note_evidence:'evidence_id',users:'user_id',items:'item_id',customers:'customer_id',suppliers:'supplier_id',employees:'employee_id',salary_history:'salary_history_id',employment_period_changes:'change_id',product_prices:'price_id',payroll:'payroll_id',expenses:'expense_id',purchases:'purchase_id',production:'production_id',weighing_requests:'request_id',production_batches:'batch_id',sales:'sales_id',sale_payments:'payment_id',stock_counts:'count_id'})[table];
         if(idField&&row[idField]==null)row[idField]=(next[table]||0)+1;
         if(idField)next[table]=Math.max(next[table]||0,row[idField]);
         data[table].push(row);return row;
@@ -65,11 +67,13 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
         }
     }
     const stock=Object.fromEntries(Object.keys(items).map(name=>[name,0]));
-    let inProcess=0;
+    const signature='data:image/png;base64,'+SAMPLE_PNG.toString('base64'),evidence='\\x'+SAMPLE_PNG.toString('hex');
+    const finalDay=days[days.length-1],dayBefore=days[days.length-2],losses=[];
+    let inProcess=0,overnight=null,heldExample=false;
     function authorisation(type,day,hour,details={},status='Awaiting Storekeeper',by=actor.manager){
         const key=uuid(`${type}:${day}:${data.weighing_requests.length+1}`);
         return add('weighing_requests',{request_type:type,request_date:day,status,created_by:by,created_at:stamp(day,hour),
-            completed_by:null,completed_record_id:null,completed_at:null,legacy_linked:false,authorisation_key:type==='Production'?null:key,
+            completed_by:null,completed_record_id:null,completed_at:null,legacy_linked:false,billing_basis:'Factory',authorisation_key:type==='Production'?null:key,
             authorisation_payload:type==='Production'?null:Object.fromEntries(Object.entries({[type==='Purchase'?'purchase_date':'sales_date']:day,...details}).filter(([key])=>!['quantity','scale_ticket','vehicle_number'].includes(key)).map(([key,value])=>[key,key==='unit_price'?Number(value).toFixed(2):String(value)])),...details});
     }
     function movement(day,name,received,issued,type,source,part,time,by=actor.storekeeper){
@@ -77,32 +81,88 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
         if(stock[name]<0)throw new Error(`Seed attempted negative ${name} stock on ${day}`);
         return add('stock_counts',{count_date:day,item_id:items[name].item_id,received,issued,source_type:type,source_id:source,source_part:part,recorded_by:by,created_at:time});
     }
+    // Daily Usage entries use the same idempotent reference as the Storekeeper screen.
+    function usage(day,name,quantity,time){
+        movement(day,name,0,quantity,'Manual',null,'Use:'+crypto.createHash('sha256').update(uuid('use:'+day+':'+name)).digest('hex').slice(0,24),time);
+    }
+    // Director stock changes always carry a reason; spills and disposals are losses, not sales.
+    function adjust(day,name,quantity,reason,time){
+        movement(day,name,0,quantity,'Manual',null,null,time,actor.admin).adjustment_reason=reason;
+    }
     function buy(day,name,quantity,unitCost,dayIndex){
         const supplier=name==='P Kernel'?suppliers[dayIndex%2]:suppliers[name==='Diesel'?2:3];
-        const request=authorisation('Purchase',day,6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:unitCost},'Completed',dayIndex%4===0?actor.admin:actor.manager);
+        const kernel=name==='P Kernel';
+        // Some trucks are authorised the evening before they arrive; stock is dated on the day they are accepted.
+        const early=kernel&&dayIndex>0&&dayIndex%3===1;
+        // One delivery is held for high impurities, re-authorised at the Director's lower price and accepted two days later.
+        const held=kernel&&!heldExample&&dayIndex>=2&&day>='2026-08-01';
+        if(held){
+            heldExample=true;
+            authorisation('Purchase',days[dayIndex-2],6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:unitCost+20},'Cancelled',actor.manager);
+        }
+        const price=held?unitCost-15:unitCost;
+        const request=authorisation('Purchase',early?days[dayIndex-1]:day,early?18:6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:price},'Completed',dayIndex%4===0?actor.admin:actor.manager);
         const ticket='PUR-'+day.replaceAll('-','')+'-'+name.replaceAll(' ','');
-        const purchase=add('purchases',{purchase_date:day,item_id:items[name].item_id,quantity_supplied:quantity,unit_cost:unitCost,supplier_id:supplier.supplier_id,created_at:stamp(day,6,15)});
+        const purchase=add('purchases',{purchase_date:day,item_id:items[name].item_id,quantity_supplied:quantity,unit_cost:price,supplier_id:supplier.supplier_id,created_at:stamp(day,6,15)});
         Object.assign(request,{quantity,scale_ticket:ticket,vehicle_number:'TEST-TRUCK-'+String(dayIndex+1).padStart(3,'0'),completed_record_id:purchase.purchase_id,completed_by:actor.storekeeper,completed_at:stamp(day,6,15)});
+        if(kernel){
+            add('kernel_impurity_tests',{purchase_id:purchase.purchase_id,sample_weight_g:2000,impurity_weight_g:held?236:100+(dayIndex%7)*15,recorded_by:actor.storekeeper,created_at:stamp(day,6,10),entry_key:uuid('kernel-test:'+purchase.purchase_id+':1')});
+            if(dayIndex%2===0)add('kernel_impurity_tests',{purchase_id:purchase.purchase_id,sample_weight_g:1000,impurity_weight_g:40+(dayIndex%5)*10,recorded_by:actor.storekeeper,created_at:stamp(day,6,12),entry_key:uuid('kernel-test:'+purchase.purchase_id+':2')});
+        }
         movement(day,name,quantity,0,'Purchase',request.request_id,'Received',stamp(day,6,15));
+    }
+    function pay(sale,amount,paymentDay,paymentIndex,reversal){
+        const paymentId=(next.sale_payments||0)+1;
+        add('sale_payments',{sales_id:sale.sales_id,receipt_number:'RCT-'+paymentDay.slice(0,4)+'-'+String(paymentId).padStart(6,'0'),payment_date:paymentDay,amount,payment_method:paymentIndex?'Bank transfer':'Cash',reference_number:'TEST-PAY-'+paymentId,note:'Generated test payment',recorded_by:actor.manager,created_at:stamp(paymentDay,17,paymentIndex*10),
+            ...(reversal?{reversed_at:stamp(paymentDay,18),reversed_by:actor.admin,reversal_reason:'Entered against the wrong invoice; this customer had not paid'}:{})});
     }
     function sell(day,name,quantity,index,part=0){
         if(quantity<=0)return;
         const customer=name==='PKO'?customers[(index+part)%2]:name==='PKC'?customers[2+index%2]:customers[4];
-        const unitPrice=prices[day.slice(0,7)][name];
-        const request=authorisation('Sale',day,15,{item_id:items[name].item_id,customer_id:customer.customer_id,unit_price:unitPrice},'Completed',index%5===0?actor.admin:actor.manager);
-        const id=(next.sales||0)+1;
-        const sale=add('sales',{sales_date:day,item_id:items[name].item_id,quantity,unit_price:unitPrice,customer_id:customer.customer_id,
-            invoice_number:'INV-'+day.slice(0,4)+'-'+String(id).padStart(6,'0'),due_date:day,created_at:stamp(day,16,part*5),
+        // Some collections are authorised the evening before; the sale and invoice use the dispatch date.
+        const early=index>0&&index%4===1&&day.slice(8)!=='01';
+        const authorisedDay=early?days[index-1]:day;
+        const unitPrice=prices[authorisedDay.slice(0,7)][name];
+        // Cake Buyer B pays on its own weighbridge; the day before the last day adds a difference awaiting approval.
+        const basis=customer===customers[3]||(name==='PKC'&&day===dayBefore)?'Customer':'Factory';
+        const request=authorisation('Sale',authorisedDay,early?18:15,{item_id:items[name].item_id,customer_id:customer.customer_id,unit_price:unitPrice,billing_basis:basis,representative_id:actor.manager},'Completed',index%5===0?actor.admin:actor.manager);
+        const id=(next.sales||0)+1,dispatched=stamp(day,16,part*5);
+        // Customer-weight buyers usually weigh slightly less; differences wait for the Director's approval.
+        const buyerWeight=money(quantity*(1-(day===dayBefore&&basis==='Customer'?0.01:basis==='Customer'?[0,0.005,0.01,0.015][id%4]:[0,0,0.004][id%3])));
+        const buyerSigned=day!==finalDay,needsApproval=basis==='Customer'&&buyerWeight!==quantity;
+        const approved=buyerSigned&&needsApproval&&day!==dayBefore;
+        const invoiced=basis==='Factory'||(buyerSigned&&(!needsApproval||approved));
+        const sale=add('sales',{sales_date:day,item_id:items[name].item_id,quantity:basis==='Customer'?(invoiced?buyerWeight:0):quantity,unit_price:unitPrice,customer_id:customer.customer_id,
+            invoice_number:invoiced?'INV-'+day.slice(0,4)+'-'+String(id).padStart(6,'0'):null,due_date:day,created_at:dispatched,billing_basis:basis,factory_quantity:quantity,
             invoice_snapshot:{customer:customer.name,customer_phone:customer.phone_number,customer_email:customer.email,customer_address:customer.address,item:name,company}});
-        Object.assign(request,{quantity,scale_ticket:'SALE-'+String(id).padStart(6,'0'),vehicle_number:'TEST-BUYER-'+String(index+1).padStart(3,'0'),completed_record_id:sale.sales_id,completed_by:actor.storekeeper,completed_at:stamp(day,16,part*5)});
-        movement(day,name,0,quantity,'Sale',request.request_id,'Issued',stamp(day,16,part*5));
-        const total=money(quantity*unitPrice),mode=sale.sales_id%4;
+        Object.assign(request,{quantity,scale_ticket:'SALE-'+String(id).padStart(6,'0'),vehicle_number:'TEST-BUYER-'+String(index+1).padStart(3,'0'),completed_record_id:sale.sales_id,completed_by:actor.storekeeper,completed_at:dispatched});
+        add('delivery_notes',{sales_id:sale.sales_id,representative_id:actor.manager,driver_name:'Test Driver '+(id%6+1),driver_signature:signature,driver_signed_at:dispatched,driver_recorded_by:actor.storekeeper,
+            buyer_name:buyerSigned?customer.name+' weighbridge':null,buyer_weight:buyerSigned?buyerWeight:null,buyer_signature:buyerSigned?signature:null,
+            evidence:buyerSigned&&basis==='Customer'?evidence:null,evidence_type:buyerSigned&&basis==='Customer'?'image/png':null,evidence_name:buyerSigned&&basis==='Customer'?'buyer-scale-ticket-'+id+'.png':null,
+            confirmed_by:buyerSigned?actor.manager:null,confirmed_at:buyerSigned?stamp(day,20):null,
+            approved_by:approved?actor.admin:null,approved_at:approved?stamp(days[index+1],8):null,created_at:dispatched});
+        // The Director occasionally corrects a signed factory-weight sale's price, with the reason kept on its delivery note.
+        if(basis==='Factory'&&id%97===13&&day<dayBefore){
+            const corrected=unitPrice-10,values=price=>({sales_date:day,customer_id:customer.customer_id,item_id:items[name].item_id,factory_quantity:quantity,unit_price:price});
+            sale.unit_price=corrected;
+            add('sale_corrections',{sales_id:sale.sales_id,reason:'Director agreed a ₦10 per kg discount for a delayed collection',previous_values:values(unitPrice),new_values:values(corrected),corrected_by:actor.admin,created_at:stamp(day,18,30)});
+        }
+        if(buyerSigned&&basis==='Customer'&&id%3===0)add('delivery_note_evidence',{sales_id:sale.sales_id,content:evidence,content_type:'image/png',filename:'buyer-weighing-photo-'+id+'.png'});
+        movement(day,name,0,quantity,'Sale',request.request_id,'Issued',dispatched);
+        if(!invoiced)return;
+        const total=money(sale.quantity*sale.unit_price),mode=sale.sales_id%4;
         const payments=mode===0?[]:mode===1?[money(total*0.4)]:mode===2?[total]:[money(total*0.5),money(total-money(total*0.5))];
         payments.forEach((amount,paymentIndex)=>{
             const paid=new Date(day+'T00:00:00Z');paid.setUTCDate(paid.getUTCDate()+paymentIndex+1);const paymentDay=paid.toISOString().slice(0,10)>end?end:paid.toISOString().slice(0,10);
-            const paymentId=(next.sale_payments||0)+1;
-            add('sale_payments',{sales_id:sale.sales_id,receipt_number:'RCT-'+day.slice(0,4)+'-'+String(paymentId).padStart(6,'0'),payment_date:paymentDay,amount,payment_method:paymentIndex?'Bank transfer':'Cash',reference_number:'TEST-PAY-'+paymentId,note:'Generated test payment',recorded_by:actor.manager,created_at:stamp(paymentDay,17,paymentIndex*10)});
+            // A wrongly entered payment is reversed by the Director before the real payment is recorded.
+            if(paymentIndex===0&&sale.sales_id%37===5)pay(sale,total,paymentDay,0,true);
+            pay(sale,amount,paymentDay,paymentIndex,false);
         });
+    }
+    // Production entries are dated when kernels are issued or products are received.
+    function entry(request,requestDay,movementDay,hour,minute,values,label,version=1,voided=false){
+        return add('production_batches',{request_id:request.request_id,submission_key:uuid('entry:'+requestDay+':'+label),kernel_used:0,pko_produced:0,pkc_produced:0,sludge_produced:0,...values,
+            scale_ticket:'PRO-'+requestDay.replaceAll('-','')+'-'+label,recorded_by:actor.storekeeper,created_at:stamp(movementDay,hour,minute),movement_date:movementDay,version,voided,legacy_batch:false});
     }
     days.forEach((day,index)=>{
         const kernel=3200+(index%11)*200;
@@ -110,45 +170,73 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
         if(stock['P Kernel']<kernel+5000)buy(day,'P Kernel',24000,350+monthIndex*8,index);
         if(stock.Diesel<150)buy(day,'Diesel',800,1150+monthIndex*20,index);
         if(stock.Electricity<400)buy(day,'Electricity',4000,80+monthIndex*2,index);
-        const diesel=money(kernel*0.015),electricity=money(kernel*0.04);
-        movement(day,'Diesel',0,diesel,'Manual',null,null,stamp(day,7,15),actor.admin);
-        movement(day,'Electricity',0,electricity,'Manual',null,null,stamp(day,7,20),actor.admin);
-        const request=authorisation('Production',day,7,{production_hours:'10:00',down_time:index%9===0?'00:30':'00:00'},day===end?'Awaiting Storekeeper':'Completed',index%4===0?actor.admin:actor.manager);
-        const carry=day===end?200:index%13===7?100:0;
-        const completed=kernel+inProcess-carry;
-        const quantities={pko:money(completed*0.4),pkc:money(completed*0.58),sludge:0};quantities.sludge=money(completed-quantities.pko-quantities.pkc);
-        const production=add('production',{production_date:day,kernel_used:kernel,pko_produced:quantities.pko,pkc_produced:quantities.pkc,sludge_produced:quantities.sludge,production_hours:'10:00',down_time:request.down_time,process_loss:0,created_at:stamp(day,8)});
-        const entry=(hour,minute,values,label,version=1,voided=false)=>add('production_batches',{request_id:request.request_id,submission_key:uuid('entry:'+day+':'+label),kernel_used:0,pko_produced:0,pkc_produced:0,sludge_produced:0,...values,scale_ticket:'PRO-'+day.replaceAll('-','')+'-'+label,recorded_by:actor.storekeeper,created_at:stamp(day,hour,minute),version,voided,legacy_batch:false});
-        entry(8,0,{kernel_used:kernel/2},'K1');
-        entry(9,0,{pko_produced:quantities.pko/2},'O1',index===10?2:1);
-        entry(10,0,{kernel_used:kernel/2},'K2');
-        entry(11,0,{pkc_produced:quantities.pkc/2},'C1');
-        entry(13,0,{pko_produced:quantities.pko/2},'O2');
-        entry(14,0,{sludge_produced:quantities.sludge},'S1');
-        const last=entry(15,0,{pkc_produced:quantities.pkc/2},'C2');
-        if(index===10)entry(9,15,{pko_produced:5},'VOID',2,true);
-        Object.assign(request,{kernel_used:kernel,pko_produced:quantities.pko,pkc_produced:quantities.pkc,sludge_produced:quantities.sludge,scale_ticket:last.scale_ticket,completed_record_id:production.production_id,completed_by:actor.storekeeper,completed_at:day===end?null:stamp(day,17,30)});
+        // Yesterday's production that stayed open overnight is weighed this morning and then finished.
+        if(overnight){
+            const o=overnight;
+            entry(o.request,o.day,day,7,30,{pko_produced:o.pko},'O2');
+            entry(o.request,o.day,day,7,40,{sludge_produced:o.sludge},'S1');
+            const last=entry(o.request,o.day,day,7,50,{pkc_produced:o.pkc},'C2');
+            movement(day,'PKO',o.pko,0,'Production',o.request.request_id,'PKO Received@'+day,stamp(day,7,30));
+            movement(day,'Sludge',o.sludge,0,'Production',o.request.request_id,'Sludge Received@'+day,stamp(day,7,40));
+            movement(day,'PKC',o.pkc,0,'Production',o.request.request_id,'PKC Received@'+day,stamp(day,7,50));
+            Object.assign(o.request,{scale_ticket:last.scale_ticket,completed_at:stamp(day,8,30)});
+            losses.push({date:day,quantity:o.loss});inProcess=money(inProcess-o.pko-o.sludge-o.pkc-o.loss);overnight=null;
+        }
+        // Finish Day is selected only when all material is processed, so the remaining kernel is production loss.
+        const open=day===finalDay,holdsOver=!open&&index%13===7&&index<days.length-2;
+        const request=authorisation('Production',day,7,{production_hours:'10:00',down_time:index%9===0?'00:30':'00:00'},open?'Awaiting Storekeeper':'Completed',index%4===0?actor.admin:actor.manager);
+        const recovered=open?kernel-200:money(kernel*(1-[0.01,0.015,0.02][index%3]));
+        const pko=money(recovered*0.4),sludge=money(recovered*0.02),pkc=money(recovered-pko-sludge),loss=open?0:money(kernel-pko-pkc-sludge);
+        const production=add('production',{production_date:day,kernel_used:kernel,pko_produced:pko,pkc_produced:pkc,sludge_produced:sludge,production_hours:'10:00',down_time:request.down_time,process_loss:loss,created_at:stamp(day,8)});
+        const firstPko=money(pko/2),firstPkc=money(pkc/2);
+        entry(request,day,day,8,0,{kernel_used:kernel/2},'K1');
+        entry(request,day,day,9,0,{pko_produced:firstPko},'O1',index===10?2:1);
+        entry(request,day,day,10,0,{kernel_used:kernel/2},'K2');
+        let last=entry(request,day,day,11,0,{pkc_produced:firstPkc},'C1');
+        if(index===10)entry(request,day,day,9,15,{pko_produced:5},'VOID',2,true);
         movement(day,'P Kernel',0,kernel,'Production',request.request_id,'Kernel Issued',stamp(day,8));
-        movement(day,'PKO',quantities.pko,0,'Production',request.request_id,'PKO Received',stamp(day,9));
-        movement(day,'PKC',quantities.pkc,0,'Production',request.request_id,'PKC Received',stamp(day,11));
-        movement(day,'Sludge',quantities.sludge,0,'Production',request.request_id,'Sludge Received',stamp(day,14));
-        inProcess=carry;
+        inProcess=money(inProcess+kernel);
+        if(holdsOver) {
+            // Oil still settling and filtering at closing time is weighed tomorrow under today's production.
+            movement(day,'PKO',firstPko,0,'Production',request.request_id,'PKO Received',stamp(day,9));
+            movement(day,'PKC',firstPkc,0,'Production',request.request_id,'PKC Received',stamp(day,11));
+            inProcess=money(inProcess-firstPko-firstPkc);
+            overnight={request,day,pko:money(pko-firstPko),pkc:money(pkc-firstPkc),sludge,loss};
+        } else {
+            entry(request,day,day,13,0,{pko_produced:money(pko-firstPko)},'O2');
+            entry(request,day,day,14,0,{sludge_produced:sludge},'S1');
+            last=entry(request,day,day,15,0,{pkc_produced:money(pkc-firstPkc)},'C2');
+            movement(day,'PKO',pko,0,'Production',request.request_id,'PKO Received',stamp(day,9));
+            movement(day,'PKC',pkc,0,'Production',request.request_id,'PKC Received',stamp(day,11));
+            movement(day,'Sludge',sludge,0,'Production',request.request_id,'Sludge Received',stamp(day,14));
+            inProcess=money(inProcess-pko-pkc-sludge-loss);
+            if(!open)losses.push({date:day,quantity:loss});
+        }
+        Object.assign(request,{kernel_used:kernel,pko_produced:pko,pkc_produced:pkc,sludge_produced:sludge,scale_ticket:last.scale_ticket,completed_record_id:production.production_id,completed_by:actor.storekeeper,completed_at:open||holdsOver?null:stamp(day,17,30)});
+        // Daily Usage: electricity is used every day; diesel is used except on days confirmed as none used.
+        usage(day,'Electricity',money(kernel*0.04),stamp(day,18,0));
+        if(index%5===0)add('daily_consumable_checks',{check_date:day,item_id:items.Diesel.item_id,recorded_by:actor.storekeeper,created_at:stamp(day,18,5)});
+        else usage(day,'Diesel',money(kernel*0.015),stamp(day,18,5));
         for(const name of ['PKO','PKC','Sludge']){
             const reserve=name==='PKO'?500:name==='PKC'?800:20;
             const amount=money(Math.max(0,stock[name]-reserve));
             if(name==='PKO'&&index%3===0){const first=money(amount/2);sell(day,name,first,index,0);sell(day,name,money(amount-first),index,1);}
             else sell(day,name,amount,index);
         }
+        if(index%20===12)adjust(day,'PKO',12,'Spill',stamp(day,17,10));
+        if(index%30===17)adjust(day,'Sludge',5,'Disposal',stamp(day,17,15));
+        if(index%28===21)adjust(day,'PKC',8,'Count difference',stamp(day,17,20));
         add('expenses',{expense_date:day,category:'Expenses',description:['Test factory transport','Test routine maintenance','Test cleaning and supplies'][index%3],amount_spent:5000+(index%7)*1000,created_at:stamp(day,17,40)});
+        if(day.slice(8)==='15')add('expenses',{expense_date:day,category:'Asset/Capital Expenditure',description:'Test expeller spare parts',amount_spent:250000,created_at:stamp(day,17,45)});
         if(index%30===0){
             authorisation('Purchase',day,19,{item_id:items['P Kernel'].item_id,supplier_id:suppliers[0].supplier_id,unit_cost:350+monthIndex*8},'Cancelled',actor.manager);
-            authorisation('Sale',day,19,{item_id:items.PKO.item_id,customer_id:customers[0].customer_id,unit_price:prices[day.slice(0,7)].PKO},'Cancelled',actor.admin);
+            authorisation('Sale',day,19,{item_id:items.PKO.item_id,customer_id:customers[0].customer_id,unit_price:prices[day.slice(0,7)].PKO,billing_basis:'Factory',representative_id:actor.manager},'Cancelled',actor.admin);
         }
     });
     // Pending work has no business record or physical movement until it is weighed.
     for(const [i,day] of [...new Set([days[Math.max(0,days.length-4)],end])].entries()){
         authorisation('Purchase',day,18,{item_id:items['P Kernel'].item_id,supplier_id:suppliers[i%2].supplier_id,unit_cost:390},'Awaiting Storekeeper',i?actor.admin:actor.manager);
-        authorisation('Sale',day,18,{item_id:items.PKO.item_id,customer_id:customers[i].customer_id,unit_price:prices[day.slice(0,7)].PKO},'Awaiting Storekeeper',i?actor.manager:actor.admin);
+        authorisation('Sale',day,18,{item_id:items.PKO.item_id,customer_id:customers[i].customer_id,unit_price:prices[day.slice(0,7)].PKO,billing_basis:'Factory',representative_id:actor.manager},'Awaiting Storekeeper',i?actor.manager:actor.admin);
     }
     // Backdated pending examples are inserted in their actual authorisation order.
     const ordered=[...data.weighing_requests].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.request_id-b.request_id);
@@ -156,14 +244,15 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
     for(const row of data.production_batches)row.request_id=requestIds.get(row.request_id);
     for(const row of data.stock_counts)if(row.source_id!=null)row.source_id=requestIds.get(row.source_id);
     ordered.forEach((row,index)=>row.request_id=index+1);data.weighing_requests=ordered;
+    const itemFor=id=>items[Object.keys(items).find(name=>items[name].item_id===id)];
     const costs=calculateContinuousCosts({
-        purchases:data.purchases.map(row=>({...items[Object.keys(items).find(name=>items[name].item_id===row.item_id)],date:row.purchase_date,quantity:row.quantity_supplied,value:row.quantity_supplied*row.unit_cost,created_at:row.created_at})),
-        issues:data.stock_counts.filter(row=>row.issued>0&&['P Kernel','Diesel','Electricity'].some(name=>items[name].item_id===row.item_id)).map(row=>({...items[Object.keys(items).find(name=>items[name].item_id===row.item_id)],date:row.count_date,quantity:row.issued,created_at:row.created_at})),
-        production:data.production_batches.filter(row=>!row.voided).map(row=>({...row,date:data.weighing_requests.find(w=>w.request_id===row.request_id).request_date})),
-        productStock:data.stock_counts.filter(row=>['PKO','PKC','Sludge'].some(name=>items[name].item_id===row.item_id)).map(row=>({...row,...items[Object.keys(items).find(name=>items[name].item_id===row.item_id)],date:row.count_date})),
-        productItems:[items.PKO,items.PKC,items.Sludge]
+        purchases:data.purchases.map(row=>({...itemFor(row.item_id),date:row.purchase_date,quantity:row.quantity_supplied,value:row.quantity_supplied*row.unit_cost,created_at:row.created_at})),
+        issues:data.stock_counts.filter(row=>row.issued>0&&['P Kernel','Diesel','Electricity'].some(name=>items[name].item_id===row.item_id)).map(row=>({...itemFor(row.item_id),date:row.count_date,quantity:row.issued,created_at:row.created_at})),
+        production:data.production_batches.filter(row=>!row.voided).map(row=>({...row,date:row.movement_date})),
+        productStock:data.stock_counts.filter(row=>['PKO','PKC','Sludge'].some(name=>items[name].item_id===row.item_id)).map(row=>({...row,...itemFor(row.item_id),date:row.count_date})),
+        productItems:[items.PKO,items.PKC,items.Sludge],losses
     });
-    if(Math.abs(costs.work_in_progress.quantity-200)>0.01||costs.work_in_progress.unmatched_output_quantity||costs.work_in_progress.unpriced_materials)throw new Error('Seed production/cost plan does not reconcile');
+    if(Math.abs(costs.work_in_progress.quantity-200)>0.01||Math.abs(inProcess-200)>0.01||costs.work_in_progress.unmatched_output_quantity||costs.work_in_progress.unpriced_materials)throw new Error('Seed production/cost plan does not reconcile');
     return {data,days,months,actors:actor,ending_stock:stock,costs};
 }
 async function insertRows(client,table,rows){
@@ -187,13 +276,24 @@ async function validateSeed(client,start,end){
         production_totals:`SELECT COUNT(*)::int AS n FROM production p JOIN weighing_requests w ON w.request_type='Production' AND w.completed_record_id=p.production_id JOIN
             (SELECT request_id,SUM(kernel_used) AS kernel,SUM(pko_produced) AS pko,SUM(pkc_produced) AS pkc,SUM(sludge_produced) AS sludge FROM production_batches WHERE NOT voided GROUP BY request_id)b ON b.request_id=w.request_id
             WHERE p.kernel_used<>b.kernel OR p.pko_produced<>b.pko OR p.pkc_produced<>b.pkc OR p.sludge_produced<>b.sludge OR w.kernel_used<>b.kernel OR w.pko_produced<>b.pko OR w.pkc_produced<>b.pkc OR w.sludge_produced<>b.sludge`,
-        receipt_invoice_errors:`SELECT COUNT(*)::int AS n FROM sales s LEFT JOIN (SELECT sales_id,SUM(amount) AS paid FROM sale_payments GROUP BY sales_id)p ON p.sales_id=s.sales_id WHERE invoice_number IS NULL OR invoice_snapshot IS NULL OR COALESCE(p.paid,0)>quantity*unit_price`,
+        receipt_invoice_errors:`SELECT COUNT(*)::int AS n FROM sales s LEFT JOIN (SELECT sales_id,SUM(amount) FILTER (WHERE reversed_at IS NULL) AS paid,COUNT(*) AS receipts FROM sale_payments GROUP BY sales_id)p ON p.sales_id=s.sales_id
+            WHERE (invoice_number IS NULL AND (billing_basis<>'Customer' OR COALESCE(p.receipts,0)>0)) OR invoice_snapshot IS NULL OR COALESCE(p.paid,0)>quantity*unit_price`,
+        delivery_notes:`SELECT COUNT(*)::int AS n FROM sales s LEFT JOIN delivery_notes d ON d.sales_id=s.sales_id WHERE d.sales_id IS NULL OR d.driver_signature IS NULL
+            OR (s.billing_basis='Customer' AND s.invoice_number IS NOT NULL AND s.quantity<>d.buyer_weight) OR COALESCE(s.factory_quantity,-1)<0`,
+        production_loss:`SELECT COUNT(*)::int AS n FROM production p JOIN weighing_requests w ON w.request_type='Production' AND w.completed_record_id=p.production_id
+            WHERE p.process_loss<>CASE WHEN w.status='Completed' THEN GREATEST(ROUND(p.kernel_used-p.pko_produced-p.pkc_produced-p.sludge_produced,2),0) ELSE 0 END`,
+        unlabelled_stock_changes:`SELECT COUNT(*)::int AS n FROM stock_counts WHERE source_type='Manual' AND COALESCE(source_part,'') NOT LIKE 'Use:%' AND adjustment_reason IS NULL`,
+        misplaced_kernel_tests:`SELECT COUNT(*)::int AS n FROM kernel_impurity_tests t JOIN purchases p ON p.purchase_id=t.purchase_id JOIN items i ON i.item_id=p.item_id WHERE LOWER(i.name)<>'p kernel'`,
         payment_receipts:`SELECT COUNT(*)::int AS n FROM sale_payments WHERE receipt_number IS NULL`,
         missing_stock_movements:`SELECT COUNT(*)::int AS n FROM weighing_requests w WHERE w.status='Completed' AND (
-            (w.request_type='Purchase' AND NOT EXISTS(SELECT 1 FROM stock_counts sc WHERE sc.source_type='Purchase' AND sc.source_id=w.request_id AND sc.received=w.quantity AND sc.issued=0 AND sc.item_id=w.item_id AND sc.count_date=w.request_date)) OR
-            (w.request_type='Sale' AND NOT EXISTS(SELECT 1 FROM stock_counts sc WHERE sc.source_type='Sale' AND sc.source_id=w.request_id AND sc.issued=w.quantity AND sc.received=0 AND sc.item_id=w.item_id AND sc.count_date=w.request_date)))`,
+            (w.request_type='Purchase' AND NOT EXISTS(SELECT 1 FROM stock_counts sc JOIN purchases p ON p.purchase_id=w.completed_record_id WHERE sc.source_type='Purchase' AND sc.source_id=w.request_id
+                AND sc.received=w.quantity AND sc.issued=0 AND sc.item_id=w.item_id AND sc.count_date=p.purchase_date AND p.purchase_date>=w.request_date)) OR
+            (w.request_type='Sale' AND NOT EXISTS(SELECT 1 FROM stock_counts sc JOIN sales s ON s.sales_id=w.completed_record_id WHERE sc.source_type='Sale' AND sc.source_id=w.request_id
+                AND sc.issued=w.quantity AND sc.received=0 AND sc.item_id=w.item_id AND sc.count_date=s.sales_date AND s.sales_date>=w.request_date)))`,
         invalid_production_entries:`SELECT COUNT(*)::int AS n FROM production_batches WHERE NOT voided AND NOT((kernel_used>0 AND pko_produced+pkc_produced+sludge_produced=0) OR (kernel_used=0 AND (CASE WHEN pko_produced>0 THEN 1 ELSE 0 END+CASE WHEN pkc_produced>0 THEN 1 ELSE 0 END+CASE WHEN sludge_produced>0 THEN 1 ELSE 0 END)=1))`,
-        missing_prices:`SELECT COUNT(*)::int AS n FROM sales s WHERE s.unit_price IS DISTINCT FROM(SELECT p.unit_price FROM product_prices p WHERE p.item_id=s.item_id AND p.effective_date<=s.sales_date ORDER BY p.effective_date DESC,p.price_id DESC LIMIT 1)`,
+        missing_prices:`SELECT COUNT(*)::int AS n FROM sales s JOIN weighing_requests w ON w.request_type='Sale' AND w.completed_record_id=s.sales_id
+            WHERE s.unit_price IS DISTINCT FROM(SELECT p.unit_price FROM product_prices p WHERE p.item_id=s.item_id AND p.effective_date<=w.request_date ORDER BY p.effective_date DESC,p.price_id DESC LIMIT 1)
+            AND NOT EXISTS(SELECT 1 FROM sale_corrections c WHERE c.sales_id=s.sales_id)`,
         unexpected_manual_receipts:`SELECT COUNT(*)::int AS n FROM stock_counts WHERE source_type='Manual' AND received>0`
     };
     for(const [name,sql] of Object.entries(checks)){const n=(await client.query(sql)).rows[0].n;if(n)failures.push(name+': '+n);}
@@ -218,8 +318,8 @@ async function seedDatabase(pool,{start=DEFAULT_START,end=DEFAULT_END,reset=fals
             users.push({user_id,username,password_hash:await argon2.hash(password),role});credentials.push({username,password,role});
         }
         const plan=buildPlan({start,end,users});
-        await client.query('TRUNCATE TABLE '+TABLES.map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
-        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses'])await insertRows(client,table,plan.data[table]);
+        await client.query('TRUNCATE TABLE '+TABLES.filter(table=>table!=='sop_revisions').map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
+        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','product_prices','weighing_requests','purchases','kernel_impurity_tests','production','production_batches','sales','delivery_notes','delivery_note_evidence','sale_corrections','sale_payments','stock_counts','daily_consumable_checks','expenses'])await insertRows(client,table,plan.data[table]);
         for(const month of plan.months){
             const lastDay=new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).toISOString().slice(0,10);
             const paid=lastDay<=end;
@@ -263,7 +363,14 @@ async function backupApplicationData(pool,destination){
 }
 function readApplicationBackup(filename){
     const {checksum,payload}=JSON.parse(fs.readFileSync(filename,'utf8'));
-    if(!payload||payload.format!=='inventory-app-data-v1'||crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')!==checksum||TABLES.some(table=>!Array.isArray(payload.tables?.[table])))throw new Error('Application backup failed integrity verification');
+    if(!payload||payload.format!=='inventory-app-data-v1'||crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')!==checksum||TABLES.some(table=>!(['kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections'].includes(table)&&payload.tables?.[table]===undefined)&&!Array.isArray(payload.tables?.[table])))throw new Error('Application backup failed integrity verification');
+    // Backups made before sample tests existed contain no quality tests.
+    payload.tables.kernel_impurity_tests??=[];
+    payload.tables.sop_revisions??=[];
+    payload.tables.daily_consumable_checks??=[];
+    payload.tables.delivery_notes??=[];
+    payload.tables.delivery_note_evidence??=[];
+    payload.tables.sale_corrections??=[];
     return payload;
 }
 async function restoreApplicationData(pool,filename){
@@ -272,7 +379,7 @@ async function restoreApplicationData(pool,filename){
     try{
         await client.query('BEGIN');await client.query("SET LOCAL idle_in_transaction_session_timeout='60s'");await client.query('SELECT pg_advisory_xact_lock(91001)');await client.query('SELECT pg_advisory_xact_lock(91002)');
         await client.query('TRUNCATE TABLE '+TABLES.map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
-        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','session']){
+        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','session']){
             const rows=payload.tables[table];
             if(rows.length)await client.query(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_recordset(NULL::"${table}",$1::jsonb)`,['['+rows.join(',')+']']);
         }
@@ -301,10 +408,14 @@ async function runDump(databaseUrl,destination){
     });
 }
 async function main(){
-    if(!process.argv.includes('--reset')){console.log('No data changed. Use node backend/seed.js --reset to rebuild TEST data for 2026-06-01 through 2026-11-18. Existing login accounts are preserved.');return;}
+    if(!process.argv.includes('--reset')){console.log('No data changed. Use node backend/seed.js --reset --confirm-database <database name> to rebuild TEST data for 2026-06-01 through 2026-11-17. Existing login accounts are preserved.');return;}
     const option=(name,fallback)=>{const i=process.argv.indexOf(name);return i<0?fallback:process.argv[i+1];};
     const start=option('--start',DEFAULT_START),end=option('--end',DEFAULT_END);datesBetween(start,end);
     const databaseUrl=process.env.DATABASE_URL;if(!databaseUrl)throw new Error('DATABASE_URL is required');
+    // The reset erases business records, so the operator must name the target database and it must not be marked production.
+    const databaseName=decodeURIComponent(new URL(databaseUrl).pathname.slice(1));
+    if(process.env.NODE_ENV==='production')throw new Error('No data changed. The reset cannot run when NODE_ENV is production.');
+    if(option('--confirm-database',null)!==databaseName)throw new Error('No data changed. This reset erases all business records in database "'+databaseName+'". Repeat the command with --confirm-database '+databaseName+' only if it holds test data.');
     const folder=path.resolve(__dirname,'../../inventory-safety-backups','before-test-seed-'+new Date().toISOString().replace(/[:.]/g,'-'));
     fs.mkdirSync(folder,{recursive:true,mode:0o700});
     let backup=path.join(folder,'database.dump');

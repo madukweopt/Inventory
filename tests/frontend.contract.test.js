@@ -64,8 +64,8 @@ test('Manager authorises work while Storekeeper owns every physical quantity',fu
 	}
 	assert.equal((formsHtml.match(/manager-authorisation-card/g)||[]).length,3);
 	assert.doesNotMatch(formsJs,/textContent='Submit Sale'/);
-	assert.match(formsHtml,/type="time"[\s\S]*?id="production-hours"/);
-	assert.match(formsHtml,/type="time"[\s\S]*?id="down-time"/);
+	assert.match(formsHtml,/type="text"\s+id="production-hours"/);
+	assert.match(formsHtml,/type="text"\s+id="down-time"/);
 });
 
 test('mobile navigation uses seventy percent width and closes from its shadow',function() {
@@ -83,7 +83,7 @@ test('Storekeeper has no empty Forms menu and report cards hide unused Details a
 test('Pending Weighing navigation displays a live numbered badge',function() {
 	assert.match(formsHtml,/class="pending-weighing-badge" hidden>0/);
 	assert.match(navigationJs,/function refreshPendingWeighingBadge\(/);
-	assert.match(navigationJs,/pendingWeighingBadge\.textContent=String\(requests\.length\)/);
+	assert.match(navigationJs,/pendingWeighingBadge\.textContent=String\(count\)/);
 });
 
 

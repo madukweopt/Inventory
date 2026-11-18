@@ -35,3 +35,14 @@ test('Output with missing input records is flagged instead of creating negative 
  const result=run({purchases:[purchase('2026-01-01',100,300)],issues:[issue('2026-01-01',100)],productStock:receive('2026-01-01',50,100,0)});
  assert.equal(result.work_in_progress.quantity,0);assert.equal(result.work_in_progress.unmatched_output_quantity,50);assert.equal(result.work_in_progress.status,'Review required');
 });
+test('Products weighed on different days share one production authorisation cost by the product shares',()=>{
+ const authorised=(date,pko,pkc,sludge)=>receive(date,pko,pkc,sludge).map(row=>({...row,source_id:7}));
+ const result=run({purchases:[purchase('2026-01-01',1000,300)],issues:[issue('2026-01-01',1000)],
+ productStock:[...authorised('2026-01-01',0,550,0),...authorised('2026-01-02',380,0,20)]});
+ const [monday,tuesday]=result.production_costs;
+ const total=monday.completed_production_cost+tuesday.completed_production_cost;
+ assert.ok(Math.abs(total-285000)<0.001);
+ assert.ok(Math.abs(monday.pkc_production_cost-total*0.25)<0.001);
+ assert.ok(Math.abs(tuesday.pko_production_cost-total*0.73)<0.001);
+ assert.ok(Math.abs(tuesday.sludge_production_cost-total*0.02)<0.001);
+});

@@ -23,15 +23,15 @@ const checks={
     sale_stock_mismatch:`SELECT wr.request_id,s.sales_id FROM weighing_requests wr JOIN sales s ON s.sales_id=wr.completed_record_id
         LEFT JOIN stock_counts sc ON sc.source_type='Sale' AND sc.source_id=wr.request_id AND sc.source_part='Issued'
         WHERE wr.request_type='Sale' AND wr.status='Completed' AND
-        (sc.count_id IS NULL OR sc.issued<>s.quantity OR sc.received<>0 OR sc.item_id<>s.item_id OR sc.count_date<>s.sales_date
-         OR wr.quantity IS DISTINCT FROM s.quantity OR wr.item_id IS DISTINCT FROM s.item_id OR wr.request_date<>s.sales_date
+        (sc.count_id IS NULL OR sc.issued<>COALESCE(s.factory_quantity,s.quantity) OR sc.received<>0 OR sc.item_id<>s.item_id OR sc.count_date<>s.sales_date
+         OR wr.quantity IS DISTINCT FROM COALESCE(s.factory_quantity,s.quantity) OR wr.item_id IS DISTINCT FROM s.item_id OR wr.request_date<>s.sales_date
          OR wr.unit_price IS DISTINCT FROM s.unit_price OR wr.customer_id IS DISTINCT FROM s.customer_id)`,
     production_batch_mismatch:`SELECT wr.request_id,p.production_id FROM weighing_requests wr JOIN production p ON p.production_id=wr.completed_record_id
         JOIN (SELECT request_id,SUM(kernel_used) AS kernel,SUM(pko_produced) AS pko,SUM(pkc_produced) AS pkc,SUM(sludge_produced) AS sludge
             FROM production_batches WHERE NOT voided GROUP BY request_id) b ON b.request_id=wr.request_id
         WHERE wr.request_type='Production' AND wr.status<>'Cancelled' AND
         (p.kernel_used<>b.kernel OR p.pko_produced<>b.pko OR p.pkc_produced<>b.pkc OR p.sludge_produced<>b.sludge OR wr.request_date<>p.production_date)`,
-    overpaid_sales:`SELECT s.sales_id FROM sales s JOIN sale_payments p ON p.sales_id=s.sales_id GROUP BY s.sales_id HAVING SUM(p.amount)>s.quantity*s.unit_price`,
+    overpaid_sales:`SELECT s.sales_id FROM sales s JOIN sale_payments p ON p.sales_id=s.sales_id AND p.reversed_at IS NULL GROUP BY s.sales_id HAVING SUM(p.amount)>s.quantity*s.unit_price`,
     unlinked_business_records:`SELECT 'Purchase' AS type,p.purchase_id AS id FROM purchases p WHERE NOT EXISTS(SELECT 1 FROM weighing_requests wr WHERE wr.request_type='Purchase' AND wr.completed_record_id=p.purchase_id)
         UNION ALL SELECT 'Sale',s.sales_id FROM sales s WHERE NOT EXISTS(SELECT 1 FROM weighing_requests wr WHERE wr.request_type='Sale' AND wr.completed_record_id=s.sales_id)
         UNION ALL SELECT 'Production',p.production_id FROM production p WHERE NOT EXISTS(SELECT 1 FROM weighing_requests wr WHERE wr.request_type='Production' AND wr.completed_record_id=p.production_id)`

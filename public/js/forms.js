@@ -17,6 +17,7 @@ const stockDate=document.querySelector("#stock-date");
 const stockName=document.querySelector("#stock-name");
 const received=document.querySelector("#received");
 const issued=document.querySelector("#issued");
+const stockReason=document.querySelector("#stock-reason");
 const productionDate=document.querySelector("#production-date");
 const kernelUsed=document.querySelector("#kernel-used");
 const oilProduced=document.querySelector("#oil-produced");
@@ -81,6 +82,7 @@ function applyFormPermissions(user) {
 	};
 
 	hideCard('#inventory-form',role!=='admin');
+    hideCard('#consumable-usage-form',!['admin','storekeeper'].includes(role));
 	hideCard('#inventory-data',role==='manager');
 	hideCard('#purchases-form',role==='storekeeper');
 	hideCard('#sales-form',role==='storekeeper');
@@ -114,6 +116,10 @@ async function displaySelectedForm() {
 	const formId=window.location.hash;
 	const isEditMode=new URLSearchParams(window.location.search).get('mode')==='edit';
 	if(formId==='#sales-form'&&!isEditMode) {
+        document.getElementById('sales-billing-basis').disabled=false;
+        document.getElementById('sales-representative').closest('.field').hidden=false;
+        document.getElementById('sales-representative').disabled=false;
+        document.querySelector('label[for="sales-quantity"]').textContent='Quantity Issued (kg)';
 		salesForm.reset();
 		sessionStorage.removeItem('editRecord');
 		sessionStorage.removeItem('editKind');
@@ -149,6 +155,8 @@ async function displaySelectedForm() {
 		loadExpensesData();
 	} else if(formId==="#payroll") {
 		openPayrollPage();
+	} else if(formId==="#delivery-note") {
+        if(window.loadDeliveryNote)window.loadDeliveryNote();
 	} else if(formId==="#sale-document") {
 		loadSaleDocument();
 	} else if(formId==="#prices") {
@@ -309,6 +317,7 @@ async function loadPrices() {
 				historyButton.textContent=list.hidden?'View Price History':'Hide Price History';
 			});
 			card.append(heading,historyButton,list);
+            if(window.styleReferencePrice)window.styleReferencePrice(card,product);
 			priceCards.appendChild(card);
 		});
 		if(products.length===0) priceCards.textContent='No saleable products were found.';
@@ -423,7 +432,7 @@ async function loadCustomersDropdown() {
 		const select=document.querySelector('#customer');
 		const response=await fetch('/api/customers');
 		if(!response.ok) {
-			alert('Could not load sales');
+			appNotify('Could not load sales');
 		}
 		const result=await response.json();
 		// Processes each entry in the collection.
@@ -446,7 +455,7 @@ async function loadSuppliersDropdown() {
 	try {
 		const response=await fetch("/api/suppliers");
 		if(!response.ok) {
-			alert("Could not load suppliers");
+			appNotify("Could not load suppliers");
 			return;
 		}
 		const result=await response.json();
@@ -468,7 +477,7 @@ async function loadEmployees() {
 	try {
 		const response=await fetch('/api/employees');
 		if(!response.ok) {
-			alert('Could not load employees');
+			appNotify('Could not load employees');
 			return;
 		}
 		const employees=await response.json();
@@ -612,7 +621,9 @@ async function saveSale(event) {
 		sales_date: salesDate.value,
 		customer_id: customer.value,
 		item_id: productSold.value,
-		unit_price: unitPrice.value
+		unit_price: unitPrice.value,
+        billing_basis:document.getElementById('sales-billing-basis').value,
+        representative_id:document.getElementById('sales-representative').value
 	};
     const retry=authorisationKey('Sale',sale);
     sale.authorisation_key=retry.key;
@@ -629,12 +640,12 @@ async function saveSale(event) {
 		});
 		if(!response.ok) {
 			const problem=await response.json();
-			alert(problem.err||problem.error||"Sale could not be saved.");
+			appNotify(problem.err||problem.error||"Sale could not be saved.");
 			return;
 		}
 		const savedSale=await response.json();
 		console.log("saved:",savedSale);
-		alert("Sale authorised and sent to Storekeeper for weighing.");
+		appNotify("Sale authorised and sent to Storekeeper for weighing.");
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		sessionStorage.removeItem(retry.slot);
 		salesForm.reset();
@@ -644,7 +655,7 @@ async function saveSale(event) {
 		managerSalePrice.classList.remove('has-price','price-error');
 	} catch(err) {
 		console.error("network problem:",err);
-		alert("Could not confirm the result. Retry the same entry to check it safely.");
+		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
     } finally {
         salesForm.dataset.saving='false';
         submit.disabled=false;
@@ -679,18 +690,18 @@ async function savePurchases(event) {
 			body: JSON.stringify(purchase)
 		});
 		if(!response.ok) {
-			alert("Save failed. Check entries and try again");
+			appNotify("Save failed. Check entries and try again");
 			return;
 		}
 		const savedPurchase=await response.json();
 		console.log("saved:",savedPurchase);
-		alert("Purchase authorised and sent to Storekeeper for weighing.");
+		appNotify("Purchase authorised and sent to Storekeeper for weighing.");
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		sessionStorage.removeItem(retry.slot);
 		purchaseForm.reset();
 	} catch(err) {
 		console.error("Network problem",err);
-		alert("Could not confirm the result. Retry the same entry to check it safely.");
+		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
     } finally {
         purchaseForm.dataset.saving='false';
         submit.disabled=false;
@@ -708,7 +719,8 @@ async function saveInventory(event) {
 		count_date: stockDate.value,
 		item_id: stockName.value,
 		received: received.value,
-		issued: issued.value
+		issued: issued.value,
+		adjustment_reason: stockReason.value
 	};
 	try {
 		const response=await fetch("/api/stock_counts",{
@@ -719,16 +731,16 @@ async function saveInventory(event) {
 			body: JSON.stringify(inventoryItems)
 		});
 		if(!response.ok) {
-			alert("failed to submit. Check your entries");
+			appNotify("failed to submit. Check your entries");
 			return;
 		}
 		const savedStock=await response.json();
 		console.log("saved:",savedStock);
-		alert("Stock submited successfully");
+		appNotify("Stock submited successfully");
 		inventoryForm.reset();
 	} catch(err) {
 		console.error(err);
-		alert("Could not confirm the result. Retry the same entry to check it safely.");
+		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
 	}
 }
 if(inventoryForm) {
@@ -754,47 +766,53 @@ async function saveProduction(event) {
 		if(!response.ok) {
 			const problem=await response.json();
 			if(response.status===400||response.status===409) {
-				alert("Failed to submit. "+problem.err);
+				appNotify("Failed to submit. "+problem.err);
 			} else {
-				alert("Failed to submit. Internal server problem");
+				appNotify("Failed to submit. Internal server problem");
 			}
 			return;
 		}
 		const savedProduction=await response.json();
 		console.log("saved:",savedProduction);
-		alert("Production authorised and sent to Storekeeper for weighing.");
+		appNotify("Production authorised and sent to Storekeeper for weighing.");
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		productionForm.reset();
 	} catch(err) {
 		console.error(err);
-		alert("Could not confirm the result. Retry the same entry to check it safely.");
+		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
 	}
 }
 if(productionForm) {
 	productionForm.addEventListener("submit",saveProduction);
 }
 
-async function editProductionBatch(request,batch,reverse=false) {
+async function editProductionBatch(request,batch,reverse=false,onSaved) {
+    const refresh=async(message)=>{
+        if(onSaved){await onSaved();appNotify(message);}
+        else {await loadWeighingTasks();weighingTasksMessage.textContent=message;}
+    };
     if(reverse) {
         if(!confirm('Reverse this entry? Its quantities will be removed from the daily totals and stock.')) return;
         try {
             const response=await fetch('/api/weighing-requests/'+request.request_id+'/batches/'+batch.batch_id,{
                 method:'DELETE',headers:{'content-type':'application/json'},body:JSON.stringify({version:batch.version})});
             const result=await response.json();
-            if(response.ok) await loadWeighingTasks();
-            weighingTasksMessage.textContent=result.message||result.err;
-        } catch(error) {weighingTasksMessage.textContent='Could not reverse batch.';}
+            if(response.ok) await refresh(result.message);
+            else appNotify(result.err);
+        } catch(error) {appNotify('Could not reverse entry.');}
         return;
     }
     const dialog=document.createElement('dialog');
     dialog.className='employee-finance-dialog';
     const form=document.createElement('form');
-    const title=document.createElement('h2');title.textContent='Correct production entry';form.appendChild(title);
+    const title=document.createElement('h2');title.textContent='Correct entry #'+batch.batch_id+' · '+new Date(batch.created_at).toLocaleString();form.appendChild(title);
     for(const [key,label] of [['kernel_used','Kernel issued (kg)'],['pko_produced','PKO received (kg)'],['pkc_produced','PKC received (kg)'],['sludge_produced','Sludge received (kg)'],['scale_ticket','Scale ticket']]) {
         const field=document.createElement('label');field.textContent=label;
         const input=document.createElement('input');input.name=key;input.type=key==='scale_ticket'?'text':'number';
         if(input.type==='number'){input.min='0';input.step='0.01';input.required=true;}
-        input.value=batch[key]??'';field.appendChild(input);form.appendChild(field);
+        input.value=batch[key]??'';
+        if(input.type==='number'&&Number(batch[key])===0){input.type='hidden';form.appendChild(input);continue;}
+        field.appendChild(input);form.appendChild(field);
     }
     const message=document.createElement('p');message.setAttribute('role','status');
     const actions=document.createElement('div');
@@ -807,7 +825,7 @@ async function editProductionBatch(request,batch,reverse=false) {
                 method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({...Object.fromEntries(new FormData(form)),version:batch.version})});
             const result=await response.json();
             if(!response.ok){message.textContent=result.err;return;}
-            dialog.close();dialog.remove();await loadWeighingTasks();weighingTasksMessage.textContent=result.message;
+            dialog.close();dialog.remove();await refresh(result.message);
         } catch(error){message.textContent='Could not save correction.';} finally{save.disabled=false;}
     };
     dialog.appendChild(form);document.body.appendChild(dialog);dialog.showModal();
@@ -874,6 +892,42 @@ function createLegacyReview() {
 }
 
 // Builds one Storekeeper card for an activity already authorised by the Manager.
+function createProductionHistory(entries, request, onSaved) {
+    const history=document.createElement('details');
+    history.className='weighing-task-history activity-history';
+    history.addEventListener('click',event=>event.stopPropagation());
+    const summary=document.createElement('summary');
+    summary.textContent=entries.length+' production '+(entries.length===1?'entry':'entries');
+    history.appendChild(summary);
+    const list=document.createElement('div');list.className='activity-list';
+    entries.forEach(batch=>{
+        const row=document.createElement('div');row.className='activity-row';
+        const copy=document.createElement('div');copy.className='activity-copy';
+        const title=document.createElement('strong');
+        title.textContent=batch.legacy_batch?'Historical daily total':Number(batch.kernel_used)>0?'Kernel issued':'Product received';
+        title.textContent+=' · Entry #'+batch.batch_id;
+        const meta=document.createElement('small');
+        meta.textContent='Issued/received '+formatDate(String(batch.movement_date||request?.request_date||'').slice(0,10))+' · Submitted '+new Date(batch.created_at).toLocaleString()+
+            (batch.recorded_by_name?' · '+batch.recorded_by_name:'')+
+            (batch.scale_ticket?' · Ticket '+batch.scale_ticket:'')+(batch.voided?' · Reversed':'');
+        copy.append(title,meta);
+        const amounts=document.createElement('div');amounts.className='activity-amount';
+        [['Kernel',batch.kernel_used],['PKO',batch.pko_produced],['PKC',batch.pkc_produced],['Sludge',batch.sludge_produced]].forEach(([label,value])=>{
+            if(Number(value)>0){const amount=document.createElement('span');amount.textContent=label+' '+formatNumber(value)+' kg';amounts.appendChild(amount);}
+        });
+        row.append(copy,amounts);
+        if(request&&document.documentElement.dataset.userRole==='admin'&&request.status==='Awaiting Storekeeper'&&!batch.voided){
+            const actions=document.createElement('div');actions.className='activity-controls';
+            [['Correct entry',false],['Reverse entry',true]].forEach(([label,reverse])=>{
+                const button=document.createElement('button');button.type='button';button.className=reverse?'cancel-weighing-request':'weighing-task-secondary';button.textContent=label;button.onclick=()=>editProductionBatch(request,batch,reverse,onSaved);actions.appendChild(button);
+            });row.appendChild(actions);
+        }
+        list.appendChild(row);
+    });
+    if(!entries.length){const empty=document.createElement('p');empty.textContent='No individual entries recorded.';list.appendChild(empty);}
+    history.appendChild(list);return history;
+}
+
 function createWeighingTaskCard(request) {
 	const card=document.createElement('article');
 	const heading=document.createElement('div');
@@ -884,12 +938,19 @@ function createWeighingTaskCard(request) {
 	card.className='weighing-task-card';
 	heading.className='weighing-task-card-heading';
 	title.textContent=requestLabel;
-	details.textContent=request.request_type==='Purchase'?
-		(request.item+' from '+request.supplier+' · '+formatDate(request.request_date)+' · ₦'+formatNumber(request.unit_cost)+'/'+inventoryUnit(request.item)):
-		request.request_type==='Sale'?
-		(request.item+' for '+request.customer+' · '+formatDate(request.request_date)+' · Price from Prices page: ₦'+formatNumber(request.unit_price)+'/'+inventoryUnit(request.item)):
-		('Production on '+formatDate(request.request_date)+' · '+request.production_hours+' hours · '+request.down_time+' downtime');
-	heading.append(title,details);
+    const banner=document.createElement('div');banner.className='task-banner';
+    const date=document.createElement('span');date.className='task-date';date.textContent=formatDate(request.request_date);
+    details.className='task-meta';
+    details.textContent=request.request_type==='Purchase'?request.item+' from '+request.supplier:
+        request.request_type==='Sale'?request.item+' for '+request.customer+' · Payment by '+(request.billing_basis==='Customer'?'customer’s agreed weight':'factory weight'):
+        request.production_hours+' operating hours · '+request.down_time+' hours downtime';
+    banner.append(title,date);heading.append(banner,details);
+    if(request.request_type!=='Production'){
+        const price=document.createElement('div');price.className='task-price';
+        const label=document.createElement('small');label.textContent='Unit price';
+        const amount=document.createElement('strong');amount.textContent='₦'+formatNumber(request.request_type==='Sale'?request.unit_price:request.unit_cost)+' / '+inventoryUnit(request.item);
+        price.append(label,amount);heading.appendChild(price);
+    }
     if(request.request_type==='Production') {
         const totals=document.createElement('p');
         totals.className='weighing-task-totals';
@@ -903,26 +964,9 @@ function createWeighingTaskCard(request) {
             totals.appendChild(metric);
         });
         heading.appendChild(totals);
-        const history=document.createElement('details');
-        history.className='weighing-task-history';
-        const summary=document.createElement('summary');
-        summary.textContent=(request.batches||[]).length+' production entries';
-        history.appendChild(summary);
-        (request.batches||[]).forEach(batch => {
-            const row=document.createElement('p');
-            row.textContent=(batch.legacy_batch?'Historical daily total · ':'')+new Date(batch.created_at).toLocaleString()+' · '+batch.recorded_by_name+
-                ' · Kernel '+batch.kernel_used+' · PKO '+batch.pko_produced+' · PKC '+batch.pkc_produced+
-                ' · Sludge '+batch.sludge_produced+' kg'+(batch.scale_ticket?' · Ticket '+batch.scale_ticket:'');
-            if(batch.voided) row.append(' · Reversed');
-            if(document.documentElement.dataset.userRole==='admin'&&request.status==='Awaiting Storekeeper'&&!batch.voided) {
-                const actions=document.createElement('span');actions.className='weighing-task-actions';
-                const edit=document.createElement('button');edit.type='button';edit.className='weighing-task-secondary';edit.textContent='Correct Entry';edit.onclick=()=>editProductionBatch(request,batch);
-                const reverse=document.createElement('button');reverse.type='button';reverse.className='cancel-weighing-request';reverse.textContent='Reverse Entry';reverse.onclick=()=>editProductionBatch(request,batch,true);
-                actions.append(edit,reverse);row.appendChild(actions);
-            }
-            history.appendChild(row);
-        });
-        heading.appendChild(history);
+        const yieldNote=document.createElement('p');yieldNote.className='production-yield-status';
+        yieldNote.textContent='Oil yield: '+(Number(request.kernel_used)>0?formatNumber(Number((Number(request.pko_produced||0)/Number(request.kernel_used)*100).toFixed(2)))+'%':'—')+' · '+(request.status==='Completed'?'Final':'Provisional');heading.appendChild(yieldNote);
+        heading.appendChild(createProductionHistory(request.batches||[],request));
     }
     if(request.status==='Completed') {
         card.appendChild(heading);
@@ -948,6 +992,7 @@ function createWeighingTaskCard(request) {
             actions.appendChild(reopen);
             card.appendChild(actions);
         }
+        if(window.styleReferenceWeighingCard)window.styleReferenceWeighingCard(card,request);
         return card;
     }
 	if(['admin','manager'].includes(document.documentElement.dataset.userRole)) {
@@ -979,7 +1024,10 @@ function createWeighingTaskCard(request) {
 		managerActions.className='weighing-task-manager-actions';
 		managerActions.append(waiting,cancel);
 		card.append(heading,managerActions);
-		if(document.documentElement.dataset.userRole==='manager') return card;
+		if(document.documentElement.dataset.userRole==='manager') {
+            if(window.styleReferenceWeighingCard)window.styleReferenceWeighingCard(card,request);
+            return card;
+        }
 	}
 	form.className='weighing-task-form';
 	form.dataset.requestId=request.request_id;
@@ -1006,6 +1054,10 @@ function createWeighingTaskCard(request) {
 	}
 
     if(request.request_type==='Production') {
+        const movementInput=addInput('Date actually issued or received','movement_date',{type:'date'});
+        const now=new Date();const today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+        movementInput.min=String(request.request_date).slice(0,10);
+        movementInput.value=today<movementInput.min?movementInput.min:today;
         const kernelInput=addInput('Kernel issued (kg)','kernel_used',{min:0.01});
         const productLabel=document.createElement('label');
         const productText=document.createElement('span');productText.textContent='Product received';
@@ -1014,7 +1066,7 @@ function createWeighingTaskCard(request) {
         productLabel.append(productText,productSelect);form.appendChild(productLabel);
         const receivedInput=addInput('Quantity received (kg)','received_quantity',{min:0.01});
         const guidance=document.createElement('p');guidance.className='weighing-task-guidance';
-        guidance.textContent='Receive one product per entry. Select the product and enter its weighed quantity.';
+        guidance.textContent='This entry belongs to production dated '+formatDate(request.request_date)+'. Enter the date the material was actually issued or the product received. Leave production open while materials remain in the machines.';
         const choice=document.createElement('label');choice.textContent='Production activity';
         const select=document.createElement('select');
         select.innerHTML='<option value="Issue">Issue Kernel</option><option value="Receive">Receive Product</option>';
@@ -1031,21 +1083,36 @@ function createWeighingTaskCard(request) {
         select.onchange=switchActivity;queueMicrotask(switchActivity);
         form.appendChild(guidance);
 	} else {
+        // Stock is dated on the day the goods actually arrive or leave, not the authorisation day.
+        const movementInput=addInput(request.request_type==='Purchase'?'Date actually received':'Date actually dispatched','movement_date',{type:'date'});
+        const now=new Date();const today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+        movementInput.min=String(request.request_date).slice(0,10);
+        movementInput.value=today<movementInput.min?movementInput.min:today;
 		const quantityInput=addInput(request.request_type==='Purchase'?
 			'Quantity received ('+inventoryUnit(request.item)+')':
 			'Quantity issued ('+inventoryUnit(request.item)+')','quantity',{ min:0.01 });
 		if(request.request_type==='Sale') {
 			const total=document.createElement('p');
 			total.className='weighing-sale-total';
-			total.textContent='Sale total: ₦0';
+			const label=document.createElement('span');label.textContent=request.billing_basis==='Customer'?'Factory-weight estimate':'Sale total';
+            const amount=document.createElement('strong');amount.textContent='₦0';total.append(label,amount);
 			quantityInput.addEventListener('input',function() {
-				total.textContent='Sale total: ₦'+formatNumber((Number(quantityInput.value)||0)*Number(request.unit_price));
+				amount.textContent='₦'+formatNumber((Number(quantityInput.value)||0)*Number(request.unit_price));
 			});
 			form.appendChild(total);
 		}
-		addInput('Vehicle number','vehicle_number',{ type:'text',required:false,placeholder:'Optional' });
+		addInput('Vehicle number','vehicle_number',{ type:'text',required:request.request_type==='Sale',placeholder:request.request_type==='Sale'?'Vehicle registration':'Optional' });
 	}
 	addInput('Scale ticket number','scale_ticket',{ type:'text',required:false,placeholder:'Optional' });
+    if(request.request_type==='Purchase'&&String(request.item).trim().toLowerCase()==='p kernel') window.addReceiptKernelSample(form);
+    if(request.request_type==='Sale') {
+        // The driver checks the weighed load and signs before the Storekeeper can confirm dispatch.
+        const driverHelp=document.createElement('p');driverHelp.className='weighing-task-guidance';
+        driverHelp.textContent='Show the driver the quantity and vehicle number. The driver enters their name and signs below before you confirm dispatch.';
+        form.appendChild(driverHelp);
+        addInput('Driver’s full name','driver_name',{ type:'text' });
+        form.driverSignature=window.addDeliverySignaturePad(form,'Driver signs here');
+    }
 	const submit=document.createElement('button');
 	submit.type='submit';
 	submit.textContent=request.request_type==='Purchase'?'Confirm Receipt':
@@ -1056,7 +1123,7 @@ function createWeighingTaskCard(request) {
     form.appendChild(formActions);
 	form.addEventListener('submit',completeWeighingTask);
     if(!card.contains(heading)) card.appendChild(heading);
-    if(document.documentElement.dataset.userRole==='admin') {
+    if(['admin','storekeeper'].includes(document.documentElement.dataset.userRole)) {
         const entry=document.createElement('details');
         entry.className='weighing-task-entry';
         const summary=document.createElement('summary');
@@ -1071,7 +1138,7 @@ function createWeighingTaskCard(request) {
         finish.textContent='Finish Day';
         finish.disabled=!(request.batches||[]).length;
         finish.addEventListener('click',async () => {
-            if(!window.confirm('Finish this production day? No further batches can be added.')) return;
+            if(!window.confirm('Have all materials for this production been processed and all products weighed and recorded? Finish Day makes its yield final and closes further entries.')) return;
             finish.disabled=true;
             try {
                 const response=await fetch('/api/weighing-requests/'+request.request_id+'/finish',{ method:'PATCH' });
@@ -1084,42 +1151,95 @@ function createWeighingTaskCard(request) {
         });
         formActions.appendChild(finish);
     }
-	return card;
+	if(window.styleReferenceWeighingCard)window.styleReferenceWeighingCard(card,request);
+        return card;
 }
 
-// Loads Manager-authorised work that is waiting for Storekeeper quantities.
+// Finished days are fetched only on request, ten at a time.
+function createFinishedProductionHistory(){
+    const history=document.createElement('details');history.className='finished-production-history';
+    const summary=document.createElement('summary');summary.textContent='Finished production days';
+    const help=document.createElement('p');help.className='finished-production-help';help.textContent='Open to view finished days. The newest 10 are loaded first.';
+    const message=document.createElement('p');message.setAttribute('role','status');
+    const list=document.createElement('div');list.className='weighing-task-group finished-production-list';
+    const more=document.createElement('button');more.type='button';more.className='finished-production-more';more.textContent='Load more';more.hidden=true;
+    history.append(summary,help,message,list,more);
+    let loaded=false,loading=false,cursor=null;
+    async function load(){
+        if(loading)return;loading=true;more.disabled=true;message.classList.remove('error');message.textContent='Loading history…';
+        try{
+            const response=await fetch('/api/weighing-requests/finished-production?limit=10'+(cursor?'&before='+encodeURIComponent(cursor):''));
+            const result=await response.json();if(!response.ok)throw new Error(result.err||'Could not load finished production days.');
+            if(!history.isConnected)return;
+            result.requests.forEach(request=>list.appendChild(createWeighingTaskCard(request)));
+            cursor=result.next_cursor;loaded=true;
+            more.hidden=!result.has_more;more.textContent='Load more';
+            message.textContent=list.children.length?list.children.length+' finished day'+(list.children.length===1?'':'s')+' loaded.':'There are no production days in this history.';
+        }catch(error){
+            message.classList.add('error');message.textContent=error.message;more.hidden=false;more.textContent='Try again';
+        }finally{loading=false;more.disabled=false;}
+    }
+    history.addEventListener('toggle',()=>{if(history.open&&!loaded)load();});
+    more.addEventListener('click',load);
+    return history;
+}
+
+// Build one row per job, using its current stage even when requests refresh concurrently.
+let pendingWorkLoad=0;
 async function loadWeighingTasks() {
-	if(!weighingTaskList) return;
-	weighingTaskList.textContent='Loading pending work...';
-	weighingTasksMessage.textContent='';
-	try {
-		const response=await fetch('/api/weighing-requests'+
-            (document.documentElement.dataset.userRole==='admin'?'?include_completed=true':''));
-		if(!response.ok) throw new Error('Could not load pending work');
-		const requests=await response.json();
-		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
-		weighingTaskList.replaceChildren();
-        if(document.documentElement.dataset.userRole==='admin') {
-            [['Awaiting Storekeeper','Pending authorisations'],['Completed','Finished production days']].forEach(([status,label]) => {
-                const group=requests.filter(request => request.status===status);
-                if(!group.length) return;
-                const section=document.createElement('section');
-                section.className='weighing-task-group';
-                const title=document.createElement('h2');
-                title.textContent=label+' ('+group.length+')';
-                section.appendChild(title);
-                group.forEach(request => section.appendChild(createWeighingTaskCard(request)));
-                weighingTaskList.appendChild(section);
-            });
-        } else {
-            requests.forEach(request => weighingTaskList.appendChild(createWeighingTaskCard(request)));
+    if(!weighingTaskList)return;
+    const load=++pendingWorkLoad;
+    weighingTaskList.textContent='Loading pending work...';weighingTasksMessage.textContent='';
+    try{
+        const responses=await Promise.all([fetch('/api/weighing-requests'),fetch('/api/delivery-notes/pending')]);
+        if(responses.some(response=>!response.ok))throw Error('Could not load pending work.');
+        const [requests,deliveries]=await Promise.all(responses.map(response=>response.json()));
+        if(load!==pendingWorkLoad)return;
+        const jobs=new Map();
+        for(const request of requests)jobs.set('request:'+request.request_id,{type:request.request_type,date:request.request_date,
+            title:request.request_type==='Sale'?request.customer+' · '+request.item:request.request_type==='Purchase'?request.supplier+' · '+request.item:'Production',
+            stage:request.request_type==='Sale'?'Record factory dispatch':request.request_type==='Purchase'?'Record goods received':'Issue kernels or receive products',request});
+        for(const delivery of deliveries)jobs.set(delivery.request_id?'request:'+delivery.request_id:'delivery:'+delivery.sales_id,{type:'Sale',date:delivery.sales_date,
+            title:delivery.customer+' · '+delivery.item,stage:delivery.delivery_status,delivery});
+        const rows=[...jobs.values()].sort((a,b)=>a.date.localeCompare(b.date));
+        const fragment=document.createDocumentFragment(),tools=document.createElement('div');tools.className='pending-work-tools';
+        const searchLabel=document.createElement('label');searchLabel.textContent='Find a job';
+        const search=document.createElement('input');search.type='search';search.placeholder='Customer, supplier, product or date';searchLabel.appendChild(search);
+        const typeLabel=document.createElement('label');typeLabel.textContent='Job type';const type=document.createElement('select');
+        for(const [value,label]of [['','All jobs'],['Sale','Sales and deliveries'],['Purchase','Purchases'],['Production','Production']])type.add(new Option(label,value));typeLabel.appendChild(type);
+        const count=document.createElement('p');count.setAttribute('role','status');
+        const list=document.createElement('div');list.className='pending-work-list';
+        const more=document.createElement('button');more.type='button';more.textContent='Load more';
+        tools.append(searchLabel,typeLabel);fragment.append(tools,count,list,more);
+        let visible=10;
+        function render(){
+            const query=search.value.trim().toLowerCase();
+            const filtered=rows.filter(row=>(!type.value||row.type===type.value)&&[row.title,row.date,row.type,row.stage].join(' ').toLowerCase().includes(query));
+            count.textContent=filtered.length+' pending '+(filtered.length===1?'job':'jobs');list.replaceChildren();
+            for(const row of filtered.slice(0,visible)){
+                const job=document.createElement('details');job.className='pending-work-job';
+                const summary=document.createElement('summary'),heading=document.createElement('span'),stage=document.createElement('span');
+                const title=document.createElement('strong');title.textContent=row.title;const meta=document.createElement('small');meta.textContent=row.type+' · '+formatDate(row.date);
+                heading.append(title,meta);stage.className='pending-work-stage';stage.textContent=row.stage;summary.append(heading,stage);
+                const body=document.createElement('div');body.className='pending-work-body';job.append(summary,body);
+                let built=false;
+                job.addEventListener('toggle',()=>{
+                    if(!job.open)return;
+                    for(const other of list.children)if(other!==job)other.open=false;
+                    if(built)return;built=true;
+                    if(row.request)body.appendChild(createWeighingTaskCard(row.request));
+                    else{const help=document.createElement('p');help.textContent=row.stage;const open=document.createElement('button');open.type='button';open.textContent='Open Delivery Note';open.onclick=()=>window.openDeliveryNote(row.delivery.sales_id);body.append(help,open);}
+                });list.appendChild(job);
+            }
+            if(!filtered.length){const empty=document.createElement('p');empty.className='weighing-tasks-empty';empty.textContent=rows.length?'No matching jobs.':'There is no pending work.';list.appendChild(empty);}
+            more.hidden=visible>=filtered.length;
         }
-		if(requests.length===0) weighingTaskList.textContent='There is no activity waiting for weighing.';
-        if(document.documentElement.dataset.userRole==='admin') weighingTaskList.appendChild(createLegacyReview());
-	} catch(error) {
-		console.error(error);
-		weighingTaskList.textContent='Pending work could not be loaded.';
-	}
+        search.oninput=type.onchange=()=>{visible=10;render();};more.onclick=()=>{visible+=10;render();};render();
+        if(document.documentElement.dataset.userRole==='admin'){fragment.append(createFinishedProductionHistory(),createLegacyReview());}
+        weighingTaskList.replaceChildren(fragment);
+        if(window.refreshPendingWeighingBadge)window.refreshPendingWeighingBadge();
+        if(window.styleReferenceWeighingList)window.styleReferenceWeighingList(weighingTaskList);
+    }catch(error){if(load===pendingWorkLoad)weighingTaskList.textContent='Pending work could not be loaded.';}
 }
 
 // Saves the Storekeeper quantities once and completes the related business record and Inventory movement.
@@ -1130,6 +1250,14 @@ async function completeWeighingTask(event) {
 	submit.disabled=true;
 	weighingTasksMessage.textContent='Saving physical quantities...';
 	const values=Object.fromEntries(new FormData(form).entries());
+    if(form.driverSignature) {
+        try { values.driver_signature=form.driverSignature(); }
+        catch(error) { weighingTasksMessage.textContent='The driver must sign before you confirm dispatch.';submit.disabled=false;return; }
+    }
+    if(values.include_kernel_test){
+        values.kernel_test={sample_weight_g:values.sample_weight_g,impurity_weight_g:values.impurity_weight_g,entry_key:values.impurity_entry_key};
+    }
+    for(const field of ['include_kernel_test','sample_weight_g','impurity_weight_g','impurity_entry_key'])delete values[field];
     if(form.dataset.submissionKey) values.submission_key=form.dataset.submissionKey;
     if(form.dataset.entryType) {
         values.entry_type=form.dataset.entryType;
@@ -1181,20 +1309,20 @@ async function saveExpenses(event) {
 		if(!response.ok) {
 			if(response.status===400) {
 				const problem=await response.json();
-				alert("Failed to submit "+problem.err);
+				appNotify("Failed to submit "+problem.err);
 				console.log(problem.err);
 			} else {
-				alert("Failed to submit. Internal server error");
+				appNotify("Failed to submit. Internal server error");
 			}
 			return;
 		}
 		const savedExpense=await response.json();
-		alert("Expense submitted successfully");
+		appNotify("Expense submitted successfully");
 		expensesForm.reset();
 		console.log("submitted:",savedExpense);
 	} catch(err) {
 		console.error(err);
-		alert("Could not confirm the result. Retry the same entry to check it safely.");
+		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
 	}
 }
 if(expensesForm) {
@@ -1212,7 +1340,7 @@ async function loadSalesData() {
 		}
 		if(!response.ok) {
 			const problem=await response.json();
-			alert(problem.err);
+			appNotify(problem.err);
 			return;
 		}
 		const sales=await response.json();
@@ -1253,7 +1381,7 @@ async function loadSalesData() {
 		});
 	} catch(err) {
 		console.error(err);
-		alert("Failed to load Sales. Network problem");
+		appNotify("Failed to load Sales. Network problem");
 	}
 }
 
@@ -1282,7 +1410,7 @@ function formatSubmitted(createdAt) {
 }
 
 // Creates the shared shell used by transaction data cards.
-function createCard(date,createdAt,itemName,id,idPrefix='p') {
+function createCard(date,createdAt,itemName,id,idPrefix='p',inventoryStyle=false) {
 	const card=document.createElement("article");
 	const header=document.createElement("div");
 	const body=document.createElement("div");
@@ -1293,6 +1421,7 @@ function createCard(date,createdAt,itemName,id,idPrefix='p') {
 	const actions=document.createElement("div");
 
 	card.classList.add("data-record-card");
+    if(inventoryStyle)card.classList.add("ledger-card");
 	header.classList.add("data-record-header");
 	body.classList.add("data-record-values");
 	actions.classList.add("card-actions");
@@ -1305,12 +1434,27 @@ function createCard(date,createdAt,itemName,id,idPrefix='p') {
 		actions.querySelector('.delete-btn').hidden=true;
 	}
 
-	item.textContent=itemName;
-	idNum.textContent=idPrefix+id;
-	submittedAt.textContent=formatSubmitted(createdAt);
-	displayDate.textContent=formatDate(date);
+    if(inventoryStyle){
+	item.textContent=({'P Kernel':'Palm Kernel (P Kernel)','PKO':'Palm Kernel Oil (PKO)','PKC':'Palm Kernel Cake (PKC)'})[itemName]||itemName;
+    item.className='record-name';displayDate.className='record-date';submittedAt.className='record-submitted';idNum.className='record-reference';
+    const visual=document.createElement('span');visual.className='record-product-icon';
+    const itemKey=String(itemName).toLowerCase();
+    visual.appendChild(AppUI.icon(itemKey==='p kernel'?'seed':itemKey==='pko'?'oil':itemKey==='pkc'?'sack':itemKey==='sludge'?'flask':itemKey==='diesel'?'fuel':itemKey==='electricity'?'electricity':'cubes'));
 
-	header.append(displayDate,submittedAt,item,idNum);
+	idNum.textContent=idPrefix+id;
+	submittedAt.textContent=createdAt?'Recorded '+formatSubmitted(createdAt):'No movement · balance carried forward';
+	displayDate.textContent=formatDate(date)+(createdAt?', '+new Date(createdAt).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}):'');
+    displayDate.prepend(AppUI.icon('calendar'));
+
+	header.append(visual,item,displayDate,submittedAt,idNum);
+
+    } else {
+        item.textContent=itemName;
+        idNum.textContent=idPrefix+id;
+        submittedAt.textContent=formatSubmitted(createdAt);
+        displayDate.textContent=formatDate(date);
+        header.append(displayDate,submittedAt,item,idNum);
+    }
 
 	card.append(header,body,actions);
 
@@ -1330,6 +1474,7 @@ let currentSaleDocumentData=null;
 
 // Opens the invoice and payment page for the selected sale.
 function openSaleDocument(sale) {
+    if(!sale.invoice_number&&sale.has_delivery_note){window.openDeliveryNote(sale.sales_id);return;}
 	const address=new URL(window.location.href);
 	address.search='';
 	address.searchParams.set('saleId',sale.sales_id);
@@ -1397,6 +1542,7 @@ function showSaleInvoice() {
 	item.append(
 		createCardValues('Product',sale.item),
 		createCardValues('Quantity',formatNumber(sale.quantity)+' kg'),
+        createCardValues('Payment weight',sale.billing_basis==='Customer'?'Customer’s agreed weight':'Factory weight'),
 		createCardValues('Unit Price','₦'+formatNumber(sale.unit_price)),
 		createCardValues('Invoice Amount','₦'+formatNumber(summary.total))
 	);
@@ -1421,9 +1567,9 @@ function showSaleStatement() {
 		const row=createDocumentText('div','sale-statement-row');
 		row.append(
 			createDocumentText('span','',formatDate(payment.payment_date)),
-			createDocumentText('span','',payment.receipt_number),
+			createDocumentText('span','',payment.receipt_number+(payment.reversed_at?' · Reversed':'')),
 			createDocumentText('span','',payment.payment_method),
-			createDocumentText('strong','','₦'+formatNumber(payment.amount))
+			createDocumentText('strong','',(payment.reversed_at?'₦0 (was ₦':'₦')+formatNumber(payment.amount)+(payment.reversed_at?')':''))
 		);
 		list.append(row);
 	});
@@ -1442,7 +1588,7 @@ function showSaleStatement() {
 function showSaleReceipt(payment,paymentIndex) {
 	const data=currentSaleDocumentData;
 	const paidBefore=data.payments.slice(0,paymentIndex+1).reduce(function(total,row) {
-		return total+Number(row.amount);
+		return total+(row.reversed_at?0:Number(row.amount));
 	},0);
 	const remaining=Math.max(Number(data.sale.total)-paidBefore,0);
 	const printArea=document.querySelector('.sale-print-area');
@@ -1453,7 +1599,8 @@ function showSaleReceipt(payment,paymentIndex) {
 		['Amount Received','₦'+formatNumber(payment.amount)],
 		['Payment Method',payment.payment_method],
 		['Bank Reference',payment.reference_number||'Not provided'],
-		['Amount Remaining','₦'+formatNumber(remaining)]
+		['Amount Remaining','₦'+formatNumber(remaining)],
+		...(payment.reversed_at?[['Status','Reversed: '+(payment.reversal_reason||'')]]:[])
 	].forEach(function(field) { details.append(createCardValues(field[0],field[1])); });
 	printArea.replaceChildren(buildSaleDocumentHeading(data,'RECEIPT',payment.receipt_number),details);
 	printArea.scrollIntoView({ behavior: 'smooth',block: 'start' });
@@ -1501,12 +1648,48 @@ function openSalePaymentDialog() {
 	dialog.showModal();
 }
 
+// Lets the Director reverse a wrongly entered payment while keeping its receipt on record.
+function openPaymentReversalDialog(payment) {
+	if(!currentSaleDocumentData) return;
+	const dialog=document.createElement('dialog');
+	dialog.className='employee-finance-dialog sale-payment-dialog';
+	dialog.innerHTML=`<form>
+		<h2>Reverse Payment</h2>
+		<p>Receipt <strong class="reversal-receipt"></strong> for <strong class="reversal-amount"></strong> will be kept and marked reversed. The amount will be owed again.</p>
+		<label>Reason<textarea name="reason" maxlength="300" required></textarea></label>
+		<p class="finance-dialog-message"></p>
+		<div><button type="button" class="finance-cancel">Cancel</button><button type="submit">Reverse Payment</button></div>
+	</form>`;
+	dialog.querySelector('.reversal-receipt').textContent=payment.receipt_number;
+	dialog.querySelector('.reversal-amount').textContent='₦'+formatNumber(payment.amount);
+	document.body.appendChild(dialog);
+	dialog.querySelector('.finance-cancel').addEventListener('click',function() { dialog.close();dialog.remove(); });
+	dialog.querySelector('form').addEventListener('submit',async function(event) {
+		event.preventDefault();
+		const response=await fetch('/api/sales/'+currentSaleDocumentData.sale.sales_id+'/payments/'+payment.payment_id+'/reverse',{
+			method: 'POST',headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
+		});
+		const result=await response.json();
+		if(!response.ok) {
+			dialog.querySelector('.finance-dialog-message').textContent=result.err;
+			return;
+		}
+		dialog.close();dialog.remove();
+		await loadSaleDocument();
+		document.querySelector('.sale-document-message').textContent=result.message;
+	});
+	dialog.showModal();
+}
+
 // Fetches and displays the selected sale, its invoice and payment history.
 async function loadSaleDocument() {
 	const saleId=new URLSearchParams(window.location.search).get('saleId');
 	if(!saleId) return;
 	const page=document.querySelector('#sale-document');
+    currentSaleDocumentData=null;page.querySelector('.sale-print-area').replaceChildren();
 	const response=await fetch('/api/sales/'+saleId+'/invoice');
+    if(response.status===409){window.openDeliveryNote(saleId);return;}
 	const data=await response.json();
 	if(!response.ok) {
 		page.querySelector('.sale-document-message').textContent=data.err;
@@ -1523,12 +1706,19 @@ async function loadSaleDocument() {
 		row.append(
 			createDocumentText('span','',formatDate(payment.payment_date)),
 			createDocumentText('strong','','₦'+formatNumber(payment.amount)),
-			createDocumentText('span','',payment.payment_method)
+			createDocumentText('span','',payment.reversed_at?'Reversed · '+(payment.reversal_reason||''):payment.payment_method)
 		);
 		const receipt=document.createElement('button');
 		receipt.type='button';receipt.textContent='View Receipt';
 		receipt.addEventListener('click',function() { showSaleReceipt(payment,index); });
-		row.append(receipt);paymentList.append(row);
+		row.append(receipt);
+		if(role==='admin'&&!payment.reversed_at) {
+			const reverse=document.createElement('button');
+			reverse.type='button';reverse.textContent='Reverse Payment';
+			reverse.addEventListener('click',function() { openPaymentReversalDialog(payment); });
+			row.append(reverse);
+		}
+		paymentList.append(row);
 	});
 	if(page.dataset.ready!=='true') {
 		page.dataset.ready='true';
@@ -1538,6 +1728,12 @@ async function loadSaleDocument() {
 		page.querySelector('#print-sale-document').addEventListener('click',function() { window.print(); });
 	}
 	showSaleInvoice();
+    const existingNoteButton=page.querySelector('.open-delivery-note');if(existingNoteButton)existingNoteButton.hidden=!data.sale.has_delivery_note;
+    if(data.sale.has_delivery_note){
+        let noteButton=page.querySelector('.open-delivery-note');
+        if(!noteButton){noteButton=document.createElement('button');noteButton.type='button';noteButton.className='open-delivery-note';noteButton.textContent='Delivery Note';page.querySelector('.sale-document-actions').appendChild(noteButton);}
+        noteButton.onclick=()=>window.openDeliveryNote(data.sale.sales_id);
+    }
 }
 
 // Creates a labelled value block for a data card.
@@ -1548,6 +1744,8 @@ function createCardValues(label,value,unit) {
 	const unitValue=document.createElement("small");
 
 	nameOrValue.textContent=value;
+    if(String(value).includes('₦')) box.classList.add('is-money');
+    if(/^[₦+−-]?\d[\d,.]*(?:\s?%)?$/.test(String(value).trim())) box.classList.add('is-number');
 	labelName.textContent=label;
 
 	box.append(labelName,nameOrValue,unitValue);
@@ -1569,20 +1767,30 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 		expenses: '#expenses-record-count'
 	};
 	const countElement=document.querySelector(countSelectors[config.kind]);
-	if(countElement) countElement.textContent=list.length+' record'+(list.length===1?'':'s');
-	if(list.length===0) {
+	if(countElement){
+        if(config.kind==='stock')countElement.replaceChildren(AppUI.icon('document'),document.createTextNode(list.length.toLocaleString('en-NG')+' record'+(list.length===1?'':'s')));
+        else countElement.textContent=list.length+' record'+(list.length===1?'':'s');
+    }
+    if(window.updateReferenceRecordSummary)window.updateReferenceRecordSummary(config.kind,list);
+	if(config.kind==='stock'&&countElement){
+        let warning=countElement.parentElement.querySelector('.negative-stock-count');
+        if(!warning){warning=document.createElement('span');warning.className='negative-stock-count';countElement.after(warning);}
+        const negative=list.filter(row=>Number(row.closing_stock)<0).length;
+        warning.hidden=!negative;warning.replaceChildren(AppUI.icon('alert'),document.createTextNode(negative+' negative '+(negative===1?'balance':'balances')));
+    }
+    if(list.length===0) {
 		const empty=document.createElement('p');
 		empty.className='data-record-empty';
 		empty.textContent='No records found.';
 		htmlDataList.appendChild(empty);
 	}
 	// Processes each entry in the collection.
-	list.slice(0,visibleRecord).forEach(row => {
+	list.slice(0,visibleRecord).forEach((row,index) => {
 		const card=createCard(
 			config.date(row),
 			config.createdAt(row),
 			config.item(row),
-			config.id(row)
+			config.id(row),'p',config.kind==='stock'
 		);
 		if(!config.openDetails) {
 			card.card.querySelector('.details-btn').hidden=true;
@@ -1609,7 +1817,8 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 			config.item(row).toLowerCase().replaceAll(" ","-")
 		);
 
-		// Processes each entry in the collection.
+		card.card.classList.add('ledger-'+config.kind);
+        // Processes each entry in the collection.
 		config.field.forEach(field => {
 			const box=createCardValues(
 				field.label,
@@ -1617,8 +1826,20 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 				field.unit? field.unit(row):undefined
 			);
 			if(field.className) box.classList.add(field.className);
+            const style=field.label==='Opening Stock'?'opening':field.label==='Received'?'received':field.label==='Issued'?'issued':field.label==='Closing Stock'?'closing':field.label==='Total'?'total':null;
+            if(style&&config.kind==='stock'){box.classList.add('metric-'+style);box.firstChild.prepend(AppUI.icon(style==='received'?'down':style==='issued'?'up':style==='opening'?'cubes':style==='closing'?'cubes':'tag'));}
+            if(field.label==='Closing Stock'&&Number(row.closing_stock)<0)box.classList.add('metric-negative');
 			card.body.appendChild(box);
 		});
+        if(config.kind==='stock'&&Number(row.closing_stock)<0){
+            card.card.classList.add('negative-balance');
+            const warning=document.createElement('p');warning.className='stock-balance-warning';
+            warning.append(AppUI.icon('alert'),document.createTextNode('Negative closing balance — review stock records.'));
+            card.body.after(warning);
+        }
+        if(config.decorate) config.decorate(card,row);
+        if(config.kind==='production')card.card.querySelector('.edit-btn').textContent='Edit hours';
+        if(window.styleReferenceRecordCard)window.styleReferenceRecordCard(card,row,config.kind,index);
 		htmlDataList.appendChild(card.card);
 
 		const editBtn=card.card.querySelector(".edit-btn");
@@ -1660,10 +1881,10 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 			});
 			if(!response.ok) {
 				const problem=await response.json();
-				alert(problem.err);
+				appNotify(problem.err);
 				return;
 			}
-			alert("Record was deleted successfully");
+			appNotify("Record was deleted successfully");
 			card.card.remove();
 		});
 			const detailsBtn=card.card.querySelector('.details-btn');
@@ -1688,19 +1909,8 @@ function loadMore(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
 
 // Filters records to the selected date range.
 function filterDate(record,config,dateFrom,dateTo) {
-	let filtered;
-	if(dateFrom.value===""||dateTo.value==="") {
-		filtered=record;
-	} else {
-		// Keeps collection entries that match the current condition.
-		filtered=record.filter(row => {
-			return (
-				config.date(row)>=dateFrom.value&&
-				config.date(row)<=dateTo.value
-			);
-		});
-	}
-	return filtered;
+    const from=dateFrom.value,to=dateTo.value;
+    return record.filter(row=>(!from||config.date(row)>=from)&&(!to||config.date(row)<=to));
 }
 
 // Sorts records according to the selected date order.
@@ -1742,6 +1952,12 @@ async function renderSalesCard(salesList) {
 		kind: "sales",
 		formId: "sales-form",
 		openDetails: openSaleDocument,
+        decorate:(card,row)=>{
+            if(!row.has_delivery_note)return;
+            const button=document.createElement('button');button.type='button';button.textContent='Delivery Note';
+            button.onclick=event=>{event.stopPropagation();window.openDeliveryNote(row.sales_id);};card.card.querySelector('.card-actions').appendChild(button);
+            const status=document.createElement('p');status.textContent='Payment by '+(row.billing_basis==='Customer'?'customer’s agreed weight':'factory weight')+(row.invoice_number?'':' · Invoice pending');card.body.after(status);
+        },
 		// Returns the record identifier used by the card.
 		id: row => row.sales_id,
 		// Returns the record date used for display and filtering.
@@ -1759,7 +1975,7 @@ async function renderSalesCard(salesList) {
 			{
 					label: "Quantity",
 				// Derives the displayed field value from the current record.
-				value: row => formatNumber(row.quantity),
+				value: row => formatNumber(row.factory_quantity??row.quantity),
 				// Returns the unit displayed beside the current value.
 				unit: () => "kg"
 			},
@@ -1773,7 +1989,7 @@ async function renderSalesCard(salesList) {
 			{
 				label: "Total",
 				// Derives the displayed field value from the current record.
-				value: row => "₦"+formatNumber(row.total)
+				value: row => row.invoice_number?"₦"+formatNumber(row.total):"Awaiting weight"
 			},
 			{
 				label: "Scale Ticket",
@@ -1919,6 +2135,17 @@ function renderExpensesCard(expensesList) {
 
 // Builds and displays inventory card using the supplied data.
 async function renderInventoryCard(inventoryList) {
+    const table=document.querySelector('#inventory-data-body');
+    if(table){
+        table.replaceChildren();
+        inventoryList.forEach(row=>{
+            const tr=document.createElement('tr');
+            [formatDate(row.count_date),row.name,...['opening_stock','received','issued','closing_stock'].map(key=>formatNumber(row[key]))].forEach(value=>{
+                const td=document.createElement('td');td.textContent=value;tr.appendChild(td);
+            });table.appendChild(tr);
+        });
+    }
+
 	const loadMoreBtn=document.querySelector("#inventory-load-more");
 	let visibleRecord=10;
 
@@ -2106,6 +2333,7 @@ async function renderPurchasesCard(purchasesList) {
 	let visibleRecord=10;
 
 	const purchasesConfig={
+        decorate: window.decorateKernelPurchase,
 		kind: "purchases",
 		formId: "purchases-form",
 		// Returns the record date used for display and filtering.
@@ -2255,6 +2483,39 @@ function renderProductionCard(productionList) {
 		createdAt: row => row.created_at,
 		// Returns the record item name.
 		item: () => "Production output",
+        decorate: (card,row)=>{
+            card.card.classList.add('production-day-card','production-record');
+            card.header.classList.add('production-day-header');
+            const title=document.createElement('div');title.className='production-day-title';
+            const text=document.createElement('span');const label=document.createElement('small');label.textContent='Daily production';
+            const date=document.createElement('strong');date.textContent=formatDate(row.production_date);text.append(label,date);
+            title.append(AppUI.icon('production'),text);card.header.replaceChildren(title);
+            const meta=document.createElement('div');meta.className='production-operating';
+            meta.textContent=(row.production_hours||0)+' operating hours · '+(row.down_time||0)+' hours downtime';
+            const yieldNote=document.createElement('p');yieldNote.className='production-yield-status';
+            yieldNote.textContent='Oil yield: '+(row.pko_yield===null?'—':formatNumber(row.pko_yield)+'%')+' · '+row.yield_status;meta.appendChild(yieldNote);
+            const history=createProductionHistory(row.batches||[],row.request_id?row:null,loadProductionData);
+            if(document.documentElement.dataset.userRole==='admin') {
+                const note=document.createElement('p');
+                note.textContent=row.request_id?'Daily quantities are calculated from the entries below. Choose an exact entry to correct a quantity.':'This older record has no linked authorisation. Its original stock entries must be linked before quantities can be corrected.';
+                history.appendChild(note);
+                if(row.request_id&&row.status==='Completed') {
+                    const reopen=document.createElement('button');reopen.type='button';reopen.textContent='Reopen day to correct entries';
+                    reopen.onclick=async()=>{
+                        if(!confirm('Reopen this production day to correct its entries?'))return;
+                        reopen.disabled=true;
+                        try {
+                            const response=await fetch('/api/weighing-requests/'+row.request_id+'/reopen',{method:'PATCH'});
+                            const result=await response.json();
+                            if(response.ok)await loadProductionData();
+                            appNotify(result.message||result.err);
+                        } catch(error){appNotify('Could not reopen production.');}
+                        finally{reopen.disabled=false;}
+                    };history.appendChild(reopen);
+                }
+            }
+            card.body.after(meta,history);
+        },
 		field: [
 			{
 				label: "Kernel Used",
@@ -2283,30 +2544,6 @@ function renderProductionCard(productionList) {
 				value: row => formatNumber(row.sludge_produced),
 				unit: () => "kg",
 				className: "production-quantity"
-			},
-			{
-				label: "Production hours",
-				// Derives the displayed field value from the current record.
-				value: row => row.production_hours,
-				// Returns the unit displayed beside the current value.
-				unit: () => "hrs",
-				className: "production-time"
-			},
-			{
-				label: "Down time",
-				// Derives the displayed field value from the current record.
-				value: row => row.down_time,
-				// Returns the unit displayed beside the current value.
-				unit: () => "hrs",
-				className: "production-time"
-			},
-			{
-                label: "Weighing history",
-                value: row => (row.batches||[]).length?(row.batches.map(batch =>
-                    new Date(batch.created_at).toLocaleString()+' — Kernel '+batch.kernel_used+
-                    ', PKO '+batch.pko_produced+', PKC '+batch.pkc_produced+', Sludge '+batch.sludge_produced+
-                    ' kg'+(batch.scale_ticket?' · '+batch.scale_ticket:'')).join('; ')):(row.scale_ticket||'Not provided'),
-                className: "production-ticket"
 			}
 		]
 	};
@@ -2347,23 +2584,23 @@ function renderProductionCard(productionList) {
 		renderCurrentProductionList();
 	}
 
-	renderCurrentProductionList();
+	applyProductionDateFilter();
 
 	// Handles click events from loadMoreBtn.
-	loadMoreBtn.addEventListener("click",() => {
+	loadMoreBtn.onclick=() => {
 		visibleRecord+=10;
 		renderCurrentProductionList();
-	});
+	};
 
-	dateFrom.addEventListener("change",applyProductionDateFilter);
-	dateTo.addEventListener("change",applyProductionDateFilter);
+	dateFrom.onchange=applyProductionDateFilter;
+	dateTo.onchange=applyProductionDateFilter;
 
 	// Handles change events from productionSort.
-	productionSort.addEventListener("change",() => {
+	productionSort.onchange=() => {
 		visibleRecord=10;
 		currentList=sortNewest(currentList,productionConfig,productionSort);
 		renderCurrentProductionList();
-	});
+	};
 }
 
 // Fetches inventory data and displays the results in the relevant interface.
@@ -2371,11 +2608,11 @@ async function loadInventoryData() {
 	const response=await fetch("/api/inventory-summary");
 	if(response.status===500) {
 		const problem=await response.json();
-		alert(problem.err);
+		appNotify(problem.err);
 		return;
 	}
 	if(!response.ok) {
-		alert("Request failed"+" "+response.statusText);
+		appNotify("Request failed"+" "+response.statusText);
 		return;
 	}
 	const inventoryList=await response.json();
@@ -2388,11 +2625,11 @@ async function loadPurchasesData() {
 	const response=await fetch("/api/purchases");
 	if(response.status===500) {
 		const problem=await response.json();
-		alert(problem.err);
+		appNotify(problem.err);
 		return;
 	}
 	if(!response.ok) {
-		alert("Request failed"+" "+response.statusText);
+		appNotify("Request failed"+" "+response.statusText);
 		return;
 	}
 	const purchasesList=await response.json();
@@ -2405,11 +2642,11 @@ async function loadProductionData() {
 	const response=await fetch("/api/production");
 	if(response.status===500) {
 		const problem=await response.json();
-		alert(problem.err);
+		appNotify(problem.err);
 		return;
 	}
 	if(!response.ok) {
-		alert("Request failed"+" "+response.statusText);
+		appNotify("Request failed"+" "+response.statusText);
 		return;
 	}
 	const productionList=await response.json();
@@ -2423,11 +2660,11 @@ async function loadPurchasesData() {
 	const response=await fetch("/api/purchases");
 	if(response.status===500) {
 		const problem=await response.json();
-		alert(problem.err);
+		appNotify(problem.err);
 		return;
 	}
 	if(!response.ok) {
-		alert("Request failed"+" "+response.statusText);
+		appNotify("Request failed"+" "+response.statusText);
 		return;
 	}
 	const purchasesList=await response.json();
@@ -2444,11 +2681,11 @@ async function renderProductionTable() {
 		const response=await fetch("/api/production");
 		if(response.status===500) {
 			const problem=await response.json();
-			alert(problem.err);
+			appNotify(problem.err);
 			return;
 		}
 		if(!response.ok) {
-			alert("Request failed"+" "+response.statusText);
+			appNotify("Request failed"+" "+response.statusText);
 			return;
 		}
 		const productionList=await response.json();
@@ -2475,8 +2712,8 @@ async function renderProductionTable() {
 				production.pko_produced,
 				production.pkc_produced,
 				production.sludge_produced,
-				production.pko_yield,
-				production.pkc_yield,
+				(production.pko_yield??'—')+' · '+production.yield_status,
+				(production.pkc_yield??'—')+' · '+production.yield_status,
 				production.production_hours,
 				production.down_time
 			];
@@ -2491,7 +2728,7 @@ async function renderProductionTable() {
 		});
 	} catch(error) {
 		console.error(error.message);
-		alert("Something went Wrong"+" "+error.message);
+		appNotify("Something went Wrong"+" "+error.message);
 	}
 }
 
@@ -2502,11 +2739,11 @@ async function loadExpensesData() {
 		const response=await fetch("/api/expenses");
 		if(response.status===500) {
 			const problem=await response.json();
-			alert(problem.err);
+			appNotify(problem.err);
 			return;
 		}
 		if(!response.ok) {
-			alert("Request failed"+" "+response.statusText);
+			appNotify("Request failed"+" "+response.statusText);
 			return;
 		}
 		const expensesList=await response.json();
@@ -2545,7 +2782,7 @@ async function loadExpensesData() {
 		});
 	} catch(error) {
 		console.error(error.message);
-		alert("Something went Wrong"+" "+error.message);
+		appNotify("Something went Wrong"+" "+error.message);
 	}
 }
 
@@ -2577,16 +2814,18 @@ function editForm() {
 		updateEntryUnit(stockName,".inventory-entry-unit");
 		received.value=record.received;
 		issued.value=record.issued;
+		stockReason.value=record.adjustment_reason||'Other';
 
 		inventoryForm.removeEventListener("submit",saveInventory);
 		inventoryForm.addEventListener("submit",saveEdit);
 		inventoryForm.querySelector('button[type="submit"]').textContent=
 			"Save Inventory";
 	} else if(kind==="production") {
-		kernelUsed.readOnly=false;
-		oilProduced.readOnly=false;
-		pkcProduced.readOnly=false;
-		sludgeProduced.readOnly=false;
+		kernelUsed.readOnly=true;
+        productionDate.readOnly=true;
+		oilProduced.readOnly=true;
+		pkcProduced.readOnly=true;
+		sludgeProduced.readOnly=true;
 		productionDate.value=record.production_date.slice(0,10);
 		kernelUsed.value=record.kernel_used;
 		oilProduced.value=record.pko_produced;
@@ -2598,14 +2837,25 @@ function editForm() {
 		productionForm.removeEventListener("submit",saveProduction);
 		productionForm.addEventListener("submit",saveEdit);
 		productionForm.querySelector('button[type="submit"]').textContent=
-			"Save Production";
+			"Save hours";
+        const explanation=document.createElement('p');
+        explanation.textContent='Daily quantities are read-only. Open Production Data and choose the exact entry to correct its quantity.';
+        productionForm.prepend(explanation);
 	} else if(kind==="sales") {
 		salesQuantity.readOnly=false;
 		salesDate.value=record.sales_date.slice(0,10);
 		customer.value=record.customer_id;
 		productSold.value=record.item_id;
-		salesQuantity.value=record.quantity;
+		salesQuantity.value=record.factory_quantity??record.quantity;
+        document.querySelector('label[for="sales-quantity"]').textContent='Factory quantity issued (kg)';
+        const basis=document.getElementById('sales-billing-basis');basis.value=record.billing_basis||'Factory';basis.disabled=true;
+        document.getElementById('sales-representative').closest('.field').hidden=true;
+        document.getElementById('sales-representative').disabled=true;
 		unitPrice.value=record.unit_price;
+        // A sale the driver signed for can still be corrected by the Director, but the reason is recorded on its delivery note.
+        const correctionField=document.getElementById('sales-correction-field');
+        correctionField.hidden=false;document.getElementById('sales-correction-reason').required=Boolean(record.has_delivery_note);
+        const correctionPrice=document.getElementById('sales-correction-price');correctionPrice.value=record.unit_price;correctionPrice.required=true;
 
 		salesForm.removeEventListener("submit",saveSale);
 		salesForm.addEventListener("submit",saveEdit);
@@ -2651,16 +2901,12 @@ async function saveEdit(event) {
 			count_date: stockDate.value,
 			item_id: stockName.value,
 			received: received.value,
-			issued: issued.value
+			issued: issued.value,
+			adjustment_reason: stockReason.value
 		};
 	} else if(kind==="production") {
 		updatedForm={
 			production_id: record.production_id,
-			production_date: productionDate.value,
-			kernel_used: kernelUsed.value,
-			pko_produced: oilProduced.value,
-			pkc_produced: pkcProduced.value,
-			sludge_produced: sludgeProduced.value,
 			production_hours: productionHours.value,
 			down_time: downTime.value
 		};
@@ -2671,7 +2917,8 @@ async function saveEdit(event) {
 			customer_id: customer.value,
 			item_id: productSold.value,
 			quantity: salesQuantity.value,
-			unit_price: unitPrice.value
+			unit_price: document.getElementById('sales-correction-price').value||unitPrice.value,
+			correction_reason: document.getElementById('sales-correction-reason').value
 		};
 	} else if(kind==="purchases") {
 		updatedForm={
@@ -2703,7 +2950,7 @@ async function saveEdit(event) {
 		})
 	});
 	if(response.ok) {
-		alert("Edit saved successfully");
+		appNotify("Edit saved successfully");
 		const checksReturnUrl=
 			sessionStorage.getItem("checksReturnUrl")||"checks.html";
 		sessionStorage.removeItem("editRecord");
@@ -2712,7 +2959,7 @@ async function saveEdit(event) {
 		window.location.href=checksReturnUrl;
 	} else {
 		const problem=await response.json();
-		alert(problem.err||"Edit could not be saved");
+		appNotify(problem.err||"Edit could not be saved");
 	}
 }
 
@@ -2778,7 +3025,7 @@ function createPartnersCard(partner,businessLabel,latestBusinessDate,config={}) 
 function displayPartners(partnersList,config,allCards) {
 	allCards.replaceChildren();
 	// Processes each entry in the collection.
-	partnersList.forEach((partner) => {
+	partnersList.forEach((partner,index) => {
 		const card=createPartnersCard(partner,config.lastBusiness,config.lastBusinessDate(partner),config);
 		if(config.cardClass) {
 			card.card.classList.add(config.cardClass);
@@ -2790,6 +3037,7 @@ function displayPartners(partnersList,config,allCards) {
 
 		});
 
+		if(window.styleReferencePartner)window.styleReferencePartner(card,partner,config,index);
 		// Handles click events from card.footer.
 		card.footer.addEventListener('click',async function() {
 				if(config.openDetailsPage) {
@@ -2799,6 +3047,7 @@ function displayPartners(partnersList,config,allCards) {
 			const existingDetails=card.card.querySelector(config.detailsClass);
 			if(existingDetails) {
 				existingDetails.remove();
+                card.footer.firstElementChild.textContent='View Details';card.footer.setAttribute('aria-expanded','false');
 				return;
 			}
 			if(config.renderDetails) {
@@ -2808,6 +3057,7 @@ function displayPartners(partnersList,config,allCards) {
 			const response=await fetch(config.detailsUrl(partner));
 			const history=await response.json();
 			renderTransactionHistory(partner,config,history,card.card);
+            card.footer.firstElementChild.textContent='Hide Details';card.footer.setAttribute('aria-expanded','true');
 		});
 		allCards.appendChild(card.card);
 	});
@@ -2869,27 +3119,16 @@ function renderCustomersCards(customersList) {
 		]
 	}
 
-	displayPartners(customersList,customerConfig,allCards);
 
-	// Filters the visible list as the user searches customer.
-	function searchCustomer() {
-		// Handles input events from customerSearch.
-		customerSearch.addEventListener('input',() => {
-			const userInput=customerSearch.value.toLowerCase().trim();
-			// Keeps collection entries that match the current condition.
-			const filteredCustomer=customersList.filter((customer) => {
-				return customer.name.toLowerCase().includes(userInput);
-			});
-			// Keeps collection entries that match the current condition.
-			filteredCustomer.sort((a,b) => {
-				const aStart=a.name.toLowerCase().startsWith(userInput);
-				const bStart=b.name.toLowerCase().startsWith(userInput);
-				return bStart-aStart;
-			});
-			displayPartners(filteredCustomer,customerConfig,allCards);
-		});
-	}
-	searchCustomer();
+    function drawCustomers(){
+        const query=customerSearch.value.toLowerCase().trim();
+        let rows=customersList.filter(row=>[row.name,row.phone_number,'c'+row.customer_id,String(row.customer_id)].some(value=>String(value||'').toLowerCase().includes(query)));
+        const mode=sortCustomers.selectedIndex;
+        rows.sort((a,b)=>mode===3?Number(b.total_purchases)-Number(a.total_purchases):mode===1?Number(a.customer_id)-Number(b.customer_id):mode===2?Number(b.customer_id)-Number(a.customer_id):a.name.localeCompare(b.name));
+        displayPartners(rows,customerConfig,allCards);
+    }
+    customerSearch.oninput=drawCustomers;sortCustomers.onchange=drawCustomers;drawCustomers();
+
 }
 
 const customerName=customerForm.querySelector('#customer-name');
@@ -2930,9 +3169,9 @@ async function saveCustomer(event) {
 
 		if(!response.ok) {
 			const problem=await response.json();
-			alert(problem.err);
+			appNotify(problem.err);
 		}
-		alert('customer details saved successfully');
+		appNotify('customer details saved successfully');
 		history.back();
 		customerForm.reset();
 	} catch(error) {
@@ -2960,16 +3199,16 @@ async function saveSupplier(event) {
 		});
 		if(!response.ok) {
 			const problem=await response.json();
-			alert(problem.err);
+			appNotify(problem.err);
 			return;
 		}
-		alert('Supplier saved');
+		appNotify('Supplier saved');
 		supplierForm.reset();
 		window.location.replace('forms.html#suppliers');
 
 	} catch(error) {
 		console.error(error);
-		alert('Could not save supplier. Please try again.');
+		appNotify('Could not save supplier. Please try again.');
 	}
 }
 
@@ -2984,15 +3223,15 @@ async function saveEmployee(event) {
 		});
 		if(!response.ok) {
 			const problem=await response.json();
-			alert(problem.err||'Could not save employee');
+			appNotify(problem.err||'Could not save employee');
 			return;
 		}
-		alert('Employee saved successfully');
+		appNotify('Employee saved successfully');
 		employeeForm.reset();
 		window.location.replace('forms.html#employees');
 	} catch(error) {
 		console.error(error);
-		alert('Could not save employee. Please try again.');
+		appNotify('Could not save employee. Please try again.');
 	}
 }
 
@@ -3068,16 +3307,16 @@ async function saveCompanyDetails(event) {
 		});
 		if(!response.ok) {
 			const problem=await response.json();
-			alert(problem.err||'Could not update company details');
+			appNotify(problem.err||'Could not update company details');
 			return;
 		}
 		const company=await response.json();
 		populateCompanyForm(company);
 		setCompanyEditMode(false);
-		alert('Company details updated successfully');
+		appNotify('Company details updated successfully');
 	} catch(error) {
 		console.error(error);
-		alert('Could not update company details. Please try again.');
+		appNotify('Could not update company details. Please try again.');
 	}
 }
 
@@ -3174,8 +3413,8 @@ function renderTransactionHistory(partner,config,history,partnerCard) {
 
 		date.textContent=config.date(row);
 		item.textContent=config.item(row);
-		quantity.textContent=formatNumber(config.quantity(row))+'kg';
-		price.textContent='₦'+formatNumber(config.price(row))+'/kg';
+		quantity.textContent=formatNumber(config.quantity(row))+' '+inventoryUnit(config.item(row));
+		price.textContent='₦'+formatNumber(config.price(row))+'/'+inventoryUnit(config.item(row));
 		total.textContent='₦'+formatNumber(config.total(row));
 
 		card.append(date,item,quantity,price,total);
@@ -3186,6 +3425,7 @@ function renderTransactionHistory(partner,config,history,partnerCard) {
 	partnerDetails.append(header,body);
 	partnerDetails.classList.add(config.detailsClassStyle);
 	partnerCard.appendChild(partnerDetails);
+    if(window.styleReferencePartnerHistory)window.styleReferencePartnerHistory(partnerDetails,partnerCard,config,history);
 }
 
 // Fetches customer details to edit and displays the results in the relevant interface.
@@ -3235,11 +3475,11 @@ async function saveCustomerEdit(e) {
 	});
 	if(!response.ok) {
 		const problem=await response.json();
-		alert(problem.err);
+		appNotify(problem.err);
 		return;
 	}
 	const result=await response.json();
-	alert('Customer updated successfully');
+	appNotify('Customer updated successfully');
 	customerForm.reset();
 	window.location.replace('forms.html#customers');
 }
@@ -3292,11 +3532,11 @@ async function saveSupplierEdit(e) {
 	});
 	if(!response.ok) {
 		const problem=await response.json();
-		alert(problem.err);
+		appNotify(problem.err);
 		return;
 	}
 	const result=await response.json();
-	alert('Supplier updated successfully');
+	appNotify('Supplier updated successfully');
 	supplierForm.reset();
 	window.location.replace('forms.html#suppliers');
 }
@@ -3307,7 +3547,7 @@ function renderSupplierCards(suppliersList) {
 	const allCards=document.querySelector('.supplier-cards');
 
 	const supplierSearch=document.querySelector('#supplier-search');
-	const sortSupplier=document.querySelector('#sort-supplier');
+	const sortSupplier=document.querySelector('#sort-suppliers');
 	const supplierConfig={
 		kind: 'supplier',
 		transaction: 'supply',
@@ -3364,27 +3604,16 @@ function renderSupplierCards(suppliersList) {
 		]
 	}
 
-	displayPartners(suppliersList,supplierConfig,allCards);
 
-	// Filters the visible list as the user searches supplier.
-	function searchSupplier() {
-		// Handles input events from supplierSearch.
-		supplierSearch.addEventListener('input',() => {
-			const userInput=supplierSearch.value.toLowerCase().trim();
-			// Keeps collection entries that match the current condition.
-			const filteredSupplier=suppliersList.filter((supplier) => {
-				return supplier.name.toLowerCase().includes(userInput);
-			});
-			// Keeps collection entries that match the current condition.
-			filteredSupplier.sort((a,b) => {
-				const aStart=a.name.toLowerCase().startsWith(userInput);
-				const bStart=b.name.toLowerCase().startsWith(userInput);
-				return bStart-aStart;
-			});
-			displayPartners(filteredSupplier,supplierConfig,allCards);
-		});
-	}
-	searchSupplier();
+    function drawSuppliers(){
+        const query=supplierSearch.value.toLowerCase().trim();
+        const rows=suppliersList.filter(row=>[row.name,row.phone_number,'s'+row.supplier_id,String(row.supplier_id)].some(value=>String(value||'').toLowerCase().includes(query)));
+        const mode=sortSupplier.selectedIndex;
+        rows.sort((a,b)=>mode===3?Number(b.total_supplies)-Number(a.total_supplies):mode===1?Number(a.supplier_id)-Number(b.supplier_id):mode===2?Number(b.supplier_id)-Number(a.supplier_id):a.name.localeCompare(b.name));
+        displayPartners(rows,supplierConfig,allCards);
+    }
+    supplierSearch.oninput=drawSuppliers;sortSupplier.onchange=drawSuppliers;drawSuppliers();
+
 }
 
 // Builds the employee information and system-access sections shown inside an expanded card.
@@ -3431,12 +3660,12 @@ async function renderEmployeeDetails(employee,employeeCard) {
 
 	// Adds each label and value using the same DOM-building pattern as the other cards.
 	employeeFields.forEach((field) => {
-		const row=createCardValues(field[0],field[1]);
+		const row=createCardValues(field[0],field[1]??'—');
 		employeeInformation.appendChild(row);
 	});
 	// Builds the system-access rows from the employee configuration data.
 	accessFields.forEach((field) => {
-		const row=createCardValues(field[0],field[1]);
+		const row=createCardValues(field[0],field[1]??'—');
 		systemAccess.appendChild(row);
 	});
 
@@ -3467,7 +3696,7 @@ async function renderEmployeeDetails(employee,employeeCard) {
 			});
 			const result=await response.json();
 			if(!response.ok) {
-				alert(result.err);
+				appNotify(result.err);
 				return;
 			}
 			window.location.reload();
@@ -3478,6 +3707,7 @@ async function renderEmployeeDetails(employee,employeeCard) {
 		salaryHeading,salaryHistory,actions
 	);
 	employeeCard.appendChild(details);
+    if(window.styleReferenceEmployeeDetails)window.styleReferenceEmployeeDetails(details);
 
 	try {
 		const response=await fetch('/api/employees/'+employee.employee_id+'/salary-history');
@@ -3637,6 +3867,11 @@ function openPayrollPage() {
 			card.querySelector('.payroll-status').value=record.payment_status;
 			card.querySelector('.payroll-date').value=record.payment_date||'';
 			card.querySelector('.payroll-total').textContent='₦'+formatNumber(record.total_salary_cost);
+            // Paid salaries are locked on the server; show them read-only.
+            if(record.payment_status==='Paid') {
+                card.querySelectorAll('.payroll-record-fields input,.payroll-record-fields select,.payroll-save').forEach(field=>{field.disabled=true;});
+                card.querySelector('.payroll-save').textContent='Paid · Locked';
+            }
 			card.querySelector('.payroll-save').addEventListener('click',async function() {
 				const payload={
 					bonus: card.querySelector('.payroll-bonus').value||0,
@@ -3725,17 +3960,17 @@ function renderEmployeeCards(employeeRecords) {
 		if(selectedEmployee) openEmployeePage(selectedEmployee,false);
 	}
 
-	// Filters employees by the name, role, department, or phone number shown on their cards.
-	employeeSearch.addEventListener('input',() => {
-		const userInput=employeeSearch.value.toLowerCase().trim();
-		// Keeps collection entries that match the current condition.
-		const filteredEmployees=employeeRecords.filter((employee) => {
-			return [employee.name,employee.role,employee.department,employee.phone_number]
-				// Keeps collection entries that match the current condition.
-				.some(value => value.toLowerCase().includes(userInput));
-		});
-		displayPartners(filteredEmployees,employeeConfig,allCards);
-	});
+
+    const employeeSort=document.querySelector('#employee-sort');
+    function drawEmployees(){
+        const query=employeeSearch.value.toLowerCase().trim();
+        const rows=employeeRecords.filter(row=>[row.name,row.role,row.department,row.phone_number,row.email].some(value=>String(value||'').toLowerCase().includes(query)));
+        rows.sort((a,b)=>employeeSort?.value==='joined'?String(b.start_date).localeCompare(String(a.start_date)):a.name.localeCompare(b.name));
+        displayPartners(rows,employeeConfig,allCards);
+        const count=document.querySelector('#employee-visible-count');if(count)count.textContent=rows.length+' Employees';
+    }
+    employeeSearch.oninput=drawEmployees;if(employeeSort)employeeSort.onchange=drawEmployees;drawEmployees();
+
 }
 
 // Displays one employee's complete record on the dedicated employee profile page.
@@ -3768,6 +4003,7 @@ function openEmployeePage(employee,updateAddress=true) {
 	status.textContent=employee.status;
 	identity.append(name,role,contact,status);
 	summary.replaceChildren(photo,identity);
+    if(window.styleReferenceEmployeeProfile)window.styleReferenceEmployeeProfile(page,employee);
 	content.replaceChildren();
 	renderEmployeeDetails(employee,content);
 

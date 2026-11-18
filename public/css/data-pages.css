@@ -1,0 +1,92 @@
+/* The supplied reference is the phone layout. Desktop keeps its existing tables. */
+@media (max-width:600px){
+/* Shared record layout, based on the supplied datapage reference. */
+body #inventory-card-view{display:block!important;padding:0!important;min-height:0;background:transparent}
+#inventory-data{background:#f4f7fa!important}
+#inventory-data>.data-table-view,
+#inventory-data>h2{display:none}
+#inventory-card-view .record-page-heading{display:flex;align-items:flex-start;gap:14px;margin:4px 0 22px}
+#inventory-card-view .record-page-heading>.ui-icon{width:38px;height:38px;color:#087132;margin-top:5px}
+#inventory-card-view .record-page-heading h2{margin:0;padding:0;background:none;font-size:clamp(23px,3vw,32px);letter-spacing:-.035em;color:#102b20;line-height:1.2;text-transform:none}
+#inventory-card-view .record-page-heading p{margin:5px 0 0;color:#63717e;font-size:11px;line-height:1.5}
+body #inventory-card-view .data-filters{display:grid;grid-template-columns:minmax(90px,1fr) minmax(170px,1.35fr);gap:10px;padding:10px;margin-bottom:12px;background:#fff;border:1px solid #dce3eb;border-radius:16px;box-shadow:0 4px 12px #223f5010}
+body #inventory-card-view .data-filters.no-item-filter{grid-template-columns:1fr}
+#inventory-card-view .filter-field{display:flex;flex-direction:column;gap:7px;min-width:0;color:#465664;font-size:10px;font-weight:650;text-align:left}
+body #inventory-card-view .data-date-filter{display:flex;align-items:center;gap:7px;min-width:0;border:0;background:none;padding:0}
+body #inventory-card-view .data-filters select,body #inventory-card-view .data-filters input{width:100%;min-width:0;margin:0;height:34px;padding:5px 6px;border:1px solid #c9d3de;border-radius:9px;background:#fff;color:#23372d;font:inherit;font-size:11px}
+body #inventory-card-view .data-list-heading{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:0 0 17px;color:#304252;font-size:11px;font-weight:700}
+body #inventory-card-view .data-list-heading>span:first-child{display:flex;align-items:center;gap:8px}
+#inventory-card-view .data-list-heading>span:first-child::before{content:'≡';display:grid;place-items:center;width:24px;height:26px;border-radius:10px;background:#e5ebf0;color:#506474;font-size:23px}
+body #inventory-card-view .data-sort{margin:0 0 0 auto;width:auto;max-width:120px;min-height:30px;border:1px solid #c9d3de;border-radius:9px;background:white;font-size:10px;color:#20372b}
+#inventory-card-view .negative-stock-count{display:flex;align-items:center;gap:6px;color:#b42424;font-size:10px}
+#inventory-card-view .negative-stock-count[hidden]{display:none}
+body #inventory-card-view .data-record-list{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
+body #inventory-card-view .ledger-card{--record-accent:#15943d;--record-tint:#eaf5d5;min-width:0;border:1px solid #d5dee6;border-left:4px solid var(--record-accent);border-radius:12px;background:linear-gradient(120deg,#fff,#fcfdff);box-shadow:0 6px 16px #223e5012;overflow:hidden}
+body #inventory-card-view .ledger-card.pko{--record-accent:#e5a217;--record-tint:#fff3c4}
+body #inventory-card-view .ledger-card.pkc{--record-accent:#8250df;--record-tint:#eee5ff}
+body #inventory-card-view .ledger-card.sludge{--record-accent:#925717;--record-tint:#f4e6d0}
+body #inventory-card-view .ledger-card.diesel{--record-accent:#46779e;--record-tint:#e1eef8}
+body #inventory-card-view .ledger-card .data-record-header{display:grid!important;grid-template-columns:34px minmax(0,1fr) auto!important;grid-template-rows:auto auto auto;column-gap:8px!important;row-gap:3px!important;padding:10px 10px 6px!important;border:0;background:transparent!important;align-items:center}
+body #inventory-card-view .ledger-card .data-record-header>.record-product-icon{grid-area:1/1/4/2!important;display:grid;place-items:center;align-self:start;width:34px;height:36px;border-radius:12px;background:var(--record-tint)!important;color:var(--record-accent)!important;padding:8px!important}
+#inventory-card-view .record-product-icon>.ui-icon{width:31px;height:31px}
+body #inventory-card-view .ledger-card .data-record-header>.record-name{grid-area:1/2!important;justify-self:start!important;padding:0!important;background:none!important;color:#132d20!important;font-size:clamp(14px,4vw,18px)!important;font-weight:750!important;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+body #inventory-card-view .ledger-card .data-record-header>.record-date{grid-area:2/2!important;display:flex;align-items:center;gap:6px;justify-self:start!important;background:none!important;padding:0!important;color:#546777!important;font-size:10px!important;font-weight:500!important}
+#inventory-card-view .record-date>.ui-icon{width:15px;height:15px}
+body #inventory-card-view .ledger-card .data-record-header>.record-submitted{grid-area:3/2!important;justify-self:start!important;background:none!important;padding:0!important;color:#86929d!important;font-size:10px!important;font-weight:400!important}
+body #inventory-card-view .ledger-card .data-record-header>.record-reference{grid-area:1/3!important;align-self:start;justify-self:end!important;padding:4px 8px!important;border-radius:8px;background:#edf0f5!important;color:#637080!important;font-size:11px!important;white-space:nowrap}
+body #inventory-card-view .ledger-card .data-record-values{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px!important;padding:6px 10px 10px}
+body #inventory-card-view .ledger-card .data-record-values>div{display:block;grid-column:auto;min-width:0;padding:7px 5px;border:1px solid #e0e6ed;border-radius:8px;background:#f1f4f8;text-align:left;overflow-x:auto}
+body #inventory-card-view .ledger-card .data-record-values>div>span{display:flex;align-items:center;gap:3px;margin-bottom:5px;color:#5b6a78;font-size:10px;font-weight:600;line-height:1.35}
+#inventory-card-view .data-record-values>div>span>.ui-icon{width:17px;height:17px;flex-shrink:0}
+body #inventory-card-view .ledger-card .data-record-values>div>strong{display:inline;color:#172d25;font-size:clamp(12px,4vw,18px);line-height:1.3;font-weight:750;letter-spacing:-.035em}
+body #inventory-card-view .ledger-card .data-record-values>div.is-number>strong{white-space:nowrap;overflow-wrap:normal!important;word-break:normal!important;font-variant-numeric:tabular-nums}
+body #inventory-card-view .ledger-card .data-record-values>div>small{display:inline;margin-left:4px;color:#64737e;font-size:10px;white-space:nowrap}
+body #inventory-card-view .ledger-card .data-record-values>.metric-received{background:linear-gradient(135deg,#f1faef,#e1f4df);border-color:#d6ebd1}
+body #inventory-card-view .ledger-card .data-record-values>.metric-received>span{color:#277337}
+body #inventory-card-view .ledger-card .data-record-values>.metric-issued{background:linear-gradient(135deg,#fff6f6,#fce9e9);border-color:#f4d8d8}
+body #inventory-card-view .ledger-card .data-record-values>.metric-issued>span{color:#b93333}
+body #inventory-card-view .ledger-card .data-record-values>.metric-closing{background:linear-gradient(135deg,#edf3ff,#dce8ff);border-color:#c5d7ff}
+body #inventory-card-view .ledger-card .data-record-values>.metric-closing>span,body #inventory-card-view .ledger-card .data-record-values>.metric-closing>strong{color:#194cb8}
+body #inventory-card-view .ledger-card .data-record-values>.metric-negative{background:#ffeded;border-color:#f4c8c8}
+body #inventory-card-view .ledger-card .data-record-values>.metric-negative>span,body #inventory-card-view .ledger-card .data-record-values>.metric-negative>strong{color:#bb2424}
+body #inventory-card-view .ledger-card .stock-balance-warning{display:flex;align-items:center;gap:8px;margin:0 18px 16px;padding:10px 12px;border-radius:10px;background:#fff0f0;color:#b52626;font-size:10px}
+body #inventory-card-view .ledger-card.negative-balance{border-left-color:#e4a019}
+body #inventory-card-view .ledger-card .card-actions{padding:10px 18px;background:#f9fbfc;border-top:1px solid #e8edf2}
+body #inventory-card-view .ledger-card .data-record-values>.metric-total{background:#e8f3e9;border-color:#cfe3d3}
+body #inventory-card-view .ledger-card .data-record-values>.transaction-ticket{grid-column:1/-1;background:#f7f8fa}
+body #inventory-card-view .ledger-card .data-record-values>.transaction-ticket>strong{font-size:11px!important;color:#6a7781;letter-spacing:0}
+/* Retire positional icon rules from the older card markup. */
+body #inventory-card-view .ledger-card .data-record-header span::before,
+body #inventory-card-view .ledger-card .data-record-header span::after,
+body #inventory-card-view .ledger-card .data-record-values span::before,
+body #inventory-card-view .ledger-card .data-record-values span::after{content:none!important;display:none!important}
+body #inventory-card-view .ledger-card .data-record-header .ui-icon,
+body #inventory-card-view .ledger-card .data-record-values .ui-icon{display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 auto!important;grid-area:auto!important;padding:0!important;margin:0!important;border:0!important;border-radius:0!important;background:transparent!important;color:inherit!important;min-width:0!important;line-height:1!important}
+body #inventory-card-view .ledger-card .record-product-icon>.ui-icon{width:26px!important;height:26px!important}
+body #inventory-card-view .ledger-card .record-date>.ui-icon{width:15px!important;height:15px!important}
+body #inventory-card-view .ledger-card .data-record-values>div>span>.ui-icon{width:12px!important;height:12px!important}
+body #inventory-card-view .data-list-heading>span:first-child::before{content:none}
+body #inventory-card-view .data-list-heading>span:first-child>.ui-icon{width:24px;height:26px;padding:6px;border-radius:9px;background:#e5ebf0;color:#506474}
+
+body #inventory-card-view .ledger-card .record-submitted{display:none!important}
+body #inventory-card-view .ledger-card .record-product-icon{grid-area:1/1/3/2!important}
+body #inventory-card-view .ledger-card .data-record-header{grid-template-rows:auto auto}
+body #inventory-card-view .data-list-heading{flex-wrap:nowrap;gap:6px;font-size:10px;justify-content:space-between}
+body #inventory-card-view .negative-stock-count{font-size:9px;gap:4px;white-space:nowrap}
+body #inventory-card-view .negative-stock-count>.ui-icon{width:15px;height:15px;flex-basis:15px}
+body #inventory-card-view .data-sort{font-size:10px;padding:5px;width:100px;max-width:100px}
+body #inventory-card-view .ledger-card .data-record-values>div>span{font-size:clamp(8px,2.3vw,11px);gap:3px;white-space:nowrap;letter-spacing:-.025em}
+body #inventory-card-view .ledger-card .data-record-values>div>small{font-size:9px;margin-left:2px}
+body #inventory-card-view .ledger-card .data-record-values>div:not(.is-number)>strong{font-size:12px;letter-spacing:0}
+body #inventory-card-view .ledger-card .stock-balance-warning{margin:0 10px 9px;padding:6px 7px;font-size:10px}
+body #inventory-card-view .record-page-heading{gap:9px;margin:0 0 12px}
+body #inventory-card-view .record-page-heading h2{font-size:24px}
+body #inventory-card-view .record-page-heading>.ui-icon{width:30px;height:30px;flex-basis:30px}
+body #inventory-card-view .record-page-heading p{font-size:11px;margin-top:3px}
+
+body #inventory-card-view .data-date-filter input[type=date]{font-size:9px!important;padding:4px 2px!important;letter-spacing:-.03em}
+body #inventory-card-view .data-date-filter input[type=date]::-webkit-calendar-picker-indicator{display:block;width:12px;height:12px;margin:0;padding:0;opacity:1;cursor:pointer}
+body #inventory-card-view .ledger-card .data-record-values>div{overflow:visible}
+body #inventory-card-view .ledger-card .data-record-values>div>span{font-size:clamp(6.5px,2vw,9px)}
+
+}

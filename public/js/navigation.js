@@ -16,6 +16,8 @@ const pricesBtn=document.querySelector('#prices-button');
 const weighingTasksBtn=document.querySelector('#weighing-tasks-button');
 const pendingWeighingBadge=document.querySelector('.pending-weighing-badge');
 const manageUsersBtn=document.querySelector('#manage-users-button');
+const sopsBtn=document.querySelector('#sops-button');
+if(sopsBtn) sopsBtn.addEventListener('click',()=>{window.location.href='/sops.html';});
 const switchAccountBtn=document.createElement('button');
 switchAccountBtn.type='button';
 switchAccountBtn.classList.add('submenu-button');
@@ -35,9 +37,14 @@ async function refreshPendingWeighingBadge() {
 		const response=await fetch('/api/weighing-requests');
 		if(!response.ok) throw new Error('Could not load pending weighing count');
 		const requests=await response.json();
-		pendingWeighingBadge.textContent=String(requests.length);
-		pendingWeighingBadge.hidden=requests.length===0;
-		weighingTasksBtn.setAttribute('aria-label','Pending Weighing, '+requests.length+' waiting');
+        const deliveries=await fetch('/api/delivery-notes/pending');
+        if(!deliveries.ok)throw new Error('Could not load pending deliveries');
+        const jobs=new Set(requests.map(row=>'request:'+row.request_id));
+        for(const row of await deliveries.json())jobs.add(row.request_id?'request:'+row.request_id:'delivery:'+row.sales_id);
+        const count=jobs.size;
+        pendingWeighingBadge.textContent=String(count);
+        pendingWeighingBadge.hidden=count===0;
+        weighingTasksBtn.setAttribute('aria-label','Pending Weighing, '+count+' waiting');
 	} catch(error) {
 		console.error(error);
 		pendingWeighingBadge.hidden=true;
@@ -58,6 +65,7 @@ function applyRoleVisibility(user) {
 	};
 
 	hide('a[href$="#inventory-form"]',role!=='admin');
+    hide('#consumable-usage-button',!['admin','storekeeper'].includes(role));
 	hide('a[href$="#inventory-data"]',role==='manager');
 	hide('a[href$="#purchases-form"], a[href$="#sales-form"], a[href$="#production-form"], a[href$="#expenses-form"]',role==='storekeeper');
 	hide('.first',role==='storekeeper');
@@ -174,6 +182,9 @@ if(pricesBtn) {
 		window.location.href='/forms.html#prices';
 	});
 }
+
+const consumableUsageBtn=document.querySelector('#consumable-usage-button');
+if(consumableUsageBtn)consumableUsageBtn.addEventListener('click',()=>{window.location.href='/forms.html#consumable-usage';});
 
 if(weighingTasksBtn) {
 	// Opens the Storekeeper's authorised work waiting for physical quantities.
@@ -336,7 +347,7 @@ if(manageUsersBtn&&userDialog) {
 			await loadUserAccounts();
 			userDialog.showModal();
 		} catch(error) {
-			alert(error.message);
+			appNotify(error.message);
 		}
 	});
 
@@ -454,7 +465,7 @@ if(switchAccountBtn&&switchAccountDialog) {
 			const response=await fetch('/api/return-to-admin',{ method: 'POST' });
 			const result=await response.json();
 			if(!response.ok) {
-				alert(result.message||'Could not return to the admin account');
+				appNotify(result.message||'Could not return to the admin account');
 				return;
 			}
 			window.location.replace('/index.html');
@@ -480,7 +491,7 @@ if(switchAccountBtn&&switchAccountDialog) {
 				'Create a manager or storekeeper account first.':'';
 			switchAccountDialog.showModal();
 		} catch(error) {
-			alert(error.message);
+			appNotify(error.message);
 		}
 	});
 

@@ -74,6 +74,8 @@ async function reopenProduction(pool,id,userId) {
             throw Object.assign(new Error('Only a finished production authorisation can be reopened'),{status:409});
         await historicalBatch(client,request,userId);
         await client.query("UPDATE weighing_requests SET status='Awaiting Storekeeper',completed_at=NULL WHERE request_id=$1",[id]);
+        // The loss is worked out again when the day is finished after any further entries.
+        await client.query('UPDATE production SET process_loss=0 WHERE production_id=$1',[request.completed_record_id]);
         await client.query('COMMIT');
     }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }

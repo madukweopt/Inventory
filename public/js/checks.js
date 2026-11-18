@@ -178,7 +178,7 @@ function createCheckCard(check) {
 					await openCorrection(check);
 				} catch(error) {
 					console.error(error);
-					alert('Could not open the correction records.');
+					appNotify('Could not open the correction records.');
 				}
 			});
 		}
@@ -411,7 +411,7 @@ async function openCorrection(check) {
 			});
 			if(!response.ok) {
 				const problem=await response.json();
-				alert(problem.err);
+				appNotify(problem.err);
 				return;
 			}
 			window.location.reload();

@@ -23,7 +23,7 @@ async function protectStock(client,before) {
         for(const point of points) {
             while(oldIndex<old.length&&old[oldIndex].point<=point)oldBalance=old[oldIndex++].balance;
             while(currentIndex<current.length&&current[currentIndex].point<=point)balance=current[currentIndex++].balance;
-            if(balance<Math.min(0,oldBalance)-0.00001) throw Object.assign(new Error('This correction would leave later stock short. Record the correct replacement receipt or review the dependent usage before changing it.'),{status:409});
+            if(balance<Math.min(0,oldBalance)-0.00001) throw Object.assign(new Error('Insufficient stock. This entry would create or worsen a stock shortage on its date or a later date. Record the missing receipt or correct the affected entries first.'),{status:409});
         }
     }
 }
