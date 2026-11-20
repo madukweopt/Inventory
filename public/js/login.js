@@ -2,6 +2,8 @@
 async function submitLogin(event) {
     event.preventDefault();
     const button=event.currentTarget.querySelector('button[type="submit"]');
+    // Remove focus from the username/password box so the phone keyboard closes before the dashboard opens.
+    if(document.activeElement instanceof HTMLElement) document.activeElement.blur();
     button.disabled=true;button.textContent='Signing in…';
     try {
         const response=await fetch('/api/login',{
