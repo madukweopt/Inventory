@@ -1,30 +1,23 @@
-// The login form is submitted by the browser itself, so the phone keyboard closes when the dashboard opens
-// and the browser can offer to save the password. The server redirects back here with ?error= when sign-in fails.
-const loginForm=document.querySelector('#login-form');
-const loginMessages={
-    invalid:'Invalid username or password',
-    locked:'Too many failed sign-in attempts. Wait 15 minutes and try again.',
-    failed:'Could not sign in. Please try again.'
-};
-if(loginForm) {
-    const username=document.querySelector('#login-username');
-    const error=new URLSearchParams(location.search).get('error');
-    if(error) {
-        appNotify(loginMessages[error]||loginMessages.failed,{type:'error'});
-        // Keep the username typed before the failed attempt, and clear the error from the address bar.
-        try { const saved=sessionStorage.getItem('loginUsername'); if(saved&&!username.value) username.value=saved; } catch(storageError) {}
-        history.replaceState(null,'',location.pathname);
-    }
-    loginForm.addEventListener('submit',function() {
-        try { sessionStorage.setItem('loginUsername',username.value); } catch(storageError) {}
-        if(document.activeElement instanceof HTMLElement) document.activeElement.blur();
-        const button=loginForm.querySelector('button[type="submit"]');
-        // Disabled after the browser has collected the form, so a second tap cannot send it twice.
-        setTimeout(()=>{button.disabled=true;button.textContent='Signing in…';},0);
-    });
-    // Coming back to this page (for example with the Back button) shows a usable Login button again.
-    window.addEventListener('pageshow',function() {
-        const button=loginForm.querySelector('button[type="submit"]');
+// Submits login credentials and redirects authenticated users.
+async function submitLogin(event) {
+    event.preventDefault();
+    const button=event.currentTarget.querySelector('button[type="submit"]');
+    // Remove focus from the username/password box so the phone keyboard closes before the dashboard opens.
+    if(document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    button.disabled=true;button.textContent='Signing in…';
+    try {
+        const response=await fetch('/api/login',{
+            method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify({username:document.querySelector('#login-username').value,password:document.querySelector('#login-password').value})
+        });
+        const result=await response.json();
+        if(response.ok) window.location.href='/index.html';
+        else appNotify(result.message||'Could not sign in. Check your credentials.',{type:'error'});
+    } catch(error) {
+        appNotify('Could not connect. Please try again.',{type:'error'});
+    } finally {
         button.disabled=false;button.textContent='Login';
-    });
+    }
 }
+const loginForm=document.querySelector('#login-form');
+if(loginForm) loginForm.addEventListener('submit',submitLogin);
