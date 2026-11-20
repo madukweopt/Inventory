@@ -82,8 +82,12 @@ function pdfBuffer(record){
             if(node.name==='ul'||node.name==='ol'){
                 let index=Number(node.attribs.start)||1;
                 for(const child of node.children||[])if(child.name==='li'){
+                    // A nested list (such as the organisation chart) is written below its item, indented one step.
+                    const nested=(child.children||[]).filter(c=>c.name==='ul'||c.name==='ol');
+                    const own=(child.children||[]).filter(c=>!nested.includes(c)).map(text).join('').trim();
                     room(35);doc.font('regular').fontSize(10).fillColor('#34473c');
-                    doc.text((node.name==='ol'?index+++'. ':'• ')+text(child).trim(),45+indent+8,doc.y,{width:width-indent-8,lineGap:3});doc.moveDown(.45);
+                    doc.text((node.name==='ol'?index+++'. ':'• ')+own,45+indent+8,doc.y,{width:width-indent-8,lineGap:3});doc.moveDown(.45);
+                    for(const list of nested)render(list,indent+16);
                 }
                 return;
             }

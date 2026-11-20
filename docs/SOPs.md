@@ -14,6 +14,15 @@ This manual explains who must do each job, how to record the work, and how to wo
 
 **Operators** means the workers who run the machines and do the lifting, unloading, loading and cleaning.
 
+### Organisation chart
+
+- **Director**
+  - **Manager**
+    - **Production Operators**
+  - **Storekeeper**
+
+The Manager and the Storekeeper report to the Director. The production Operators report to the Manager.
+
 ## How to use the app
 
 ### Words and button names
