@@ -1324,6 +1324,7 @@ async function loadWeighingTasks(options) {
             const query=search.value.trim().toLowerCase();
             const filtered=rows.filter(row=>(!type.value||row.type===type.value)&&[row.title,row.date,row.type,row.stage].join(' ').toLowerCase().includes(query));
             count.textContent=filtered.length+' pending '+(filtered.length===1?'job':'jobs');list.replaceChildren();
+            count.classList.toggle('is-clear',!filtered.length);
             for(const row of filtered.slice(0,visible)){
                 const job=document.createElement('details');job.className='pending-work-job';
                 const summary=document.createElement('summary'),heading=document.createElement('span'),stage=document.createElement('span');

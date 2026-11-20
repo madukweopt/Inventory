@@ -2163,4 +2163,7 @@ body:has(.portal) {
 /* The number of pending jobs is shown in yellow, overriding the shared green status box. */
 .status-message.pending-work-count,.status-message.pending-work-count[data-message-type] {background:#fff4bf!important;border-color:#f0d36b;color:#5c4700!important;}
 .status-message.pending-work-count:before {background:#f5c400;color:#3d2f00;}
+/* No pending work: green with a tick instead of yellow. */
+.status-message.pending-work-count.is-clear,.status-message.pending-work-count.is-clear[data-message-type] {background:linear-gradient(100deg,#e2f4de,#eff9ed)!important;border-color:#cfe6c9;color:#205f28!important;}
+.status-message.pending-work-count.is-clear:before {content:'✓';background:#16a34a;color:#fff;}
 @media(max-width:420px){.pending-work-tools {grid-template-columns:minmax(0,1fr);}.pending-work-job>summary {padding:12px;gap:8px;}}
