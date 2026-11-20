@@ -106,6 +106,19 @@ test('authentication protects private pages and APIs',async function() {
 	await admin.get('/checks.html').expect(200);
 });
 
+// The login page posts an ordinary form so phones close the keyboard and can save the password.
+test('the login form signs in with a redirect and returns errors to the login page',async function() {
+    const form=request.agent(app);
+    await form.post('/api/login').type('form').send({username:'manager_test',password:'wrong'})
+        .expect(303).expect('Location','/login.html?error=invalid');
+    await form.post('/api/login').type('form').set('Origin','https://elsewhere.example').send({username:'manager_test',password:'ManagerPass123'})
+        .expect(303).expect('Location','/login.html?error=failed');
+    await form.get('/index.html').expect(302);
+    await form.post('/api/login').type('form').send({username:'manager_test',password:'ManagerPass123'})
+        .expect(303).expect('Location','/index.html');
+    await form.get('/index.html').expect(200);
+});
+
 test('SOP reader and PDF require login and are available to every staff role',async function(){
     await request(app).get('/sops.html').expect(302).expect('Location','/');
     await request(app).get('/sops.pdf').expect(302).expect('Location','/');

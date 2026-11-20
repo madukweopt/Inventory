@@ -16,11 +16,11 @@
             />
             <h1 class="portal-name">Somad Agro-oil Processing Limited</h1>
             <p class="portal-subtitle">Staff Portal</p>
-            <form id="login-form">
-                <label for="login-username">Username</label><input type="text" id="login-username" placeholder="Enter your username" autocomplete="username" required />
+            <form id="login-form" method="post" action="/api/login">
+                <label for="login-username">Username</label><input type="text" id="login-username" name="username" placeholder="Enter your username" autocomplete="username" autocapitalize="none" spellcheck="false" required />
                 <label for="login-password">Password</label><input
                     type="password"
-                    id="login-password"
+                    id="login-password" name="password"
                     placeholder="Enter your password" autocomplete="current-password" required
                 />
                 <button type="submit">Login</button>

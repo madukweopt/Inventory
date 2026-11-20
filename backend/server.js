@@ -257,13 +257,23 @@ const loginLockMinutes=15;
 const loginAttemptLimit=5;
 
 // Handles POST /api/login requests.
-app.post('/api/login',async function(req,res) {
+// The login page posts an ordinary form, so the browser closes the keyboard and offers to save the password;
+// a form sign-in is answered with a redirect. Scripts and tests may still send JSON and get JSON back.
+app.post('/api/login',express.urlencoded({extended:false,limit:'4kb'}),async function(req,res) {
+	const isForm=Boolean(req.is('application/x-www-form-urlencoded'));
+	const reply=(status,body,errorCode)=>isForm?res.redirect(303,status===200?'/index.html':'/login.html?error='+errorCode):res.status(status).json(body);
+	// A form sign-in must come from this site's own login page.
+	if(isForm) {
+		const origin=req.get('origin');
+		try { if(origin&&origin!=='null'&&new URL(origin).host!==req.get('host')) return res.redirect(303,'/login.html?error=failed'); }
+		catch(error) { return res.redirect(303,'/login.html?error=failed'); }
+	}
 	const username=String(req.body.username||'');
 	const password=String(req.body.password||'');
 	const attemptKey=username.trim().toLowerCase()+'|'+req.ip;
 	const attempts=failedLogins.get(attemptKey);
 	if(attempts&&attempts.count>=loginAttemptLimit&&Date.now()-attempts.first<loginLockMinutes*60000) {
-		return res.status(429).json({ message: 'Too many failed sign-in attempts. Wait '+loginLockMinutes+' minutes and try again.' });
+		return reply(429,{ message: 'Too many failed sign-in attempts. Wait '+loginLockMinutes+' minutes and try again.' },'locked');
 	}
 	try {
 		const result=await pool.query(
@@ -277,14 +287,14 @@ app.post('/api/login',async function(req,res) {
 			const current=attempts&&Date.now()-attempts.first<loginLockMinutes*60000? attempts:{ count: 0,first: Date.now() };
 			current.count+=1;
 			failedLogins.set(attemptKey,current);
-			return res.status(400).json({ message: 'Invalid username or password' });
+			return reply(400,{ message: 'Invalid username or password' },'invalid');
 		}
 		failedLogins.delete(attemptKey);
 		// A new session identifier is issued at sign-in so an earlier cookie cannot be reused.
 		req.session.regenerate(function(error) {
 			if(error) {
 				console.error(error);
-				return res.status(500).json({ message: 'Could not sign in. Please try again.' });
+				return reply(500,{ message: 'Could not sign in. Please try again.' },'failed');
 			}
 			req.session.user_id=user.user_id;
 			req.session.user_name=user.username;
@@ -292,9 +302,9 @@ app.post('/api/login',async function(req,res) {
 			req.session.save(function(saveError) {
 				if(saveError) {
 					console.error(saveError);
-					return res.status(500).json({ message: 'Could not sign in. Please try again.' });
+					return reply(500,{ message: 'Could not sign in. Please try again.' },'failed');
 				}
-				return res.json({
+				return reply(200,{
 					message: 'Login successful',
 					user_name: user.username,
 					role: user.role
@@ -303,7 +313,7 @@ app.post('/api/login',async function(req,res) {
 		});
 	} catch(error) {
 		console.error(error);
-		return res.status(500).json({ message: 'Could not sign in. Please try again.' });
+		return reply(500,{ message: 'Could not sign in. Please try again.' },'failed');
 	}
 });
 
