@@ -769,7 +769,9 @@ async function saveInventory(event) {
 			body: JSON.stringify(inventoryItems)
 		});
 		if(!response.ok) {
-			appNotify("failed to submit. Check your entries");
+			// Show the server's reason, such as a removal that would make stock negative on its date or later.
+			const result=await response.json().catch(()=>({}));
+			appNotify(result.err||result.error||"failed to submit. Check your entries");
 			return;
 		}
 		const savedStock=await response.json();
@@ -824,9 +826,14 @@ if(productionForm) {
 	productionForm.addEventListener("submit",saveProduction);
 }
 
-async function editProductionBatch(request,batch,reverse=false,onSaved) {
+async function editProductionBatch(request,batch,reverse=false,onSaved,card) {
     const refresh=async(message)=>{
         if(onSaved){await onSaved();appNotify(message);}
+        // In Pending Weighing only this production card is rebuilt; its entries list stays open.
+        else if(card&&card.isConnected){
+            try{await refreshProductionCard(card,request.request_id);}catch(error){console.error(error);await loadWeighingTasks({quiet:true});}
+            weighingTasksMessage.textContent=message;appNotify(message);
+        }
         else {await loadWeighingTasks();weighingTasksMessage.textContent=message;}
     };
     if(reverse) {
@@ -957,7 +964,7 @@ function createProductionHistory(entries, request, onSaved) {
         if(request&&document.documentElement.dataset.userRole==='admin'&&request.status==='Awaiting Storekeeper'&&!batch.voided){
             const actions=document.createElement('div');actions.className='activity-controls';
             [['Correct entry',false],['Reverse entry',true]].forEach(([label,reverse])=>{
-                const button=document.createElement('button');button.type='button';button.className=reverse?'reverse-entry-button':'weighing-task-secondary';button.textContent=label;button.onclick=()=>editProductionBatch(request,batch,reverse,onSaved);actions.appendChild(button);
+                const button=document.createElement('button');button.type='button';button.className=reverse?'reverse-entry-button':'weighing-task-secondary';button.textContent=label;button.onclick=()=>editProductionBatch(request,batch,reverse,onSaved,button.closest('.weighing-task-card'));actions.appendChild(button);
             });row.appendChild(actions);
         }
         list.appendChild(row);
@@ -1307,7 +1314,7 @@ async function loadWeighingTasks(options) {
         const search=document.createElement('input');search.type='search';search.placeholder='Customer, supplier, product or date';searchLabel.appendChild(search);
         const typeLabel=document.createElement('label');typeLabel.textContent='Job type';const type=document.createElement('select');
         for(const [value,label]of [['','All jobs'],['Sale','Sales and deliveries'],['Purchase','Purchases'],['Production','Production']])type.add(new Option(label,value));typeLabel.appendChild(type);
-        const count=document.createElement('p');count.setAttribute('role','status');
+        const count=document.createElement('p');count.className='pending-work-count';count.setAttribute('role','status');
         const list=document.createElement('div');list.className='pending-work-list';
         const more=document.createElement('button');more.type='button';more.textContent='Load more';
         tools.append(searchLabel,typeLabel);fragment.append(tools,count,list,more);
@@ -1353,20 +1360,20 @@ async function loadWeighingTasks(options) {
 
 // Rebuilds one production card in place after an entry is saved, keeping the open entry form,
 // its date and any quantities not yet saved, so the Storekeeper carries on where they stopped.
-async function refreshProductionCard(form) {
-    const card=form.closest('.weighing-task-card');
+async function refreshProductionCard(card,requestId) {
     const response=await fetch('/api/weighing-requests');
     if(!response.ok) throw new Error('Could not refresh the production card.');
-    const request=(await response.json()).find(row=>String(row.request_id)===form.dataset.requestId);
-    const entry=card&&card.querySelector(':scope>.weighing-task-entry');
-    if(!request||!entry) return loadWeighingTasks({quiet:true});
+    const request=(await response.json()).find(row=>String(row.request_id)===String(requestId));
+    if(!request||!card||!card.isConnected) return loadWeighingTasks({quiet:true});
     const fresh=createWeighingTaskCard(request);
-    const freshEntry=fresh.querySelector(':scope>.weighing-task-entry');
-    if(!freshEntry) return loadWeighingTasks({quiet:true});
-    if(card.querySelector('.activity-history')?.open) fresh.querySelector('.activity-history').open=true;
-    freshEntry.replaceWith(entry);
-    const finish=form.querySelector('[data-action="finish-day"]');
-    if(finish) finish.disabled=!(request.batches||[]).length;
+    const entry=card.querySelector(':scope>.weighing-task-entry'),freshEntry=fresh.querySelector(':scope>.weighing-task-entry');
+    if(entry&&freshEntry){
+        freshEntry.replaceWith(entry);
+        const finish=entry.querySelector('[data-action="finish-day"]');
+        if(finish) finish.disabled=!(request.batches||[]).length;
+    }
+    const history=fresh.querySelector('.activity-history');
+    if(history&&card.querySelector('.activity-history')?.open) history.open=true;
     card.replaceWith(fresh);
 }
 
@@ -1403,7 +1410,7 @@ async function saveProductionEntries(form,submit) {
     form.querySelectorAll('input[type="number"]').forEach(input=>input.dispatchEvent(new Event('input')));
     const message=(saved.length?'Saved and added to stock: '+saved.join(', ')+'.':'')+(failure?(saved.length?' ':'')+failure:'');
     if(saved.length) {
-        try { await refreshProductionCard(form); } catch(error) { console.error(error); }
+        try { await refreshProductionCard(form.closest('.weighing-task-card'),form.dataset.requestId); } catch(error) { console.error(error); }
         if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
     }
     status.textContent=message;status.classList.toggle('error',Boolean(failure));

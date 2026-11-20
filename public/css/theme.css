@@ -2160,4 +2160,7 @@ body:has(.portal) {
 .pending-work-type.type-purchase {background:#eee6fb;color:#5a3796;}
 .pending-work-type.type-production {background:#e1f2da;color:#1d6b34;}
 .pending-work-stage.is-approval {background:#ffe98a;color:#5c4700;font-weight:700;}
+/* The number of pending jobs is shown in yellow, overriding the shared green status box. */
+.status-message.pending-work-count,.status-message.pending-work-count[data-message-type] {background:#fff4bf!important;border-color:#f0d36b;color:#5c4700!important;}
+.status-message.pending-work-count:before {background:#f5c400;color:#3d2f00;}
 @media(max-width:420px){.pending-work-tools {grid-template-columns:minmax(0,1fr);}.pending-work-job>summary {padding:12px;gap:8px;}}
