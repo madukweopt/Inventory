@@ -1,6 +1,8 @@
 const weighingRequestDetails=`SELECT
 			(wr.status='Awaiting Storekeeper' AND wr.completed_record_id IS NULL
             AND ($2::text='admin' OR wr.created_by=$1)) AS can_cancel,
+            (wr.status='Awaiting Storekeeper' AND wr.request_type IN ('Sale','Purchase')
+            AND ($2::text='admin' OR wr.created_by=$1)) AS can_change_order,wr.ordered_quantity,
             COALESCE((SELECT p.process_loss FROM production p WHERE p.production_id=wr.completed_record_id),0) AS process_loss,
             wr.request_id,wr.daily_number,wr.request_type,TO_CHAR(wr.request_date,'YYYY-MM-DD') AS request_date,
 			wr.item_id,items.name AS item,wr.supplier_id,suppliers.name AS supplier,

@@ -10,6 +10,8 @@ const secondBtn=document.querySelector(".second");
 const logoutBtn=document.querySelector('.nav-logout');
 const customersBtn=document.querySelector('#customers-button');
 const suppliersBtn=document.querySelector('#suppliers-button');
+const partnersBtn=document.querySelector('#partners-button');
+const assetsBtn=document.querySelector('#assets-button');
 const employeesBtn=document.querySelector('#employees-button');
 const companyDetailsBtn=document.querySelector('#company-details-button');
 const pricesBtn=document.querySelector('#prices-button');
@@ -67,9 +69,11 @@ function applyRoleVisibility(user) {
 	hide('a[href$="#inventory-form"]',role!=='admin');
     hide('#consumable-usage-button',!['admin','storekeeper'].includes(role));
 	hide('a[href$="#inventory-data"]',role==='manager');
+	hide('a[href$="#stock-history"]',role!=='admin');
 	hide('a[href$="#purchases-form"], a[href$="#sales-form"], a[href$="#production-form"], a[href$="#expenses-form"]',role==='storekeeper');
 	hide('.first',role==='storekeeper');
 	hide('#employees-button',role==='storekeeper');
+	hide('#partners-button, #assets-button',role==='storekeeper');
 	hide('#manage-users-button',role!=='admin');
 	hide('#production-panel, #sales-panel',role==='storekeeper');
 	hide('#profit-panel',role!=='admin');
@@ -127,7 +131,7 @@ if(secondBtn) {
 	secondBtn.addEventListener("click",displayData);
 }
 
-const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
+const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {
 	// Handles click events from link.
@@ -157,6 +161,20 @@ if(suppliersBtn) {
 	// Handles click events from suppliersBtn.
 	suppliersBtn.addEventListener('click',() => {
 		window.location.href='/forms.html#suppliers';
+	});
+}
+
+// Opens the partners who fabricate, install, supply equipment or repair for the company.
+if(partnersBtn) {
+	partnersBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#other-partners';
+	});
+}
+
+// Opens the register of machines, tanks and other things the company owns.
+if(assetsBtn) {
+	assetsBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#capital-assets';
 	});
 
 }

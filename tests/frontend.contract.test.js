@@ -4,6 +4,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 
 const root=path.join(__dirname,'..');
+const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const formsHtml=fs.readFileSync(path.join(root,'public','html','forms.html'),'utf8');
 const formsJs=fs.readFileSync(path.join(root,'public','js','forms.js'),'utf8');
 const navigationCss=fs.readFileSync(path.join(root,'public','css','navigation.css'),'utf8');
@@ -88,5 +89,46 @@ test('Pending Weighing navigation displays a live numbered badge',function() {
 
 
 test('Unfinished production stays internal to costing and adds no operational panel or loss controls',function() {
-    assert.doesNotMatch(formsJs,/showProductionInProgress|productionLossControl|Material still in production|production-in-progress|production-loss/);
+    assert.doesNotMatch(formsJs,/showProductionInProgress|productionLossControl|Material still in production|production-in-progress/);
+    // The production loss is shown read-only on production cards; it has no inputs or buttons.
+    const lossStart=formsJs.indexOf('function createProductionLossNote');
+    const lossNote=formsJs.slice(lossStart,formsJs.indexOf('\nfunction ',lossStart+1));
+    assert.ok(lossNote.includes('Production loss'));
+    assert.doesNotMatch(lossNote,/createElement\('(input|button|select|textarea)'\)|addEventListener|onclick/);
+});
+
+// Loads every page script in a stand-in browser where any element or method exists, so only real
+// programming errors fail, such as a name used after it was removed. One such error stops every page.
+test('Page scripts load without reference errors',function() {
+    const vm=require('vm');
+    const fake=name=>{const f=function(){};return new Proxy(f,{
+        get(target,key){
+            if(key===Symbol.toPrimitive)return ()=>'';
+            if(key==='then')return undefined;
+            if(key===Symbol.iterator)return function*(){};
+            if(key==='length')return 0;
+            if(key==='ready')return Promise.resolve();
+            return fake(name+'.'+String(key));
+        },
+        set(){return true;},apply(){return fake(name+'()');},construct(){return fake('new '+name);}
+    });};
+    const newBrowser=()=>{
+    const browser={console:{log(){},warn(){},error(){}},setTimeout:()=>0,setInterval:()=>0,clearTimeout(){},clearInterval(){},
+        URLSearchParams,URL,Intl,Date,Math,JSON,Number,String,Object,Array,Promise,Map,Set,WeakMap,RegExp,Error,Symbol,
+        parseFloat,parseInt,isNaN,encodeURIComponent,decodeURIComponent,structuredClone,fetch:()=>new Promise(()=>{}),
+        crypto:{randomUUID:()=>'00000000-0000-4000-8000-000000000000'}};
+    for(const name of ['document','localStorage','sessionStorage','navigator','history','location','IntersectionObserver','MutationObserver',
+        'ResizeObserver','FormData','Option','HTMLElement','CustomEvent','Event','matchMedia','requestAnimationFrame','alert','confirm',
+        'getComputedStyle','addEventListener','removeEventListener','AppUI','appNotify'])browser[name]=fake(name);
+    browser.window=browser;browser.globalThis=browser;browser.self=browser;
+    return vm.createContext(browser);
+    };
+    const pages={'forms.html':read('public/html/forms.html'),'index.html':read('public/html/index.html')};
+    for(const [page,html] of Object.entries(pages)) {
+        const browser=newBrowser();
+        for(const [,src] of html.matchAll(/<script src="\/js\/([a-z-]+\.js)"/g)) {
+            const file='public/js/'+src;
+            assert.doesNotThrow(()=>vm.runInContext(read(file),browser,{filename:file}),undefined,page+' could not load '+src);
+        }
+    }
 });

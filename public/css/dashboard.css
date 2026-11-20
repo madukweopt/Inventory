@@ -122,3 +122,9 @@ html:not([data-user-role=admin]) #profit-summary-panel{display:none}
 #dashboard .sale-row>span{white-space:nowrap}
 #dashboard .sale-row:not(.total){grid-template-columns:49px minmax(0,1fr) auto}
 @media(min-width:600px){#dashboard .sale-row:not(.total){grid-template-columns:80px minmax(0,1fr) auto}}
+/* Oil yield and production loss share one row under the production cards. */
+#dashboard .yield-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 14px 14px}
+#dashboard .yield-pair .yield-row{margin:0;flex-wrap:wrap;gap:4px 8px;min-width:0}
+#dashboard .yield-pair .yield-loss{background:#fbf4e8;border-color:#efe0c6}
+#dashboard .yield-pair .yield-loss .yield-val{color:#8a5a12}
+@media(min-width:700px){#dashboard .yield-pair{gap:15px;margin:0 20px 20px}}

@@ -4,7 +4,7 @@ const path=require("path");
 const crypto=require("crypto");
 const fs=require("fs");
 const multer=require("multer");
-const { correctRecord,correctManualStock }=require('./record-corrections');
+const { correctRecord,correctManualStock,recordStockHistory }=require('./record-corrections');
 const { snapshotInvoice,preparePayroll,markPayrollReview,authorise,reopenProduction }=require('./dependency-services');
 const {lockStock,stockFloor,protectStock}=require('./stock-safety');
 const {calculateContinuousCosts}=require('./continuous-costing');
@@ -14,18 +14,76 @@ const PORT=process.env.PORT||3000;
 const isProduction=process.env.NODE_ENV==='production';
 const debugToolsEnabled=process.env.ENABLE_DEBUG_TOOLS==='true';
 
-const { Pool }=require("pg");
+const { Pool,Client }=require("pg");
+const { parse: parseConnectionString }=require("pg-connection-string");
+const dns=require("dns");
+const net=require("net");
 
 const session=require('express-session');
 const pgSession=require('connect-pg-simple')(session);
 
 const argon2=require('argon2');
 
+// The database is remote. Looking up its address on this phone can take about 2.5 seconds, so the
+// address is looked up once and reused for new connections. The secure connection still checks the
+// certificate against the real host name, which the database also uses to route the login.
+// If a connection to the saved address fails, the address is forgotten and looked up again.
+const databaseSettings=(() => {
+	try { return parseConnectionString(process.env.DATABASE_URL||''); } catch { return {}; }
+})();
+const databaseHost=databaseSettings.host&&net.isIP(databaseSettings.host)===0&&!databaseSettings.host.startsWith('/')?databaseSettings.host:null;
+let databaseAddress=null;
+let databaseLookup=null;
+function refreshDatabaseAddress() {
+	if(!databaseHost) return Promise.resolve();
+	databaseLookup??=dns.promises.lookup(databaseHost)
+		.then(result => { databaseAddress=result.address; })
+		.catch(error => { databaseAddress=null; console.error("Database address lookup failed:",error.message); })
+		.finally(() => { databaseLookup=null; });
+	return databaseLookup;
+}
+function forgetDatabaseAddress() {
+	databaseAddress=null;
+	refreshDatabaseAddress();
+}
+refreshDatabaseAddress();
+// Looks the address up again now and then, in case the database host moves.
+setInterval(refreshDatabaseAddress,10*60*1000).unref();
+
+class SavedAddressClient extends Client {
+	constructor(options) {
+		const address=databaseAddress;
+		if(!address||!databaseHost) {
+			super(options);
+			return;
+		}
+		const { connectionString,...rest }=options;
+		const { sslmode,channel_binding,...settings }=databaseSettings;
+		super({ ...settings,...rest,host: address,ssl: { ...rest.ssl,servername: databaseHost } });
+		this.savedAddress=address;
+	}
+	connect(callback) {
+		const forget=error => { if(error&&this.savedAddress===databaseAddress) forgetDatabaseAddress(); };
+		if(typeof callback==='function') return super.connect(error => { forget(error); callback(error); });
+		return super.connect().catch(error => { forget(error); throw error; });
+	}
+}
+
+// A query takes about 40 ms but opening a connection is slower, so idle connections are kept for
+// 4 minutes (pg's default is 10 seconds) and pages opened after a short pause do not wait to reconnect.
+// They are closed before Neon pauses the database (after about 5 idle minutes), because a paused
+// database or a sleeping phone drops them silently and requests on a dead connection fail.
+// No connections are forced to stay open, so after a long pause the next request opens fresh ones.
 const pool=new Pool({
+	Client: SavedAddressClient,
 	connectionString: process.env.DATABASE_URL,
 	ssl: {
 		rejectUnauthorized: true
-	}
+	},
+	idleTimeoutMillis: 4*60*1000,
+	keepAlive: true,
+	keepAliveInitialDelayMillis: 10000,
+	connectionTimeoutMillis: 30000
 });
 
 // Handles unexpected database pool errors.
@@ -1008,6 +1066,8 @@ app.patch('/api/suppliers/:id',requireRole(['admin','manager']),async function(r
 
 
 require('./delivery-notes').registerDeliveryNotes(app,pool,requireRole);
+// Other partners and the capital asset register; capital spending never reduces profit.
+require('./partners').registerPartners(app,pool,requireRole);
 
 // Handles GET /api/sales requests.
 app.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(req,res) {
@@ -1080,6 +1140,7 @@ app.get('/api/sales/:id/invoice',requireRole(['admin','manager','storekeeper']),
 		const paymentsResult=await pool.query(`SELECT
 			payment_id,receipt_number,to_char(payment_date,'YYYY-MM-DD') AS payment_date,
 			amount,payment_method,reference_number,note,created_at,reversed_at,reversal_reason,
+			(SELECT username FROM users WHERE user_id=sale_payments.recorded_by) AS recorded_by_name,
 			(SELECT username FROM users WHERE user_id=sale_payments.reversed_by) AS reversed_by_name
 		FROM sale_payments WHERE sales_id=$1 ORDER BY payment_date,created_at,payment_id`,[req.params.id]);
 		const companyResult=await pool.query('SELECT * FROM company_details WHERE company_id=1');
@@ -1248,7 +1309,7 @@ app.get("/api/production",requireRole(['admin','manager','storekeeper']),functio
 	pool.query(
 		`SELECT production.production_id,to_char(production.production_date,'YYYY-MM-DD') AS production_date,
 		production.created_at,production.kernel_used,production.pko_produced,production.pkc_produced,
-		production.sludge_produced,ROUND((production.pko_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pko_yield,
+		production.sludge_produced,production.process_loss,ROUND((production.pko_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pko_yield,
 		ROUND((production.pkc_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pkc_yield,
 		to_char(production.production_hours,'HH24:MI') AS production_hours,
 		to_char(production.down_time,'HH24:MI') AS down_time,wr.request_id,wr.scale_ticket,wr.completed_by AS weighed_by,wr.status,
@@ -1275,7 +1336,7 @@ app.get("/api/production",requireRole(['admin','manager','storekeeper']),functio
 app.get("/api/expenses",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
 		`SELECT expenses.expense_id, to_char(expenses.expense_date, 'YYYY-MM-DD') AS expense_date, expenses.created_at, expenses.category, expenses.description,
-    expenses.amount_spent
+    expenses.amount_spent,expenses.spread_months,expenses.startup_months
     FROM expenses
     ORDER BY
     expenses.created_at DESC;`,
@@ -1304,6 +1365,11 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
 			error: "could not save sale"
 		});
 	}
+	// The quantity the customer ordered, so the Storekeeper knows how much to load.
+	const orderedQuantity=readInventoryQuantity(sales.ordered_quantity);
+	if(orderedQuantity===null||orderedQuantity<=0) {
+		return res.status(400).json({ err: 'Enter the quantity the customer ordered, with no more than two decimal places.' });
+	}
 	try {
 		const priceResult=await pool.query(`SELECT unit_price FROM product_prices
 			WHERE item_id=$1 AND effective_date<=$2::date
@@ -1320,13 +1386,13 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
         if(!(await pool.query('SELECT 1 FROM users WHERE user_id=$1',[representative])).rowCount)return res.status(400).json({err:'Choose a delivery representative.'});
 		const inserted=await authorise(pool,'Sale',sales,req.session.user_id,
 			`INSERT INTO weighing_requests
-			(request_type,request_date,customer_id,item_id,unit_price,created_by,billing_basis,representative_id)
-			VALUES ('Sale',$1::date,$2,$3,$4,$5,$6,$7) RETURNING *`,[
+			(request_type,request_date,customer_id,item_id,unit_price,created_by,billing_basis,representative_id,ordered_quantity)
+			VALUES ('Sale',$1::date,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,[
 			sales.sales_date,
 			sales.customer_id,
 			sales.item_id,
 			savedUnitPrice,
-			req.session.user_id,basis,representative
+			req.session.user_id,basis,representative,orderedQuantity
 		]);
 		return res.status(201).json(inserted.rows[0]);
 	} catch(error) {
@@ -1349,16 +1415,22 @@ app.post("/api/purchases",requireRole(['admin','manager']),async function(req,re
 			error: "Could not submit purchase"
 		});
 	}
+	// The quantity agreed with the supplier, so the Storekeeper knows what to expect.
+	const orderedQuantity=readInventoryQuantity(purchase.ordered_quantity);
+	if(orderedQuantity===null||orderedQuantity<=0) {
+		return res.status(400).json({ err: 'Enter the quantity ordered from the supplier, with no more than two decimal places.' });
+	}
 	try {
 		const result=await authorise(pool,'Purchase',purchase,req.session.user_id,
 			`INSERT INTO weighing_requests
-			(request_type,request_date,supplier_id,item_id,unit_cost,created_by)
-			VALUES ('Purchase',$1::date,$2,$3,$4,$5) RETURNING *`,[
+			(request_type,request_date,supplier_id,item_id,unit_cost,created_by,ordered_quantity)
+			VALUES ('Purchase',$1::date,$2,$3,$4,$5,$6) RETURNING *`,[
 			purchase.purchase_date,
 			purchase.supplier_id,
 			purchase.item_id,
 			purchase.unit_cost,
-			req.session.user_id
+			req.session.user_id,
+			orderedQuantity
 		]);
 		return res.status(201).json(result.rows[0]);
 	} catch(error) {
@@ -1382,6 +1454,8 @@ app.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
 		receivedQuantity===null||
 		issuedQuantity===null||
 		(receivedQuantity===0&&issuedQuantity===0)||
+		// A manual change either adds or removes stock, never both in one entry.
+		(receivedQuantity>0&&issuedQuantity>0)||
 		(reason!==null&&!stockAdjustmentReasons.includes(reason))
 	) {
 		return res.status(400).json({
@@ -1394,9 +1468,29 @@ app.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
         const result=await client.query('INSERT INTO stock_counts(count_date,item_id,received,issued,recorded_by,adjustment_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
             [stockInventory.count_date,stockInventory.item_id,receivedQuantity,issuedQuantity,req.session.user_id,reason]);
         await protectStock(client,before);
+        await recordStockHistory(client,result.rows[0].count_id,'Created',null,result.rows[0],req.session.user_id);
         await client.query('COMMIT');return res.status(201).json(result.rows[0]);
     }catch(error){await client.query('ROLLBACK');return res.status(error.status||500).json({err:error.status?error.message:'Could not save stock adjustment'});}
     finally{client.release();}
+});
+
+// History trail of manual stock changes, newest first, for the Director. 100 at a time; pass offset for more.
+app.get('/api/stock-change-history',requireRole(['admin']),async function(req,res) {
+    const offset=Math.max(Number.parseInt(req.query.offset,10)||0,0);
+    try {
+        const rows=(await pool.query(`SELECT h.history_id,h.count_id,h.action,h.before_values,h.after_values,h.backfilled,
+            to_char(h.changed_at,'YYYY-MM-DD"T"HH24:MI:SS') AS changed_at,u.username AS changed_by,
+            bi.name AS before_item,ai.name AS after_item
+            FROM stock_change_history h
+            LEFT JOIN users u ON u.user_id=h.changed_by
+            LEFT JOIN items bi ON bi.item_id=(h.before_values->>'item_id')::integer
+            LEFT JOIN items ai ON ai.item_id=(h.after_values->>'item_id')::integer
+            ORDER BY h.changed_at DESC,h.history_id DESC LIMIT 101 OFFSET $1`,[offset])).rows;
+        return res.json({rows:rows.slice(0,100),more:rows.length>100});
+    } catch(error) {
+        console.error(error);
+        return res.status(500).json({err:'Could not load the stock change history.'});
+    }
 });
 
 require('./consumable-checks').registerConsumableChecks(app,pool,requireRole);
@@ -1515,6 +1609,26 @@ app.patch('/api/weighing-requests/:id/cancel',requireRole(['admin','manager']),a
 	} catch(error) {
 		console.error(error);
 		return res.status(500).json({ err: 'Could not cancel the authorisation' });
+	}
+});
+
+// Adds or changes the ordered quantity on a sale or purchase still waiting for the Storekeeper,
+// for authorisations made before it was recorded or when the customer or supplier changes the order.
+// The Director can change any; a Manager only their own, like cancelling.
+app.patch('/api/weighing-requests/:id/ordered-quantity',requireRole(['admin','manager']),async function(req,res) {
+	const requestId=Number(req.params.id);
+	const quantity=readInventoryQuantity(req.body.ordered_quantity);
+	if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err: 'Invalid request' });
+	if(quantity===null||quantity<=0) return res.status(400).json({ err: 'Enter the ordered quantity, with no more than two decimal places.' });
+	try {
+		const result=await pool.query(`UPDATE weighing_requests SET ordered_quantity=$2
+			WHERE request_id=$1 AND status='Awaiting Storekeeper' AND request_type IN ('Sale','Purchase') AND ($3::text='admin' OR created_by=$4)
+			RETURNING request_id,ordered_quantity`,[requestId,quantity,req.session.role,req.session.user_id]);
+		if(result.rows.length===0) return res.status(404).json({ err: 'Authorisation not found, already completed, or not yours to change.' });
+		return res.json({ message: 'Ordered quantity saved.',...result.rows[0] });
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({ err: 'Could not save the ordered quantity' });
 	}
 });
 
@@ -1722,17 +1836,29 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 });
 
 // Handles POST /api/expenses requests.
-// Accepts an expense with a real date, known category, short description and positive amount.
+// Accepts a running expense with a real date, short description and positive amount.
+// Machines, tanks and other capital items are recorded in Assets and Start-up Costs instead.
 function validExpense(expense) {
 	const amount=readInventoryQuantity(expense?.amount_spent);
 	return Boolean(expense)&&
 		/^\d{4}-\d{2}-\d{2}$/.test(String(expense.expense_date||''))&&
 		Number.isFinite(Date.parse(expense.expense_date+'T00:00:00Z'))&&
-		["Expenses","Asset/Capital Expenditure"].includes(expense.category)&&
+		expense.category==="Expenses"&&
 		typeof expense.description==='string'&&
 		expense.description.trim().length>0&&
 		expense.description.length<=100&&
-		amount!==null&&amount>0;
+		amount!==null&&amount>0&&
+		expenseSpreading(expense)!==null;
+}
+
+// Reads how many months an expense covers and how many of the first are start-up months (before production).
+// Months it covers is entered with the Director's Add Rent or Prepaid Cost button or on Assets and Start-up Costs; start-up months only there.
+// When a form leaves them out they are null and saved values are kept.
+function expenseSpreading(expense) {
+	const spread=expense.spread_months===undefined||expense.spread_months===''||expense.spread_months===null?null:Number(expense.spread_months);
+	const startup=expense.startup_months===undefined||expense.startup_months===''||expense.startup_months===null?null:Number(expense.startup_months);
+	if((spread!==null&&(!Number.isInteger(spread)||spread<1||spread>60))||(startup!==null&&(!Number.isInteger(startup)||startup<0||startup>(spread??60)))) return null;
+	return { spread: spread,startup: startup };
 }
 
 app.post("/api/expenses",requireRole(['admin','manager']),function(req,res) {
@@ -1742,13 +1868,20 @@ app.post("/api/expenses",requireRole(['admin','manager']),function(req,res) {
 			err: "Check your inputs and try again"
 		});
 	}
+	// Only the Director adds prepaid costs (rent, insurance spread over several months) and start-up costs.
+	const spreading=expenseSpreading(expense);
+	if(req.session.role!=='admin'&&((spreading.spread??1)>1||(spreading.startup??0)>0)) {
+		return res.status(403).json({ err: "Only the Director can add prepaid or start-up costs" });
+	}
 	pool.query(
-		"INSERT INTO expenses(expense_date, category, description, amount_spent) VALUES ($1, $2, $3, $4) RETURNING *",
+		"INSERT INTO expenses(expense_date, category, description, amount_spent, spread_months, startup_months) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
 		[
 			expense.expense_date,
 			expense.category,
 			expense.description,
-			expense.amount_spent
+			expense.amount_spent,
+			expenseSpreading(expense).spread??1,
+			Math.min(expenseSpreading(expense).startup??0,expenseSpreading(expense).spread??1)
 		],
 		// Handles the result of the preceding database query.
 		function(err,result) {
@@ -1982,6 +2115,7 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
         COALESCE(SUM(production.kernel_used), 0) AS kernel_used,
         COALESCE(SUM(production.pko_produced), 0) AS pko_produced,
         COALESCE(SUM(production.pkc_produced), 0) AS pkc_produced,
+        COALESCE(SUM(production.process_loss), 0) AS production_loss,
         COALESCE(
         ROUND(
         SUM(production.pko_produced) * 100.0 /
@@ -2000,6 +2134,7 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
         COALESCE(SUM(production.kernel_used), 0),
         COALESCE(SUM(production.pko_produced), 0),
         COALESCE(SUM(production.pkc_produced), 0),
+        COALESCE(SUM(production.process_loss), 0),
         COALESCE(
         ROUND(
         SUM(production.pko_produced) * 100.0 /
@@ -2020,6 +2155,7 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
         COALESCE(SUM(production.kernel_used), 0),
         COALESCE(SUM(production.pko_produced), 0),
         COALESCE(SUM(production.pkc_produced), 0),
+        COALESCE(SUM(production.process_loss), 0),
         COALESCE(
         ROUND(
         SUM(production.pko_produced) * 100.0 /
@@ -2103,32 +2239,32 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 		);
 		const sales=RawSales.rows;
 
+		// One-off expenses count on their date. A spread expense (rent, insurance) counts an equal share in each month it covers,
+		// shared across that month's days; its first start-up months are reported as start-up costs.
 		const rawExpenses=await pool.query(
-			`SELECT 'day' AS period,
-        COALESCE (SUM(expenses.amount_spent), 0) AS total_spent
-        FROM expenses WHERE
-        expenses.category IN ('Expense', 'Expenses')
-        AND expenses.expense_date = ${datesql}
-
-        UNION ALL
-
-        SELECT 'week',
-        COALESCE(SUM(expenses.amount_spent), 0)
-        FROM expenses
-        WHERE
-        expenses.category IN ('Expense', 'Expenses')
-        AND expenses.expense_date >= date_trunc('week', ${datesql})
-        AND expenses.expense_date < date_trunc('week', ${datesql}) + INTERVAL '7 days'
-
-        UNION ALL
-
-        SELECT 'month',
-        COALESCE(SUM(expenses.amount_spent), 0)
-        FROM expenses
-        WHERE
-        expenses.category IN ('Expense', 'Expenses')
-        AND expenses.expense_date >= date_trunc('month', ${datesql})
-        AND expenses.expense_date < date_trunc('month', ${datesql}) + INTERVAL '1 month'`,
+			`WITH spread AS (
+            SELECT expenses.amount_spent/expenses.spread_months AS share,
+                (date_trunc('month',expenses.expense_date)+make_interval(months=>covered.month))::date AS month_start,
+                covered.month<expenses.startup_months AS startup
+            FROM expenses CROSS JOIN LATERAL generate_series(0,expenses.spread_months-1) AS covered(month)
+            WHERE expenses.category IN ('Expense', 'Expenses') AND expenses.spread_months>1
+        ), period_days AS (
+            SELECT 'day'::text AS period,${datesql}::date AS day
+            UNION ALL SELECT 'week',day_value::date FROM generate_series(date_trunc('week',${datesql}),date_trunc('week',${datesql})+INTERVAL '6 days',INTERVAL '1 day') AS day_value
+            UNION ALL SELECT 'month',day_value::date FROM generate_series(date_trunc('month',${datesql}),date_trunc('month',${datesql})+INTERVAL '1 month - 1 day',INTERVAL '1 day') AS day_value
+        ), daily AS (
+            SELECT period_days.period,expenses.amount_spent AS amount,expenses.startup_months>0 AS startup,false AS spread
+            FROM period_days JOIN expenses ON expenses.expense_date=period_days.day
+            WHERE expenses.category IN ('Expense', 'Expenses') AND expenses.spread_months=1
+            UNION ALL
+            SELECT period_days.period,spread.share/EXTRACT(day FROM (spread.month_start+INTERVAL '1 month - 1 day')),spread.startup,true
+            FROM period_days JOIN spread ON spread.month_start=date_trunc('month',period_days.day)::date
+        )
+        SELECT periods.period,
+            COALESCE((SELECT SUM(amount) FROM daily WHERE daily.period=periods.period AND NOT daily.startup),0) AS total_spent,
+            COALESCE((SELECT SUM(amount) FROM daily WHERE daily.period=periods.period AND daily.startup),0) AS startup_spent,
+            COALESCE((SELECT SUM(amount) FROM daily WHERE daily.period=periods.period AND daily.spread AND NOT daily.startup),0) AS spread_spent
+        FROM (VALUES ('day'),('week'),('month')) AS periods(period)`,
 			param
 		);
 		const expenses=rawExpenses.rows;
@@ -2168,6 +2304,8 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 					pko_produced: Number(row.pko_produced),
 					pkc_produced: Number(row.pkc_produced),
 						sludge_produced: sludgeProductionByPeriod[row.period]||0,
+                    // Kernel not recovered as weighed product, recorded at Finish Day for each production date.
+                    production_loss: Number(row.production_loss),
 					oil_yield: Number(row.oil_yield),
                         yield_status: yieldStates[row.period]?'Provisional':'Final'
 				},
@@ -2188,7 +2326,10 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 		// Processes each entry in the collection.
 		expenses.forEach(row => {
 			output[row.period].expenses={
-				total_expenses: Number(row.total_spent)
+				total_expenses: Number(row.total_spent),
+				startup_costs: Number(row.startup_spent),
+				// The part of total_expenses that comes from rent and other payments spread over several months.
+				spread_expenses: Number(row.spread_spent)
 			};
 		});
 
@@ -2231,7 +2372,7 @@ app.get("/api/dashboard_period",requireRole(['admin','manager']),async function(
 			const pkcPeriodSales=output[period].sales.PKC?.total_sales||0;
 			const pkoPeriodSales=output[period].sales.PKO?.total_sales||0;
 			const sludgePeriodSales=output[period].sales.Sludge?.total_sales||0;
-			const periodExpenses=output[period].expenses.total_expenses;
+			const periodExpenses=output[period].expenses.total_expenses+output[period].expenses.startup_costs;
 			const periodPayroll=output[period].payroll_cost;
             const lossCost=lossPeriods[period].pko;
             output[period].production_loss_cost=lossCost;
@@ -2488,7 +2629,7 @@ app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) 
 		const record=req.body.record;
 
         if(kind==='stock') {
-            const corrected=await correctManualStock(pool,record,'edit');
+            const corrected=await correctManualStock(pool,record,'edit',req.session.user_id);
             return res.json(corrected);
         }
         if(['purchases','sales','production'].includes(kind)) {
@@ -2500,14 +2641,19 @@ app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) 
 
 		if(kind==='expenses') {
 			if(!validExpense(record)) {
-				return res.status(400).json({ err: "Check the expense date, category, description and amount" });
+				return res.status(400).json({ err: "Check the expense date, category, description and amount. Record capital items in Assets and Start-up Costs." });
+			}
+			if(await expenseFromPartnerPayment(record.expense_id)) {
+				return res.status(409).json({ err: "This expense comes from a payment to a partner. Correct it under Other Partners." });
 			}
 			updated=await pool.query(
 				`UPDATE expenses
 				SET expense_date = $1::date,
 			     category = $2,
 				 description = $3,
-				 amount_spent = $4
+				 amount_spent = $4,
+				 spread_months = COALESCE($6::integer,spread_months),
+				 startup_months = LEAST(COALESCE($7::integer,startup_months),COALESCE($6::integer,spread_months))
 				 WHERE expense_id = $5
 				 returning *`,
 				[
@@ -2515,7 +2661,9 @@ app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) 
 					record.category,
 					record.description,
 					record.amount_spent,
-					record.expense_id
+					record.expense_id,
+					expenseSpreading(record).spread,
+					expenseSpreading(record).startup
 
 				]
 			)
@@ -2538,13 +2686,19 @@ app.patch("/api/correction_edit",requireRole(['admin']),async function(req,res) 
 	}
 });
 
+// Expenses created by a partner payment are corrected through that payment, so each cost is entered once.
+async function expenseFromPartnerPayment(expenseId) {
+	const linked=await pool.query('SELECT 1 FROM partner_payments WHERE expense_id=$1',[Number(expenseId)||0]);
+	return linked.rowCount>0;
+}
+
 // Handles DELETE /api/correction_delete requests.
 app.delete("/api/correction_delete",requireRole(['admin']),async function(req,res) {
 	try {
 		const kind=req.body.kind;
 		const record=req.body.record;
         if(kind==='stock') {
-            const corrected=await correctManualStock(pool,record,'delete');
+            const corrected=await correctManualStock(pool,record,'delete',req.session.user_id);
             return res.json({message:'Record deleted successfully'});
         }
         if(['purchases','sales','production'].includes(kind)) {
@@ -2555,6 +2709,9 @@ app.delete("/api/correction_delete",requireRole(['admin']),async function(req,re
 		let deleted;
 
 		if(kind==='expenses') {
+			if(await expenseFromPartnerPayment(record.expense_id)) {
+				return res.status(409).json({ err: "This expense comes from a payment to a partner. Delete the payment under Other Partners instead." });
+			}
 			deleted=await pool.query(
 				`DELETE FROM expenses WHERE expense_id = $1 RETURNING *`,
 				[record.expense_id]
@@ -3057,6 +3214,8 @@ app.get('/api/supplier-supplies',requireRole(['admin','manager','storekeeper']),
 if(require.main===module) {
 	app.listen(PORT,() => {
 		console.log(`Server running at http://localhost:${PORT}`);
+		// Opens two connections now, so the first page after a restart does not wait for them.
+		refreshDatabaseAddress().then(() => Promise.all([pool.query('SELECT 1'),pool.query('SELECT 1')])).catch(error => console.error("Database warm-up failed:",error.message));
 	});
 }
 

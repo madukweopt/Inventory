@@ -31,7 +31,9 @@
     }
     const initials=value=>String(value||'').trim().split(/\s+/).map(part=>part[0]).slice(0,2).join('').toUpperCase();
     function addIcon(node,name){if(node&&!node.querySelector(':scope>.workspace-art'))node.prepend(art(name));}
-    const pages={suppliers:['Suppliers','Manage suppliers and view their supply summary.','customers'],customers:['Customers','Manage customers and view their purchase summary.','customers'],employees:['Employees','Manage employees and view their summary.','employees'],'employee-details':['Employee Profile','View the employee’s information, system access and salary history.','profile'],prices:['Product Prices','View the current prices and price history for all products.','prices'],'weighing-tasks':['Pending Weighing','Complete the weighing for items already authorised.','weighing']};
+    const pages={suppliers:['Suppliers','Manage suppliers and view their supply summary.','customers'],customers:['Customers','Manage customers and view their purchase summary.','customers'],employees:['Employees','Manage employees and view their summary.','employees'],'employee-details':['Employee Profile','View the employee’s information, system access and salary history.','profile'],prices:['Product Prices','View the current prices and price history for all products.','prices'],'weighing-tasks':['Pending Weighing','Complete the weighing for items already authorised.','weighing'],
+        'other-partners':['Other Partners','Fabricators, installers, equipment dealers and repairers, their jobs and what we have paid them.','customers'],
+        'capital-assets':['Assets and Start-up Costs','What the company owns and what it cost to set up before production. Assets do not reduce profit.','prices']};
     for(const [id,[title,description,name]] of Object.entries(pages)){
         const page=document.getElementById(id);if(!page)continue;page.classList.add('reference-workspace');
         const heading=page.querySelector('h1'),subtitle=heading?.parentElement.querySelector('p');
@@ -41,7 +43,8 @@
     const customerSearch=document.getElementById('customer-search');if(customerSearch)customerSearch.placeholder='Search by name, phone or code';
     const supplierSearch=document.getElementById('supplier-search');if(supplierSearch)supplierSearch.placeholder='Search by name, phone or code';
     const employeeSearch=document.getElementById('employee-search');if(employeeSearch)employeeSearch.placeholder='Search by name, role or phone number…';
-    for(const input of [customerSearch,supplierSearch,employeeSearch])if(input){input.parentElement.classList.add('workspace-search');input.parentElement.prepend(art('search'));}
+    const partnerSearch=document.getElementById('partner-search');if(partnerSearch)partnerSearch.placeholder='Search by name, phone or type of work';
+    for(const input of [customerSearch,supplierSearch,employeeSearch,partnerSearch])if(input){input.parentElement.classList.add('workspace-search');input.parentElement.prepend(art('search'));}
     addIcon(document.getElementById('manage-payroll'),'payroll');addIcon(document.getElementById('refresh-weighing-tasks'),'refresh');
     if(employeeSearch){
         const tools=document.createElement('div');tools.className='workspace-directory-tools';
@@ -55,8 +58,8 @@
         select.onchange=()=>document.querySelectorAll('#prices .price-card').forEach(card=>{const history=card.querySelector('.price-history'),button=card.querySelector('.price-history-button');history.hidden=select.value!=='history';button.classList.toggle('is-open',!history.hidden);button.replaceChildren(art('history'),document.createTextNode(history.hidden?'View Price History':'Hide Price History'));});
     }
     window.styleReferencePartner=function(card,partner,config,index){
-        if(!['customer','supplier'].includes(config.kind)&&config.cardClass!=='employee-card')return;
-        const employee=config.cardClass==='employee-card',root=card.card;root.classList.add('workspace-partner',employee?'workspace-employee':'workspace-customer');if(config.kind==='supplier')root.classList.add('workspace-supplier');
+        if(!['customer','supplier','partner'].includes(config.kind)&&config.cardClass!=='employee-card')return;
+        const employee=config.cardClass==='employee-card',root=card.card;root.classList.add('workspace-partner',employee?'workspace-employee':'workspace-customer');if(config.kind==='supplier'||config.kind==='partner')root.classList.add('workspace-supplier');
         root.style.setProperty('--card-accent',employee?(partner.status==='Inactive'?'#f10d19':'#08ad22'):['#08951c','#9824ff','#f38a00','#1265ff'][index%4]);
         const [top]=root.children,[badge,contact,last]=top.children;
         top.classList.add('workspace-partner-top');badge.classList.add('workspace-avatar');contact.classList.add('workspace-contact');last.classList.add('workspace-last');
@@ -68,7 +71,7 @@
             const fields=[...card.body.children];fields.forEach(field=>{const key=field.firstElementChild.textContent;addIcon(field.firstElementChild,key==='Role'?'role':'joined');});if(fields.length===2)card.body.append(fields[1],fields[0]);
         }
         card.body.classList.add('workspace-partner-metrics');
-        if(!employee){const main=card.body.children[2]?.querySelector('strong');if(main){main.classList.add('workspace-item-badge');colourItem(main,partner.main_item);}}
+        if(!employee){const main=card.body.children[2]?.querySelector('strong');if(main){main.classList.add('workspace-item-badge');colourItem(main,partner.main_item||partner.main_work);}}
         card.footer.classList.add('workspace-details-link');
         if(employee){card.footer.firstChild.textContent='Open employee profile';}
     };

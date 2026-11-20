@@ -752,7 +752,8 @@ p {
 }
 .activity-row {
     display:flex;
-    gap:11px;
+    flex-wrap:wrap;
+    gap:8px 11px;
     align-items:center;
     padding:13px 0;
     border-top:1px solid #edf2ee;
@@ -778,7 +779,7 @@ p {
 }
 .activity-copy {
     min-width:0;
-    flex:1;
+    flex:1 1 170px;
 }
 .activity-copy strong {
     display:block;
@@ -790,10 +791,11 @@ p {
     margin-top:4px;
     color:#839086;
     font-size:10px;
-    overflow-wrap:anywhere;
+    line-height:1.45;
+    overflow-wrap:break-word;
 }
 .activity-amount {
-    max-width:40%;
+    flex:0 0 auto;
     text-align:right;
     color:#185c35;
     font-size:15px;
@@ -811,16 +813,36 @@ p {
 .activity-row.is-reversed .activity-amount {
     text-decoration:line-through;
 }
+.activity-amount>span {
+    display:block;
+}
+/* Correct and Reverse sit on their own line so they never squeeze the entry description. */
 .activity-controls {
     display:flex;
+    flex:1 0 100%;
     gap:6px;
     justify-content:flex-end;
-    margin-bottom:10px;
 }
 .activity-controls button {
     min-height:30px;
     padding:5px 9px;
     font-size:10px;
+}
+/* Reverse entry: a small red text button, no icon, only as wide as its label. */
+.activity-controls .reverse-entry-button,
+.activity-controls .reverse-entry-button:focus {
+    width:auto;
+    flex:0 0 auto;
+    margin:0;
+    border:1px solid #ebc2bc;
+    border-radius:8px;
+    background:#fff5f3;
+    color:#a32b20;
+    font-weight:700;
+}
+.activity-controls .reverse-entry-button:hover {
+    background:#fbe4df;
+    color:#8c2118;
 }
 .weighing-tasks-page {
     background:#f6fbf7;
@@ -2127,10 +2149,15 @@ body:has(.portal) {
 .pending-work-job>summary::-webkit-details-marker {display:none;}
 .pending-work-job>summary>span:first-child {flex:1;min-width:0;}
 .pending-work-job>summary strong,.pending-work-job>summary small {display:block;overflow-wrap:anywhere;}
-.pending-work-job>summary strong {color:#183d2a;font-size:15px;}
+.pending-work-job>summary strong {color:#000;font-size:15px;}
 .pending-work-job>summary small {margin-top:5px;color:#607167;font-size:12px;}
 .pending-work-stage {max-width:40%;font-size:12px;color:#215c3c;background:#edf6ef;padding:7px 9px;border-radius:8px;}
 .pending-work-job>summary::after {content:'';width:8px;height:8px;flex:0 0 8px;border-right:2px solid #315d42;border-bottom:2px solid #315d42;transform:rotate(45deg);margin:0 3px;}
 .pending-work-job[open]>summary::after {transform:rotate(225deg);}
 .pending-work-body {padding:0 12px 12px;}
+.pending-work-type {display:inline-block;margin-right:6px;padding:2px 8px;border-radius:6px;font-weight:700;}
+.pending-work-type.type-sale {background:#e2edfc;color:#1d4c94;}
+.pending-work-type.type-purchase {background:#eee6fb;color:#5a3796;}
+.pending-work-type.type-production {background:#e1f2da;color:#1d6b34;}
+.pending-work-stage.is-approval {background:#ffe98a;color:#5c4700;font-weight:700;}
 @media(max-width:420px){.pending-work-tools {grid-template-columns:minmax(0,1fr);}.pending-work-job>summary {padding:12px;gap:8px;}}

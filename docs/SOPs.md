@@ -56,7 +56,7 @@ The app button names are shown in bold in the steps below. Use those names to fi
 ### Buying and receiving
 
 1. The Director buys palm kernels. The Director may ask the Manager to buy them within agreed limits.
-2. The Director or the Manager enters the approved purchase details and price. Select **Authorise Purchase**.
+2. The Director or the Manager enters the approved purchase details, price and **Quantity ordered**. Select **Authorise Purchase**.
 3. When the delivery enters the factory, the Storekeeper takes charge of receiving it.
 4. She checks the delivery, weighs the kernels and carries out the sample test.
 5. If it passes all checks and matches the agreed terms, she accepts the delivery herself.
@@ -78,11 +78,20 @@ The purchase record and stock receipt are saved together. Do not enter the same 
 ### Selling and loading
 
 1. The Director saves the approved selling prices on **Prices**.
-2. The Manager or Director selects the sale date, customer, product and **Payment weight**: **Factory weight** or **Customer’s agreed weight**. Select the accompanying representative, then **Authorise Sale**. Only the Director can assign another approved staff member.
+2. The Manager or Director selects the sale date, customer, product, the **Quantity ordered** and **Payment weight**: **Factory weight** or **Customer’s agreed weight**. Select the accompanying representative, then **Authorise Sale**. Only the Director can assign another approved staff member.
 3. The Storekeeper weighs the actual amount going to the customer.
 4. She enters it and the date it actually left the factory in **Pending Weighing**. The driver checks the amount, enters their name and signs on the device. Then she selects **Confirm Dispatch**.
 
 Confirming dispatch saves the factory weight and deducts it from stock once. The app creates the **Delivery Note** with the driver’s signature already on it. Factory-weight sales get an invoice at dispatch. Customer-weight sales wait for the buyer’s signed weight, confirmed by the accompanying representative. You may attach up to six scale tickets or weighing photos, no larger than 6 MB each. These attachments are optional. A weight difference needs the Director’s approval before invoicing. Each job appears once in **Pending Weighing**, showing its next step. Search or filter by job type, open the job to act, and use **Load more** for additional jobs. Do not record a second stock issue. Follow SOP 04 for release approval.
+
+### Other partners and capital assets
+
+- Record welders, fabricators, electricians and machine dealers under **Other Partners**. Add each job with its type, what was done and the agreed price.
+- Only the Director records payments to partners. The partner’s card shows what was agreed, what was paid and what is still owed. Balance Owed shows red while money is still owed and green once it is paid in full.
+- Fabrication, installation and equipment purchases are capital assets. They appear in **Assets and Start-up Costs** and do not reduce profit.
+- Repairs and servicing are running costs. Each payment is added to **Expenses** automatically. Do not enter it again.
+- The Director enters a machine or tank bought outright from a one-off seller directly in **Assets and Start-up Costs**.
+- Use **Expenses** only for normal running costs. For costs from before production, such as rent paid during installation, the Director opens **Assets and Start-up Costs**, selects the **Start-up Costs** tab, then **+ Add Start-up Cost**. Only the Director sees start-up costs. Enter the amount, the months it covers and how many of those months were before production. Those months show as start-up costs on the dashboard and in the total invested on the **Summary** tab. Select **Edit** on a start-up cost to change it, or **Delete** to remove it. For rent, insurance or a yearly licence paid in advance after production started, the Director opens **Assets and Start-up Costs**, selects the **Prepaid Costs** tab, then **+ Add Prepaid Cost**, and enters the months it covers. Do not use the normal Expenses form for these. The prepaid costs already added are listed on that tab. Select **Edit** to change the amount, date or months, or **Delete** to remove one. The dashboard counts an equal share each day, like salaries, and shows it as **Rent and prepaid costs**.
 
 ### Sample tests
 
@@ -109,7 +118,7 @@ Some work still needs a separate log. Examples include the opening and closing m
 1. The Storekeeper measures or counts the material.
 2. Record the details in the company’s logbook or other agreed record.
 3. Send the checked figures to the Director.
-4. The Director enters any needed stock change in the app’s manual **Inventory Report** and selects the **Reason for change**: Spill, Disposal, Count difference, Return to store or Other. The dashboard shows spills, disposals and other stock taken out this way as stock losses, not as products sold.
+4. The Director enters any needed stock change in the app’s manual **Inventory Report** and selects the **Reason for change**: Spill, Disposal, Count difference, Return to store or Other. Then choose **Remove from stock** or **Add to stock** and enter only the difference in **Quantity**, not the counted total. Spills and disposals always remove stock; a return to store always adds it. The dashboard shows spills, disposals and other stock taken out this way as stock losses, not as products sold. Every manual stock change, and every edit or deletion of one, is kept in **Data → Stock Change History** with the values before and after, who made it and when. The history cannot be changed.
 
 Only the Director uses the manual Inventory Report and stock correction controls. Keep records for items that have not yet been added to the app in the agreed logbook.
 
@@ -183,7 +192,7 @@ Buy the right material at the agreed price. Check what arrives. Record only what
 3. Compare supplier prices, quality, delivery dates and transport costs.
 4. Agree who will pay for transport, loading and unloading.
 5. The Director approves the terms and the supplier’s payment.
-6. The Director or authorised Manager enters the date, supplier, material and approved price in the Purchase form. Select **Authorise Purchase**.
+6. The Director or authorised Manager enters the date, supplier, material, approved price and **Quantity ordered** (the amount agreed with the supplier) in the Purchase form. Select **Authorise Purchase**. The Storekeeper sees the ordered quantity in **Pending Weighing**; if she records more than was ordered, the app asks her to confirm. While the purchase or a sale is still waiting, the Director or the Manager who authorised it can add or change the ordered quantity on its card.
 7. Tell the Storekeeper when the delivery is expected.
 8. Keep the supplier’s invoice, receipt and delivery documents.
 
@@ -326,7 +335,7 @@ Operators must lift and load rejected material for removal as instructed. A deli
 2. Measure diesel in litres and electricity in kWh. Use the app’s stated unit for other items.
 3. Report damaged, wrong or missing items before acceptance.
 4. Record only the amount actually accepted.
-5. Use **Confirm Receipt** for the authorised purchase.
+5. Use **Confirm Receipt** for the authorised purchase. Machines, tanks and other equipment are not stock, so do not use **Authorise Purchase** for them. Record them in **Assets and Start-up Costs**, or under **Other Partners** when a partner made or supplied them.
 6. Operators move accepted items into their proper storage areas.
 
 The app adds the stock receipt automatically. Do not enter it again in Inventory. Keep a separate record for items that have not been set up in the app. Store diesel safely as explained in SOP 03 and SOP 05.
@@ -392,9 +401,9 @@ This SOP explains how to prepare and process kernels, collect PKO and PKC, recor
 ### 3. Record the work as it happens
 
 1. The Manager or Director enters the production date, work hours and downtime. Authorise one production day.
-2. Before kernels enter production, the Storekeeper weighs them and saves **Issue Kernel** in **Pending Weighing**.
-3. When finished PKO, PKC or sludge is ready, the Storekeeper weighs it and saves **Receive Product**.
-4. Select one product for each receipt.
+2. Before kernels enter production, the Storekeeper weighs them and enters the amount in **Kernel issued** in **Pending Weighing**.
+3. When finished PKO, PKC or sludge is ready, the Storekeeper weighs it and enters the amount in **PKO received**, **PKC received** or **Sludge received**.
+4. Enter the kernel issued and the products received together, or one at a time, then select **Save**. Each quantity is saved as its own entry and added to stock straight away. The form stays open with the date kept, so you can enter the next weighing.
 5. Keep issuing kernels and receiving products as work continues.
 6. Do not wait for all the products from one issue before recording another issue.
 7. Do not try to match each product receipt to one particular kernel issue.
@@ -649,7 +658,7 @@ Watch the saved product quantities, yield, machine stoppages, waste and losses. 
 7. Do not record unfinished material as kernels returned to store.
 8. Leave the production authorisation open while any of its materials remain unfinished. Do not select **Finish Day** just because work has stopped for the day.
 
-Select **Finish Day** only after all materials for that production have been processed and all products have been weighed and recorded. This closes its entries and makes its yield **Final**. The app records any kernels not recovered as weighed PKO, PKC or sludge as production loss. If you select **Finish Day** too early, kernels still in the machines are wrongly recorded as loss. If the Director reopens the day, the loss is cleared and worked out again at the next **Finish Day**.
+Select **Finish Day** only after all materials for that production have been processed and all products have been weighed and recorded. This closes its entries and makes its yield **Final**. The app records any kernels not recovered as weighed PKO, PKC or sludge as production loss. If you select **Finish Day** too early, kernels still in the machines are wrongly recorded as loss. If the Director reopens the day, the loss is cleared and worked out again at the next **Finish Day**. Production cards in **Production Data** and **Pending Weighing** show the production loss in kg. While the day is still open it is marked **Provisional** and includes kernels still in the machines. Do not change weights to reduce it.
 
 When work starts again:
 
@@ -749,13 +758,13 @@ The Manager does not enter a second set of measured quantities.
 
 1. Plan the purchase before prepaid units run out. Get the Director’s approval.
 2. The Storekeeper records the meter balance before new units are added.
-3. The Manager or Director creates an Electricity purchase authorisation with the date, supplier and approved price per unit.
+3. The Manager or Director creates an Electricity purchase authorisation with the date, supplier, approved price per unit and the kWh ordered.
 4. Keep the payment receipt.
 5. The Storekeeper checks the units actually added to the meter. Allow for electricity used between readings.
 6. In **Pending Weighing**, enter the actual units added in kWh and select **Confirm Receipt**.
 7. Keep the before and after meter readings in the electricity log. Report any difference that cannot be explained.
 
-Do not record the same units added again as another stock receipt. Do not charge the same electricity purchase again in Expenses.
+Do not record the same units added again as another stock receipt. Do not charge the same electricity purchase again in Expenses. If an expense description mentions diesel or electricity, the app shows a warning and asks you to confirm before saving.
 
 ### 4. Record daily electricity use and power failures
 
@@ -846,12 +855,12 @@ The Storekeeper does not negotiate prices, approve sales or collect payments. Th
 
 1. The Director saves the approved price and its start date on **Prices**.
 2. If a price is missing or wrong, ask the Director to correct it before authorising the sale.
-3. The Manager or Director selects the sale date, customer and product.
+3. The Manager or Director selects the sale date, customer and product, and enters the **Quantity ordered**: the amount the customer asked for. The Storekeeper sees it on the sale in **Pending Weighing**.
 4. Check the price supplied by the app. Choose **Factory weight** or **Customer’s agreed weight** under **Payment weight**. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. Do not enter a second price or dispatch weight in this form.
 5. Select **Authorise Sale**.
 6. Tell the Storekeeper about the collection and assign Operators to prepare the products and equipment.
 
-The customer’s requested amount is a plan. The Storekeeper’s factory dispatch weight determines how much stock leaves the factory. The approved payment basis determines the invoice weight: factory weight or the buyer’s agreed weight. Authorising a sale does not prove payment or give permission to release the vehicle.
+The customer’s requested amount is a plan. The Storekeeper’s factory dispatch weight determines how much stock leaves the factory. If she enters more than was ordered, the app asks her to confirm before saving. The approved payment basis determines the invoice weight: factory weight or the buyer’s agreed weight. Authorising a sale does not prove payment or give permission to release the vehicle.
 
 ### 4. Weigh and load
 
@@ -1060,7 +1069,7 @@ The machine maker’s servicing instructions take priority over these general ti
 3. The Manager checks without exposing anyone to moving parts or live electricity.
 4. Decide whether trained staff can safely fix it or a technician is needed.
 5. Get the Director’s approval for the required repair.
-6. Record the fault, time stopped, repair and time work started again.
+6. Record the fault, time stopped, repair and time work started again. If an outside partner does the repair, record the job and agreed price under **Other Partners**. The Director records the payment.
 7. Check the machine before returning it to normal use.
 
 Operators must not attempt repairs they are not trained to do.

@@ -90,3 +90,6 @@ body #inventory-card-view .ledger-card .data-record-values>div{overflow:visible}
 body #inventory-card-view .ledger-card .data-record-values>div>span{font-size:clamp(6.5px,2vw,9px)}
 
 }
+/* Expenses paid for several months: help under the form and a note under the card. */
+#expenses-form .expense-spread-help{display:block;margin:-6px 0 14px;color:#4f5d6b;font-size:12px;line-height:1.4}
+.expense-spread-note{margin:6px 0 0;padding:6px 10px;border-radius:8px;background:#eef4fb;color:#1d3f6b;font-size:12px;font-weight:600}

@@ -97,7 +97,7 @@ test('Database constraints reject impossible weights and removing a purchase lea
 async function authoriseReceipt(item='P Kernel'){
     const row=(await pool.query('SELECT item_id FROM items WHERE name=$1',[item])).rows[0];
     const supplier=(await pool.query('SELECT supplier_id FROM suppliers LIMIT 1')).rows[0];
-    return (await manager.post('/api/purchases').send({purchase_date:'2026-11-15',item_id:row.item_id,supplier_id:supplier.supplier_id,unit_cost:300}).expect(201)).body;
+    return (await manager.post('/api/purchases').send({ordered_quantity:1000,purchase_date:'2026-11-15',item_id:row.item_id,supplier_id:supplier.supplier_id,unit_cost:300}).expect(201)).body;
 }
 test('First kernel receipt saves its sample, purchase and full stock quantity together, and retries create no duplicates',async()=>{
     const authorised=await authoriseReceipt();

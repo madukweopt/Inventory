@@ -10,7 +10,7 @@ const fs=require('fs');
 const path=require('path');
 const {spawn}=require('child_process');
 const {calculateContinuousCosts}=require('./continuous-costing');
-const TABLES=['sale_corrections','delivery_note_evidence','delivery_notes','daily_consumable_checks','sop_revisions','kernel_impurity_tests','sale_payments','production_batches','stock_counts','weighing_requests','sales','production','purchases',
+const TABLES=['stock_change_history','partner_payments','capital_assets','partner_jobs','service_partners','sale_corrections','delivery_note_evidence','delivery_notes','daily_consumable_checks','sop_revisions','kernel_impurity_tests','sale_payments','production_batches','stock_counts','weighing_requests','sales','production','purchases',
     'product_prices','payroll','salary_history','employment_period_changes','employees','expenses','company_details','customers','suppliers','items','session','users'];
 const DEFAULT_START='2026-06-01',DEFAULT_END='2026-11-17';
 // A tiny valid PNG used for test signatures and weighing evidence.
@@ -28,7 +28,7 @@ const uuid=label=>{const h=crypto.createHash('sha256').update('inventory-test-se
 function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
     const days=datesBetween(start,end),data=Object.fromEntries(TABLES.map(table=>[table,[]])),next={};
     function add(table,row){
-        const idField=({sale_corrections:'correction_id',kernel_impurity_tests:'test_id',delivery_note_evidence:'evidence_id',users:'user_id',items:'item_id',customers:'customer_id',suppliers:'supplier_id',employees:'employee_id',salary_history:'salary_history_id',employment_period_changes:'change_id',product_prices:'price_id',payroll:'payroll_id',expenses:'expense_id',purchases:'purchase_id',production:'production_id',weighing_requests:'request_id',production_batches:'batch_id',sales:'sales_id',sale_payments:'payment_id',stock_counts:'count_id'})[table];
+        const idField=({service_partners:'partner_id',partner_jobs:'job_id',capital_assets:'asset_id',partner_payments:'payment_id',sale_corrections:'correction_id',kernel_impurity_tests:'test_id',delivery_note_evidence:'evidence_id',users:'user_id',items:'item_id',customers:'customer_id',suppliers:'supplier_id',employees:'employee_id',salary_history:'salary_history_id',employment_period_changes:'change_id',product_prices:'price_id',payroll:'payroll_id',expenses:'expense_id',purchases:'purchase_id',production:'production_id',weighing_requests:'request_id',production_batches:'batch_id',sales:'sales_id',sale_payments:'payment_id',stock_counts:'count_id'})[table];
         if(idField&&row[idField]==null)row[idField]=(next[table]||0)+1;
         if(idField)next[table]=Math.max(next[table]||0,row[idField]);
         data[table].push(row);return row;
@@ -98,10 +98,10 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
         const held=kernel&&!heldExample&&dayIndex>=2&&day>='2026-08-01';
         if(held){
             heldExample=true;
-            authorisation('Purchase',days[dayIndex-2],6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:unitCost+20},'Cancelled',actor.manager);
+            authorisation('Purchase',days[dayIndex-2],6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:unitCost+20,ordered_quantity:5000},'Cancelled',actor.manager);
         }
         const price=held?unitCost-15:unitCost;
-        const request=authorisation('Purchase',early?days[dayIndex-1]:day,early?18:6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:price},'Completed',dayIndex%4===0?actor.admin:actor.manager);
+        const request=authorisation('Purchase',early?days[dayIndex-1]:day,early?18:6,{item_id:items[name].item_id,supplier_id:supplier.supplier_id,unit_cost:price,ordered_quantity:Math.ceil(quantity/100)*100},'Completed',dayIndex%4===0?actor.admin:actor.manager);
         const ticket='PUR-'+day.replaceAll('-','')+'-'+name.replaceAll(' ','');
         const purchase=add('purchases',{purchase_date:day,item_id:items[name].item_id,quantity_supplied:quantity,unit_cost:price,supplier_id:supplier.supplier_id,created_at:stamp(day,6,15)});
         Object.assign(request,{quantity,scale_ticket:ticket,vehicle_number:'TEST-TRUCK-'+String(dayIndex+1).padStart(3,'0'),completed_record_id:purchase.purchase_id,completed_by:actor.storekeeper,completed_at:stamp(day,6,15)});
@@ -125,7 +125,7 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
         const unitPrice=prices[authorisedDay.slice(0,7)][name];
         // Cake Buyer B pays on its own weighbridge; the day before the last day adds a difference awaiting approval.
         const basis=customer===customers[3]||(name==='PKC'&&day===dayBefore)?'Customer':'Factory';
-        const request=authorisation('Sale',authorisedDay,early?18:15,{item_id:items[name].item_id,customer_id:customer.customer_id,unit_price:unitPrice,billing_basis:basis,representative_id:actor.manager},'Completed',index%5===0?actor.admin:actor.manager);
+        const request=authorisation('Sale',authorisedDay,early?18:15,{item_id:items[name].item_id,customer_id:customer.customer_id,unit_price:unitPrice,billing_basis:basis,representative_id:actor.manager,ordered_quantity:Math.ceil(quantity/100)*100},'Completed',index%5===0?actor.admin:actor.manager);
         const id=(next.sales||0)+1,dispatched=stamp(day,16,part*5);
         // Customer-weight buyers usually weigh slightly less; differences wait for the Director's approval.
         const buyerWeight=money(quantity*(1-(day===dayBefore&&basis==='Customer'?0.01:basis==='Customer'?[0,0.005,0.01,0.015][id%4]:[0,0,0.004][id%3])));
@@ -226,17 +226,46 @@ function buildPlan({start=DEFAULT_START,end=DEFAULT_END,users}){
         if(index%20===12)adjust(day,'PKO',12,'Spill',stamp(day,17,10));
         if(index%30===17)adjust(day,'Sludge',5,'Disposal',stamp(day,17,15));
         if(index%28===21)adjust(day,'PKC',8,'Count difference',stamp(day,17,20));
-        add('expenses',{expense_date:day,category:'Expenses',description:['Test factory transport','Test routine maintenance','Test cleaning and supplies'][index%3],amount_spent:5000+(index%7)*1000,created_at:stamp(day,17,40)});
-        if(day.slice(8)==='15')add('expenses',{expense_date:day,category:'Asset/Capital Expenditure',description:'Test expeller spare parts',amount_spent:250000,created_at:stamp(day,17,45)});
+        add('expenses',{expense_date:day,category:'Expenses',description:['Test factory transport','Test routine maintenance','Test cleaning and supplies'][index%3],amount_spent:5000+(index%7)*1000,spread_months:1,startup_months:0,created_at:stamp(day,17,40)});
         if(index%30===0){
-            authorisation('Purchase',day,19,{item_id:items['P Kernel'].item_id,supplier_id:suppliers[0].supplier_id,unit_cost:350+monthIndex*8},'Cancelled',actor.manager);
-            authorisation('Sale',day,19,{item_id:items.PKO.item_id,customer_id:customers[0].customer_id,unit_price:prices[day.slice(0,7)].PKO,billing_basis:'Factory',representative_id:actor.manager},'Cancelled',actor.admin);
+            authorisation('Purchase',day,19,{item_id:items['P Kernel'].item_id,supplier_id:suppliers[0].supplier_id,unit_cost:350+monthIndex*8,ordered_quantity:5000},'Cancelled',actor.manager);
+            authorisation('Sale',day,19,{item_id:items.PKO.item_id,customer_id:customers[0].customer_id,unit_price:prices[day.slice(0,7)].PKO,billing_basis:'Factory',representative_id:actor.manager,ordered_quantity:3000},'Cancelled',actor.admin);
         }
     });
+    // Other partners: set-up machines and tanks are capital assets bought before trading; repairs during the period are running expenses.
+    const before=offset=>{const date=new Date(start+'T00:00:00Z');date.setUTCDate(date.getUTCDate()-offset);return date.toISOString().slice(0,10);};
+    const during=fraction=>days[Math.min(days.length-1,Math.max(0,Math.floor(days.length*fraction)))];
+    const partners=[['Demo Welding & Fabrication Works','Welding and fabrication'],['Demo Power & Electrical Services','Electrical installation and motor repairs'],['Demo Agro-Machinery Dealers','Oil mill machinery supply']]
+        .map(([name,work],i)=>add('service_partners',{name,phone_number:'0804000000'+i,address:'Test Partner Address '+(i+1),email:'partner'+(i+1)+'@example.test',work_type:work,note:'Generated test partner',created_at:stamp(before(45),9)}));
+    function partnerJob(partner,date,type,description,amount,category,assetType,payments){
+        const job=add('partner_jobs',{partner_id:partner.partner_id,job_date:date,job_type:type,description,agreed_amount:amount,cost_category:category,created_by:actor.admin,created_at:stamp(date,9)});
+        if(category==='Capital')add('capital_assets',{name:description,asset_type:assetType,acquired_date:date,cost:amount,source:partner.name,note:null,job_id:job.job_id,created_by:actor.admin,created_at:stamp(date,9,5)});
+        payments.forEach(([paymentDay,paid,method],index)=>{
+            // A running job's payment is also its running expense, entered once.
+            const expense=category==='Running'?add('expenses',{expense_date:paymentDay,category:'Expenses',description:(partner.name+': '+description).slice(0,100),amount_spent:paid,spread_months:1,startup_months:0,created_at:stamp(paymentDay,12,index)}):null;
+            add('partner_payments',{job_id:job.job_id,payment_date:paymentDay,amount:paid,payment_method:method,reference_number:method==='Bank Transfer'?'TEST-PARTNER-'+job.job_id+'-'+(index+1):null,note:null,expense_id:expense?.expense_id??null,recorded_by:actor.admin,created_at:stamp(paymentDay,12,index)});
+        });
+    }
+    const [welder,electrician,dealer]=partners;
+    partnerJob(dealer,before(40),'Equipment purchase','Expeller, 10 tonnes per day',4000000,'Capital','Machine',[[before(40),2500000,'Bank Transfer'],[before(25),1500000,'Bank Transfer']]);
+    partnerJob(dealer,before(38),'Equipment purchase','Kernel crusher',1200000,'Capital','Machine',[[before(38),1200000,'Bank Transfer']]);
+    partnerJob(welder,before(35),'Fabrication','Roaster and feed hopper',3500000,'Capital','Machine',[[before(34),2000000,'Bank Transfer'],[before(20),1500000,'Bank Transfer']]);
+    partnerJob(welder,before(30),'Fabrication','Oil settling tank, 5,000 litres',1800000,'Capital','Tank',[[before(28),1000000,'Bank Transfer']]);
+    partnerJob(electrician,before(22),'Installation','Main panel and motor wiring',950000,'Capital','Electrical',[[before(21),950000,'Bank Transfer']]);
+    partnerJob(welder,during(0.47),'Repair','Weld cracked crusher hopper',85000,'Running',null,[[during(0.48),85000,'Cash']]);
+    partnerJob(electrician,during(0.74),'Maintenance/Service','Expeller motor service',45000,'Running',null,[[during(0.75),45000,'Bank Transfer']]);
+    partnerJob(electrician,during(0.95),'Repair','Replace burnt roaster motor starter',60000,'Running',null,[[during(0.96),30000,'Cash']]);
+    // Paid in advance and spread over the months covered: a year's rent from January, with the 5 installation months before production as start-up costs.
+    const rentDay=start.slice(0,4)+'-01-05';
+    if(rentDay<start)add('expenses',{expense_date:rentDay,category:'Expenses',description:'Factory rent, January to December '+start.slice(0,4),amount_spent:1200000,spread_months:12,startup_months:Math.min(12,Number(start.slice(5,7))-1),created_at:stamp(rentDay,10)});
+    add('expenses',{expense_date:start,category:'Expenses',description:'Factory insurance, 12 months',amount_spent:360000,spread_months:12,startup_months:0,created_at:stamp(start,10,30)});
+    // Bought outright from one-off sellers, so entered directly in Assets and Start-up Costs.
+    add('capital_assets',{name:'Platform weighing scale, 1,000 kg',asset_type:'Machine',acquired_date:before(18),cost:650000,source:'Demo Scale Shop',note:'Calibrated on delivery',job_id:null,created_by:actor.admin,created_at:stamp(before(18),10)});
+    add('capital_assets',{name:'Filter press',asset_type:'Machine',acquired_date:before(15),cost:1100000,source:'Demo Filtration Ltd',note:null,job_id:null,created_by:actor.admin,created_at:stamp(before(15),10)});
     // Pending work has no business record or physical movement until it is weighed.
     for(const [i,day] of [...new Set([days[Math.max(0,days.length-4)],end])].entries()){
-        authorisation('Purchase',day,18,{item_id:items['P Kernel'].item_id,supplier_id:suppliers[i%2].supplier_id,unit_cost:390},'Awaiting Storekeeper',i?actor.admin:actor.manager);
-        authorisation('Sale',day,18,{item_id:items.PKO.item_id,customer_id:customers[i].customer_id,unit_price:prices[day.slice(0,7)].PKO,billing_basis:'Factory',representative_id:actor.manager},'Awaiting Storekeeper',i?actor.manager:actor.admin);
+        authorisation('Purchase',day,18,{item_id:items['P Kernel'].item_id,supplier_id:suppliers[i%2].supplier_id,unit_cost:390,ordered_quantity:10000},'Awaiting Storekeeper',i?actor.admin:actor.manager);
+        authorisation('Sale',day,18,{item_id:items.PKO.item_id,customer_id:customers[i].customer_id,unit_price:prices[day.slice(0,7)].PKO,billing_basis:'Factory',representative_id:actor.manager,ordered_quantity:5000},'Awaiting Storekeeper',i?actor.manager:actor.admin);
     }
     // Backdated pending examples are inserted in their actual authorisation order.
     const ordered=[...data.weighing_requests].sort((a,b)=>a.created_at.localeCompare(b.created_at)||a.request_id-b.request_id);
@@ -283,6 +312,12 @@ async function validateSeed(client,start,end){
         production_loss:`SELECT COUNT(*)::int AS n FROM production p JOIN weighing_requests w ON w.request_type='Production' AND w.completed_record_id=p.production_id
             WHERE p.process_loss<>CASE WHEN w.status='Completed' THEN GREATEST(ROUND(p.kernel_used-p.pko_produced-p.pkc_produced-p.sludge_produced,2),0) ELSE 0 END`,
         unlabelled_stock_changes:`SELECT COUNT(*)::int AS n FROM stock_counts WHERE source_type='Manual' AND COALESCE(source_part,'') NOT LIKE 'Use:%' AND adjustment_reason IS NULL`,
+        capital_in_expenses:`SELECT COUNT(*)::int AS n FROM expenses WHERE category<>'Expenses'`,
+        partner_payment_expenses:`SELECT COUNT(*)::int AS n FROM partner_payments p JOIN partner_jobs j ON j.job_id=p.job_id LEFT JOIN expenses e ON e.expense_id=p.expense_id
+            WHERE (j.cost_category='Running' AND (e.expense_id IS NULL OR e.amount_spent<>p.amount OR e.expense_date<>p.payment_date)) OR (j.cost_category='Capital' AND p.expense_id IS NOT NULL)`,
+        capital_jobs_without_asset:`SELECT COUNT(*)::int AS n FROM partner_jobs j LEFT JOIN capital_assets a ON a.job_id=j.job_id
+            WHERE (j.cost_category='Capital')<>(a.asset_id IS NOT NULL) OR (a.asset_id IS NOT NULL AND (a.cost<>j.agreed_amount OR a.acquired_date<>j.job_date))`,
+        overpaid_partner_jobs:`SELECT COUNT(*)::int AS n FROM partner_jobs j WHERE j.agreed_amount<(SELECT COALESCE(SUM(amount),0) FROM partner_payments p WHERE p.job_id=j.job_id)`,
         misplaced_kernel_tests:`SELECT COUNT(*)::int AS n FROM kernel_impurity_tests t JOIN purchases p ON p.purchase_id=t.purchase_id JOIN items i ON i.item_id=p.item_id WHERE LOWER(i.name)<>'p kernel'`,
         payment_receipts:`SELECT COUNT(*)::int AS n FROM sale_payments WHERE receipt_number IS NULL`,
         missing_stock_movements:`SELECT COUNT(*)::int AS n FROM weighing_requests w WHERE w.status='Completed' AND (
@@ -298,7 +333,7 @@ async function validateSeed(client,start,end){
     };
     for(const [name,sql] of Object.entries(checks)){const n=(await client.query(sql)).rows[0].n;if(n)failures.push(name+': '+n);}
     const range=(await client.query(`SELECT MIN(day)::text AS first,MAX(day)::text AS last FROM(
-        SELECT production_date AS day FROM production UNION ALL SELECT purchase_date FROM purchases UNION ALL SELECT sales_date FROM sales UNION ALL SELECT request_date FROM weighing_requests UNION ALL SELECT count_date FROM stock_counts UNION ALL SELECT payment_date FROM sale_payments UNION ALL SELECT expense_date FROM expenses) d`)).rows[0];
+        SELECT production_date AS day FROM production UNION ALL SELECT purchase_date FROM purchases UNION ALL SELECT sales_date FROM sales UNION ALL SELECT request_date FROM weighing_requests UNION ALL SELECT count_date FROM stock_counts UNION ALL SELECT payment_date FROM sale_payments UNION ALL SELECT expense_date FROM expenses WHERE spread_months=1) d`)).rows[0];
     if(range.first!==start||range.last!==end)failures.push('Date range does not match the requested period');
     if(failures.length)throw new Error('Seed validation failed: '+failures.join('; '));
     return {checks_passed:Object.keys(checks).length,date_range:range};
@@ -319,7 +354,7 @@ async function seedDatabase(pool,{start=DEFAULT_START,end=DEFAULT_END,reset=fals
         }
         const plan=buildPlan({start,end,users});
         await client.query('TRUNCATE TABLE '+TABLES.filter(table=>table!=='sop_revisions').map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
-        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','product_prices','weighing_requests','purchases','kernel_impurity_tests','production','production_batches','sales','delivery_notes','delivery_note_evidence','sale_corrections','sale_payments','stock_counts','daily_consumable_checks','expenses'])await insertRows(client,table,plan.data[table]);
+        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','product_prices','weighing_requests','purchases','kernel_impurity_tests','production','production_batches','sales','delivery_notes','delivery_note_evidence','sale_corrections','sale_payments','stock_counts','daily_consumable_checks','expenses','service_partners','partner_jobs','capital_assets','partner_payments'])await insertRows(client,table,plan.data[table]);
         for(const month of plan.months){
             const lastDay=new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).toISOString().slice(0,10);
             const paid=lastDay<=end;
@@ -363,14 +398,16 @@ async function backupApplicationData(pool,destination){
 }
 function readApplicationBackup(filename){
     const {checksum,payload}=JSON.parse(fs.readFileSync(filename,'utf8'));
-    if(!payload||payload.format!=='inventory-app-data-v1'||crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')!==checksum||TABLES.some(table=>!(['kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections'].includes(table)&&payload.tables?.[table]===undefined)&&!Array.isArray(payload.tables?.[table])))throw new Error('Application backup failed integrity verification');
+    if(!payload||payload.format!=='inventory-app-data-v1'||crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex')!==checksum||TABLES.some(table=>!(['kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','service_partners','partner_jobs','capital_assets','partner_payments','stock_change_history'].includes(table)&&payload.tables?.[table]===undefined)&&!Array.isArray(payload.tables?.[table])))throw new Error('Application backup failed integrity verification');
     // Backups made before sample tests existed contain no quality tests.
     payload.tables.kernel_impurity_tests??=[];
     payload.tables.sop_revisions??=[];
+    payload.tables.stock_change_history??=[];
     payload.tables.daily_consumable_checks??=[];
     payload.tables.delivery_notes??=[];
     payload.tables.delivery_note_evidence??=[];
     payload.tables.sale_corrections??=[];
+    for(const table of ['service_partners','partner_jobs','capital_assets','partner_payments'])payload.tables[table]??=[];
     return payload;
 }
 async function restoreApplicationData(pool,filename){
@@ -379,7 +416,7 @@ async function restoreApplicationData(pool,filename){
     try{
         await client.query('BEGIN');await client.query("SET LOCAL idle_in_transaction_session_timeout='60s'");await client.query('SELECT pg_advisory_xact_lock(91001)');await client.query('SELECT pg_advisory_xact_lock(91002)');
         await client.query('TRUNCATE TABLE '+TABLES.map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
-        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','session']){
+        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','service_partners','partner_jobs','capital_assets','partner_payments','stock_change_history','session']){
             const rows=payload.tables[table];
             if(rows.length)await client.query(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_recordset(NULL::"${table}",$1::jsonb)`,['['+rows.join(',')+']']);
         }

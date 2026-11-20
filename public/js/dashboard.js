@@ -138,7 +138,7 @@ if(dateInput) {
 
 		// Processes each entry in the collection.
 		Object.entries(production).forEach(function([name,value]) {
-			if(name==="oil_yield") {
+			if(name==="oil_yield"||name==="yield_status"||name==="production_loss") {
 				return;
 			}
 			const prodCard=document.createElement("article");
@@ -175,6 +175,12 @@ if(dateInput) {
 				minimumFractionDigits: 2,
 				maximumFractionDigits: 2
 			})+"%";
+        // Production loss sits beside oil yield rather than as a lone product card.
+        const productionLoss=document.querySelector("#production-loss");
+        if(productionLoss)productionLoss.textContent=Number(production.production_loss||0).toLocaleString("en-NG",{
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        })+" kg";
         let yieldStatus=document.querySelector('#oil-yield-status');
         if(!yieldStatus){yieldStatus=document.createElement('small');yieldStatus.id='oil-yield-status';oilYield.after(yieldStatus);}
         yieldStatus.textContent=production.yield_status||'';
@@ -291,7 +297,10 @@ if(dateInput) {
 			const totalGross=Object.values(grossProfit).reduce(
 				(total,value) => total+(Number(value)||0),0
 			);
-			const totalExpenses=Number(profit.expenses?.total_expenses)||0;
+			// Rent and other payments spread over months are shown on their own line, like salaries.
+			const spreadExpenses=Number(profit.expenses?.spread_expenses)||0;
+			const totalExpenses=(Number(profit.expenses?.total_expenses)||0)-spreadExpenses;
+			const startupCosts=Number(profit.expenses?.startup_costs)||0;
 			const payrollCost=Number(profit.payroll_cost)||0;
 			const netAmount=Number(profit.total_net_profit)||0;
 			const netMargin=totalSales!==0? (netAmount/totalSales)*100:0;
@@ -308,6 +317,8 @@ if(dateInput) {
 				["Gross profit",currency.format(totalGross)],
 				...lossRows,
 				["Expenses",currency.format(totalExpenses)],
+				...(spreadExpenses>0?[["Rent and prepaid costs",currency.format(spreadExpenses)]]:[]),
+				...(startupCosts>0?[["Start-up costs",currency.format(startupCosts)]]:[]),
 				["Employee salaries",currency.format(payrollCost)],
 				["Net profit",currency.format(netAmount),"net"],
 				["Net profit margin",netMargin.toLocaleString("en-NG",{

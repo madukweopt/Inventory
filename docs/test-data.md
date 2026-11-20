@@ -39,7 +39,9 @@ Three existing login accounts were preserved. Sessions were cleared. The pre-res
 - Pending purchase/sale authorisations without stock movements, cancelled unused authorisations, and an open production day on 17 November.
 - A corrected production entry and a reversed entry retained in history without changing its day’s final quantity.
 - Six employees, salary changes, an inactive/return period, an employee leaving employment, and monthly payroll. Completed months are paid; November is pending.
-- Monthly product prices, daily operating expenses, a monthly capital purchase, company details, customers and suppliers.
+- Monthly product prices, daily running expenses, company details, customers and suppliers.
+- Factory rent of ₦1,200,000 paid on 5 January for January to December, with the 5 months before production as start-up costs, and factory insurance of ₦360,000 for 12 months from 1 June. Both are spread at ₦100,000 and ₦30,000 a month.
+- Three other partners: a fabricator, an electrician and a machinery dealer. Set-up jobs before 1 June (expeller, crusher, roaster, settling tank and panel wiring) are capital assets, one with ₦800,000 still owed. Repair and service jobs during the period create running expenses, one part-paid. Two assets bought outright from one-off sellers are entered directly in Capital Assets.
 
 All historical input/output quantities reconcile. Finished days have no material left in production; only the open final date keeps **200 kg** inside production for costing. This amount is not displayed as an extra stock category.
 

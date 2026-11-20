@@ -89,7 +89,7 @@
         if(kind==='sales'||kind==='purchases'){
             const [party,quantity,cost,total,ticket]=boxes;
             party.classList.add('ref-party');label(party,kind==='sales'?'Buyer':'Supplier',kind==='sales'?'buyer':'supplier');
-            quantity.classList.add('ref-quantity');label(quantity,kind==='sales'?'Quantity':'Quantity Supplied','quantity');
+            quantity.classList.add('ref-quantity');label(quantity,kind==='sales'?(row.billing_basis==='Customer'?'Invoiced Weight':'Quantity'):'Quantity Supplied','quantity');
             cost.classList.add('ref-cost');label(cost,kind==='sales'?'Unit Price':'Unit Cost','coins');
             total.classList.add('ref-total');label(total,kind==='sales'?'Total Amount':'Total Purchase','money');
             ticket.classList.add('ref-ticket');label(ticket,kind==='sales'?'Sales Ticket':'Scale Ticket',kind==='sales'?'truck':'ticket');

@@ -158,3 +158,6 @@ body :is(#sales-card-view,#purchases-card-view,#production-card-view,#expenses-c
 .data-date-filter [role=button]:focus-visible{outline:2px solid #087b32;outline-offset:3px}
 .ref-art{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:17px;height:17px;overflow:hidden;vertical-align:middle}
 .ref-art svg{display:block;width:100%;height:100%}
+
+/* Customer-weight sales: factory weight shown under the invoiced weight in the same box. */
+body #sales-card-view.reference-record-page .ref-quantity>.ref-factory-weight{display:block;margin:3px 0 0;padding:0;color:#133667;font-size:9px;font-weight:700;line-height:1.25;white-space:normal}

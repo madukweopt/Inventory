@@ -268,6 +268,9 @@ test('manual Inventory adjustments are Admin-only and validate decimals',async f
 		count_date: '2026-11-13',item_id: ids.Diesel,received: 500,issued: '1.234'
 	}).expect(400);
 	await admin.post('/api/stock_counts').send({
+		count_date: '2026-11-13',item_id: ids.Diesel,received: 500,issued: 20
+	}).expect(400,/Could not submit stock/);
+	await admin.post('/api/stock_counts').send({
 		count_date: '2026-11-13',item_id: ids.Diesel,received: 500,issued: 0
 	}).expect(201);
 	const stock=await storekeeper.get('/api/stock_counts').expect(200);
@@ -275,7 +278,7 @@ test('manual Inventory adjustments are Admin-only and validate decimals',async f
 });
 
 test('Manager authorises work and Storekeeper quantities create Purchase and Production records',async function() {
-	const purchaseRequest=await manager.post('/api/purchases').send({
+	const purchaseRequest=await manager.post('/api/purchases').send({ordered_quantity:1000,
 		purchase_date: '2026-11-13',supplier_id: ids.supplier,item_id: ids['P Kernel'],
 		unit_cost: 300
 	}).expect(201);
@@ -287,9 +290,21 @@ test('Manager authorises work and Storekeeper quantities create Purchase and Pro
 	assert.deepEqual(new Set(pending.body.map(row => row.request_type)),new Set(['Purchase','Production']));
 	await manager.patch('/api/weighing-requests/'+purchaseRequest.body.request_id+'/complete').send({ quantity:1000 }).expect(403);
 	await storekeeper.patch('/api/weighing-requests/'+purchaseRequest.body.request_id+'/cancel').expect(403);
+	// The ordered quantity is required, shown to the Storekeeper, and can be changed only while waiting.
+	await manager.post('/api/purchases').send({purchase_date:'2026-11-13',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(400,/quantity ordered/);
+	const orderUrl='/api/weighing-requests/'+purchaseRequest.body.request_id+'/ordered-quantity';
+	let seen=pending.body.find(row=>row.request_id===purchaseRequest.body.request_id);
+	assert.equal(Number(seen.ordered_quantity),1000);assert.equal(seen.can_change_order,false,'The Storekeeper cannot change the order');
+	await storekeeper.patch(orderUrl).send({ordered_quantity:1200}).expect(403);
+	await manager.patch(orderUrl).send({ordered_quantity:'0'}).expect(400);
+	await manager.patch(orderUrl).send({ordered_quantity:1200}).expect(200);
+	await admin.patch(orderUrl).send({ordered_quantity:1100}).expect(200);
+	seen=(await storekeeper.get('/api/weighing-requests').expect(200)).body.find(row=>row.request_id===purchaseRequest.body.request_id);
+	assert.equal(Number(seen.ordered_quantity),1100);
 	await storekeeper.patch('/api/weighing-requests/'+purchaseRequest.body.request_id+'/complete').send({
 		quantity: 1000,scale_ticket: 'PURCHASE-TICKET-1',vehicle_number: 'TEST-001'
 	}).expect(200);
+	await admin.patch(orderUrl).send({ordered_quantity:900}).expect(404,/already completed/);
 	await storekeeper.patch('/api/weighing-requests/'+productionRequest.body.request_id+'/complete').send({
 		submission_key: crypto.randomUUID(),kernel_used: 500,pko_produced: 200,pkc_produced: 280,sludge_produced: 20,
 		scale_ticket: 'PRODUCTION-TICKET-1'
@@ -371,11 +386,14 @@ test('dated product prices are visible to every role but only Admin can change t
 });
 
 test('sales generate invoices and partial payments generate receipts and balances',async function() {
-	const saleRequest=await manager.post('/api/sales').send({
+	const saleRequest=await manager.post('/api/sales').send({ordered_quantity:1000,
 		sales_date: '2026-11-13',customer_id: ids.customer,item_id: ids.PKO,
 		quantity: 400,unit_price: 1
 	}).expect(201);
 	assert.equal(Number(saleRequest.body.unit_price),1000,'Pending Sale must copy the official Prices-page value');
+	assert.equal(Number(saleRequest.body.ordered_quantity),1000,'The ordered quantity is saved for the Storekeeper');
+	await manager.post('/api/sales').send({sales_date:'2026-11-13',customer_id:ids.customer,item_id:ids.PKO}).expect(400,/quantity the customer ordered/);
+	await manager.post('/api/sales').send({sales_date:'2026-11-13',customer_id:ids.customer,item_id:ids.PKO,ordered_quantity:'10.555'}).expect(400);
 	const completed=await storekeeper.patch('/api/weighing-requests/'+saleRequest.body.request_id+'/complete').send({
 		quantity: 400,scale_ticket: 'SALE-TICKET-1',vehicle_number: 'TEST-002',...driver
 	}).expect(200);
@@ -445,8 +463,8 @@ test('administrator can create users, switch accounts and return without a passw
 
 test('Authorisations are numbered independently by type and day, retaining numbers after cancellation',async function() {
     const date='2026-11-15';
-    const purchase=day => manager.post('/api/purchases').send({ purchase_date:day,supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300 }).expect(201);
-    const sale=day => manager.post('/api/sales').send({ sales_date:day,customer_id:ids.customer,item_id:ids.PKO }).expect(201);
+    const purchase=day => manager.post('/api/purchases').send({ordered_quantity:1000, purchase_date:day,supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300 }).expect(201);
+    const sale=day => manager.post('/api/sales').send({ordered_quantity:1000, sales_date:day,customer_id:ids.customer,item_id:ids.PKO }).expect(201);
     const purchase1=await purchase(date);
     const sale1=await sale(date);
     const purchase2=await purchase(date);
@@ -480,12 +498,12 @@ test('Deleting production cancels its authorisation and removes generated stock 
 });
 
 async function completedPurchase(day='2026-11-20') {
-    const request=await manager.post('/api/purchases').send({ purchase_date:day,supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300 }).expect(201);
+    const request=await manager.post('/api/purchases').send({ordered_quantity:1000, purchase_date:day,supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300 }).expect(201);
     const saved=await storekeeper.patch('/api/weighing-requests/'+request.body.request_id+'/complete').send({ quantity:100 }).expect(200);
     return { requestId:request.body.request_id,record:{ purchase_id:saved.body.record_id,purchase_date:day,supplier_id:ids.supplier,item_id:ids['P Kernel'],quantity_supplied:100,unit_cost:300 } };
 }
 async function completedSale(day='2026-11-20') {
-    const request=await manager.post('/api/sales').send({ sales_date:day,customer_id:ids.customer,item_id:ids.PKO }).expect(201);
+    const request=await manager.post('/api/sales').send({ordered_quantity:1000, sales_date:day,customer_id:ids.customer,item_id:ids.PKO }).expect(201);
     const saved=await storekeeper.patch('/api/weighing-requests/'+request.body.request_id+'/complete').send({ quantity:10,...driver }).expect(200);
     return { requestId:request.body.request_id,record:{ sales_id:saved.body.record_id,sales_date:day,customer_id:ids.customer,item_id:ids.PKO,quantity:10,unit_price:1000 } };
 }
@@ -594,12 +612,12 @@ test('Accounts referenced by business records cannot be deleted and return a dep
 });
 
 test('Repeated authorisation submissions return one task and reject changed payloads',async function() {
-    const body={purchase_date:'2026-12-01',supplier_id:ids.supplier,item_id:ids.Diesel,unit_cost:500,authorisation_key:crypto.randomUUID()};
+    const body={purchase_date:'2026-12-01',supplier_id:ids.supplier,item_id:ids.Diesel,unit_cost:500,ordered_quantity:1000,authorisation_key:crypto.randomUUID()};
     const results=await Promise.all([manager.post('/api/purchases').send(body),manager.post('/api/purchases').send(body)]);
     assert.ok(results.every(row=>row.status===201));
     assert.equal(results[0].body.request_id,results[1].body.request_id);
-    await manager.post('/api/purchases').send({...body,unit_cost:600}).expect(409);
-    const sale={sales_date:'2026-12-01',customer_id:ids.customer,item_id:ids.PKO,authorisation_key:crypto.randomUUID()};
+    await manager.post('/api/purchases').send({ordered_quantity:1000,...body,unit_cost:600}).expect(409);
+    const sale={sales_date:'2026-12-01',customer_id:ids.customer,item_id:ids.PKO,ordered_quantity:1000,authorisation_key:crypto.randomUUID()};
     const first=await manager.post('/api/sales').send(sale).expect(201);
     const retry=await manager.post('/api/sales').send(sale).expect(201);
     assert.equal(first.body.request_id,retry.body.request_id);
@@ -677,7 +695,7 @@ test('Batch corrections update totals and stock, reject stale versions, and requ
 });
 test('Corrections that remove supply needed by later usage roll back completely',async function() {
     const item=(await applicationPool.query("INSERT INTO items(name,item_type) VALUES('Safety test material','raw_material') RETURNING item_id")).rows[0].item_id;
-    const request=await manager.post('/api/purchases').send({purchase_date:'2026-12-05',supplier_id:ids.supplier,item_id:item,unit_cost:100}).expect(201);
+    const request=await manager.post('/api/purchases').send({ordered_quantity:1000,purchase_date:'2026-12-05',supplier_id:ids.supplier,item_id:item,unit_cost:100}).expect(201);
     const saved=await storekeeper.patch('/api/weighing-requests/'+request.body.request_id+'/complete').send({quantity:100}).expect(200);
     await admin.post('/api/stock_counts').send({count_date:'2026-12-06',item_id:item,received:0,issued:80}).expect(201);
     await admin.delete('/api/correction_delete').send({kind:'purchases',record:{purchase_id:saved.body.record_id}}).expect(409);
@@ -690,7 +708,7 @@ test('Database rules reject orphan generated stock and direct deletion of a link
     await assert.rejects(applicationPool.query("INSERT INTO stock_counts(count_date,item_id,received,issued,source_type,source_id,source_part) VALUES('2026-12-07',$1,1,0,'Purchase',999999,'Received')",[ids.Diesel]),error=>error.code==='23503');
 });
 test('Checks include sludge and consumables and detect mismatches within individual source records',async function() {
-    const request=await manager.post('/api/purchases').send({purchase_date:'2026-12-08',supplier_id:ids.supplier,item_id:ids.Diesel,unit_cost:100}).expect(201);
+    const request=await manager.post('/api/purchases').send({ordered_quantity:1000,purchase_date:'2026-12-08',supplier_id:ids.supplier,item_id:ids.Diesel,unit_cost:100}).expect(201);
     await storekeeper.patch('/api/weighing-requests/'+request.body.request_id+'/complete').send({quantity:10}).expect(200);
     await applicationPool.query("UPDATE stock_counts SET received=9 WHERE source_type='Purchase' AND source_id=$1",[request.body.request_id]);
     const production=await manager.post('/api/production').send({production_date:'2026-12-08',production_hours:'08:00',down_time:'00:00'}).expect(201);
@@ -706,7 +724,7 @@ test('Daily continuous costing combines independent weighings into one provision
     const request=await manager.post('/api/production').send({production_date:day,production_hours:'08:00',down_time:'00:00'}).expect(201);
     const url='/api/weighing-requests/'+request.body.request_id+'/complete';
     await storekeeper.patch(url).send({submission_key:crypto.randomUUID(),kernel_used:20,pko_produced:10,pkc_produced:9,sludge_produced:1}).expect(200);
-    const sale=await manager.post('/api/sales').send({sales_date:day,customer_id:ids.customer,item_id:ids.PKO}).expect(201);
+    const sale=await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:day,customer_id:ids.customer,item_id:ids.PKO}).expect(201);
     await storekeeper.patch('/api/weighing-requests/'+sale.body.request_id+'/complete').send({quantity:3,...driver}).expect(200);
     const before=(await admin.get('/api/average_cost').expect(200)).body;
     const early=before.product_dispatch_costs.find(row=>row.dispatch_date===day&&row.quantity_dispatched===3);
@@ -849,7 +867,7 @@ test('Concurrent dispatches cannot share stock; failed sales remain pending with
     await admin.post('/api/stock_counts').send({count_date:'2060-01-01',item_id:item,received:100,issued:0}).expect(201);
     await admin.post('/api/prices').send({item_id:item,unit_price:100,effective_date:'2060-01-01'}).expect(201);
     const requests=[];
-    for(let i=0;i<2;i++)requests.push((await manager.post('/api/sales').send({sales_date:'2060-01-02',customer_id:ids.customer,item_id:item,unit_price:100}).expect(201)).body.request_id);
+    for(let i=0;i<2;i++)requests.push((await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:'2060-01-02',customer_id:ids.customer,item_id:item,unit_price:100}).expect(201)).body.request_id);
     const results=await Promise.all(requests.map(id=>storekeeper.patch('/api/weighing-requests/'+id+'/complete').send({quantity:60,...driver})));
     assert.deepEqual(results.map(row=>row.status).sort(),[200,409]);
     const failed=requests[results.findIndex(row=>row.status===409)];
@@ -1005,9 +1023,9 @@ test('Digital delivery notes separate customer invoice weight from factory stock
     await admin.post('/api/prices').send({item_id:item,unit_price:100,effective_date:'2090-01-01'}).expect(201);
     const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a9sAAAAASUVORK5CYII=','base64');
     const signature='data:image/png;base64,'+png.toString('base64');
-    const authorise=async(basis,representative=ids.managerUser,agent=manager)=> (await agent.post('/api/sales').send({sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:basis,representative_id:representative}).expect(201)).body;
-    await manager.post('/api/sales').send({sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Invalid'}).expect(400);
-    await manager.post('/api/sales').send({sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Customer',representative_id:ids.storekeeperUser}).expect(403);
+    const authorise=async(basis,representative=ids.managerUser,agent=manager)=> (await agent.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:basis,representative_id:representative}).expect(201)).body;
+    await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Invalid'}).expect(400);
+    await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Customer',representative_id:ids.storekeeperUser}).expect(403);
     const req=await authorise('Customer');
     const dispatch='/api/weighing-requests/'+req.request_id+'/complete';
     await storekeeper.patch(dispatch).send({quantity:1000,vehicle_number:'TEST-123',scale_ticket:'FACTORY-1'}).expect(400);
@@ -1068,7 +1086,7 @@ test('Digital delivery notes separate customer invoice weight from factory stock
 });
 
 test('Receipts and dispatches are dated on the day the goods actually arrive or leave',async function(){
-    const purchase=await manager.post('/api/purchases').send({purchase_date:'2092-01-01',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201);
+    const purchase=await manager.post('/api/purchases').send({ordered_quantity:1000,purchase_date:'2092-01-01',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201);
     const url='/api/weighing-requests/'+purchase.body.request_id+'/complete';
     await storekeeper.patch(url).send({quantity:100,movement_date:'2091-12-31'}).expect(400);
     await storekeeper.patch(url).send({quantity:100,movement_date:'2092-02-30'}).expect(400);
@@ -1077,7 +1095,7 @@ test('Receipts and dispatches are dated on the day the goods actually arrive or 
     assert.equal(record.day,'2092-01-03');
     const stock=(await applicationPool.query("SELECT to_char(count_date,'YYYY-MM-DD') AS day FROM stock_counts WHERE source_type='Purchase' AND source_id=$1",[purchase.body.request_id])).rows[0];
     assert.equal(stock.day,'2092-01-03');
-    const sale=await manager.post('/api/sales').send({sales_date:'2092-01-03',customer_id:ids.customer,item_id:ids.PKO}).expect(201);
+    const sale=await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:'2092-01-03',customer_id:ids.customer,item_id:ids.PKO}).expect(201);
     const sold=(await storekeeper.patch('/api/weighing-requests/'+sale.body.request_id+'/complete').send({quantity:1,vehicle_number:'DATE-1',movement_date:'2092-01-05',...driver}).expect(200)).body;
     const invoice=(await manager.get('/api/sales/'+sold.record_id+'/invoice').expect(200)).body.sale;
     assert.equal(invoice.sales_date,'2092-01-05');assert.equal(invoice.due_date,'2092-01-05');assert.match(invoice.invoice_number,/^INV-2092-/);
@@ -1112,9 +1130,11 @@ test('Dashboard separates delivery shortfall and stock write-offs from cost of p
     await storekeeper.patch(url).send({submission_key:crypto.randomUUID(),kernel_used:0,pko_produced:0,pkc_produced:35,sludge_produced:0}).expect(200);
     await storekeeper.patch('/api/weighing-requests/'+production.body.request_id+'/finish').expect(200);
     assert.equal(Number((await applicationPool.query('SELECT process_loss FROM production WHERE production_date=$1',['2093-01-01'])).rows[0].process_loss),5);
+    const productionDay=(await manager.get('/api/dashboard_period?date=2093-01-01').expect(200)).body.day.production;
+    assert.equal(productionDay.production_loss,5);assert.equal(productionDay.kernel_used,100);
     const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/a9sAAAAASUVORK5CYII=','base64');
     const signature='data:image/png;base64,'+png.toString('base64');
-    const sale=(await manager.post('/api/sales').send({sales_date:day,customer_id:ids.customer,item_id:ids.PKO,billing_basis:'Customer'}).expect(201)).body;
+    const sale=(await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:day,customer_id:ids.customer,item_id:ids.PKO,billing_basis:'Customer'}).expect(201)).body;
     const saleId=(await storekeeper.patch('/api/weighing-requests/'+sale.request_id+'/complete').send({quantity:20,vehicle_number:'SHORT-1',...driver}).expect(200)).body.record_id;
     await manager.post('/api/delivery-notes/'+saleId+'/buyer').field('buyer_name','Buyer').field('buyer_weight','18').field('signature',signature).field('representative_confirmed','true').expect(200);
     await admin.post('/api/delivery-notes/'+saleId+'/approve').send({}).expect(200);
@@ -1142,6 +1162,120 @@ test('Paid salaries are locked, invalid customers and expenses are rejected, and
     await manager.post('/api/expenses').send({expense_date:'not a date',category:'Expenses',description:'Bad date',amount_spent:10}).expect(400);
     for(let attempt=0;attempt<5;attempt++)await request(app).post('/api/login').send({username:'locked_test_user',password:'wrong'}).expect(400);
     await request(app).post('/api/login').send({username:'locked_test_user',password:'wrong'}).expect(429);
+});
+
+test('Other partners: capital jobs become assets, running payments become one expense, and only the Director pays',async function(){
+    await storekeeper.get('/api/partners').expect(403);
+    await manager.post('/api/partners').send({name:' '}).expect(400);
+    const partner=(await manager.post('/api/partners').send({name:'Test Fabricator',phone:'08011111111',work_type:'Welding'}).expect(201)).body;
+    await manager.post('/api/partners/'+partner.partner_id+'/jobs').send({job_date:'2094-01-02',job_type:'Fabrication',description:'Settling tank',agreed_amount:500000}).expect(400);
+    const tank=(await manager.post('/api/partners/'+partner.partner_id+'/jobs').send({job_date:'2094-01-02',job_type:'Fabrication',description:'Settling tank',agreed_amount:500000,asset_type:'Tank'}).expect(201)).body;
+    assert.equal(tank.cost_category,'Capital');
+    const assetFor=async jobId=>(await admin.get('/api/capital-assets').expect(200)).body.find(row=>row.job_id===jobId);
+    assert.equal(Number((await assetFor(tank.job_id)).cost),500000);
+    const expensesBefore=(await admin.get('/api/expenses').expect(200)).body.length;
+    await manager.post('/api/partner-jobs/'+tank.job_id+'/payments').send({payment_date:'2094-01-03',amount:200000,payment_method:'Cash'}).expect(403);
+    await admin.post('/api/partner-jobs/'+tank.job_id+'/payments').send({payment_date:'2094-01-03',amount:600000,payment_method:'Cash'}).expect(400);
+    await admin.post('/api/partner-jobs/'+tank.job_id+'/payments').send({payment_date:'2094-01-03',amount:200000,payment_method:'Cash'}).expect(201);
+    assert.equal((await admin.get('/api/expenses').expect(200)).body.length,expensesBefore,'Capital payments are not running expenses');
+    assert.equal(Number((await assetFor(tank.job_id)).paid),200000);
+    await manager.patch('/api/partner-jobs/'+tank.job_id).send({job_date:'2094-01-02',job_type:'Repair',description:'Settling tank',agreed_amount:500000,cost_category:'Running'}).expect(409);
+    await manager.patch('/api/partner-jobs/'+tank.job_id).send({job_date:'2094-01-02',job_type:'Fabrication',description:'Settling tank',agreed_amount:100000,asset_type:'Tank'}).expect(409);
+    const repair=(await manager.post('/api/partners/'+partner.partner_id+'/jobs').send({job_date:'2094-02-01',job_type:'Repair',description:'Weld hopper',agreed_amount:80000}).expect(201)).body;
+    assert.equal(repair.cost_category,'Running');assert.equal(await assetFor(repair.job_id),undefined);
+    const paid=(await admin.post('/api/partner-jobs/'+repair.job_id+'/payments').send({payment_date:'2094-02-02',amount:80000,payment_method:'Bank Transfer',reference_number:'TRF-1'}).expect(201)).body;
+    const expense=(await admin.get('/api/expenses').expect(200)).body.find(row=>row.expense_id===paid.expense_id);
+    assert.equal(Number(expense.amount_spent),80000);assert.equal(expense.category,'Expenses');assert.match(expense.description,/Test Fabricator: Weld hopper/);
+    await admin.patch('/api/correction_edit').send({kind:'expenses',record:{...expense,expense_date:'2094-02-02',amount_spent:1}}).expect(409);
+    await admin.delete('/api/correction_delete').send({kind:'expenses',record:expense}).expect(409);
+    const jobs=(await manager.get('/api/partners/'+partner.partner_id+'/jobs').expect(200)).body;
+    assert.equal(jobs.length,2);assert.equal(Number(jobs.find(row=>row.job_id===tank.job_id).owed),300000);assert.equal(jobs.find(row=>row.job_id===repair.job_id).payments.length,1);
+    const listed=(await manager.get('/api/partners').expect(200)).body.find(row=>row.partner_id===partner.partner_id);
+    assert.equal(Number(listed.total_agreed),580000);assert.equal(Number(listed.total_paid),280000);assert.equal(Number(listed.balance_owed),300000);
+    await admin.delete('/api/partner-jobs/'+repair.job_id).expect(409);
+    await admin.delete('/api/partner-payments/'+paid.payment_id).expect(200);
+    assert.ok(!(await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===paid.expense_id),'Deleting the payment removes its expense');
+    await manager.post('/api/expenses').send({expense_date:'2094-03-01',category:'Asset/Capital Expenditure',description:'Machine',amount_spent:1000}).expect(400);
+    await manager.post('/api/capital-assets').send({name:'Scale',asset_type:'Machine',acquired_date:'2094-03-01',cost:650000}).expect(403);
+    const scale=(await admin.post('/api/capital-assets').send({name:'Scale',asset_type:'Machine',acquired_date:'2094-03-01',cost:650000,source:'Scale shop'}).expect(201)).body;
+    assert.equal(Number((await admin.get('/api/capital-assets').expect(200)).body.find(row=>row.asset_id===scale.asset_id).paid),650000);
+    await admin.delete('/api/capital-assets/'+(await assetFor(tank.job_id)).asset_id).expect(409);
+    await admin.delete('/api/capital-assets/'+scale.asset_id).expect(200);
+    // Testing stage: the Director can delete any partner, removing its jobs, payments, their running expenses and asset entries.
+    await manager.delete('/api/partners/'+partner.partner_id).expect(403);
+    const unused=(await manager.post('/api/partners').send({name:'Unused Dealer'}).expect(201)).body;
+    const quote=(await manager.post('/api/partners/'+unused.partner_id+'/jobs').send({job_date:'2094-04-01',job_type:'Equipment purchase',description:'Quoted crusher',agreed_amount:900000,asset_type:'Machine'}).expect(201)).body;
+    const service=(await manager.post('/api/partners/'+unused.partner_id+'/jobs').send({job_date:'2094-04-02',job_type:'Repair',description:'Fix pump',agreed_amount:40000}).expect(201)).body;
+    const fee=(await admin.post('/api/partner-jobs/'+service.job_id+'/payments').send({payment_date:'2094-04-03',amount:40000,payment_method:'Cash'}).expect(201)).body;
+    await admin.post('/api/partner-jobs/'+quote.job_id+'/payments').send({payment_date:'2094-04-03',amount:100000,payment_method:'Cash'}).expect(201);
+    assert.ok(await assetFor(quote.job_id));
+    await admin.delete('/api/partners/'+unused.partner_id).expect(200);
+    assert.equal(await assetFor(quote.job_id),undefined);
+    assert.ok(!(await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===fee.expense_id),'Its running expenses are removed too');
+    assert.ok(!(await manager.get('/api/partners').expect(200)).body.some(row=>row.partner_id===unused.partner_id));
+});
+
+test('Expenses paid in advance are spread over their months, with start-up months reported separately',async function(){
+    await manager.post('/api/expenses').send({expense_date:'2095-01-10',category:'Expenses',description:'Rent',amount_spent:1200000,spread_months:12,startup_months:13}).expect(400);
+    await manager.post('/api/expenses').send({expense_date:'2095-01-10',category:'Expenses',description:'Rent',amount_spent:1200000,spread_months:61}).expect(400);
+    const before=(await admin.get('/api/dashboard_period?date=2095-07-10').expect(200)).body;
+    await manager.post('/api/expenses').send({expense_date:'2095-01-10',category:'Expenses',description:'Rent',amount_spent:1200000,spread_months:12}).expect(403);
+    const rent=(await admin.post('/api/expenses').send({expense_date:'2095-01-10',category:'Expenses',description:'Factory rent, 2095',amount_spent:1200000,spread_months:12,startup_months:5}).expect(201)).body;
+    assert.equal(rent.spread_months,12);assert.equal(rent.startup_months,5);
+    const march=(await admin.get('/api/dashboard_period?date=2095-03-15').expect(200)).body.month.expenses;
+    assert.ok(Math.abs(march.startup_costs-100000)<0.01);assert.equal(march.total_expenses,0);
+    const july=(await admin.get('/api/dashboard_period?date=2095-07-10').expect(200)).body;
+    assert.ok(Math.abs(july.month.expenses.total_expenses-100000)<0.01);assert.equal(july.month.expenses.startup_costs,0);
+    assert.ok(Math.abs(july.day.expenses.total_expenses-100000/31)<0.01);
+    assert.ok(Math.abs(july.month.expenses.spread_expenses-100000)<0.01,'Rent is reported on its own line');assert.equal(march.spread_expenses,0,'Start-up months are not running rent');
+    // Next year's rent, added by the Director with Add Rent or Prepaid Cost after production started, has no start-up months.
+    const nextRent=(await admin.post('/api/expenses').send({expense_date:'2096-01-05',category:'Expenses',description:'Factory rent, 2096',amount_spent:1200000,spread_months:12}).expect(201)).body;
+    assert.equal(nextRent.spread_months,12);assert.equal(nextRent.startup_months,0);
+    const feb=(await admin.get('/api/dashboard_period?date=2096-02-10').expect(200)).body;
+    assert.ok(Math.abs(feb.month.expenses.spread_expenses-100000)<0.01);assert.ok(Math.abs(feb.day.expenses.spread_expenses-100000/29)<0.01);assert.equal(feb.month.expenses.startup_costs,0);
+    assert.ok(Math.abs((before.month.total_net_profit-july.month.total_net_profit)-100000)<0.01);
+    assert.ok(Math.abs((await admin.get('/api/dashboard_period?date=2096-01-10').expect(200)).body.month.expenses.total_expenses-100000)<0.01,'Only the new year\'s rent is counted after the first 12 months');
+    const listed=(await admin.get('/api/expenses').expect(200)).body.find(row=>row.expense_id===rent.expense_id);
+    assert.equal(listed.spread_months,12);
+    await storekeeper.get('/api/startup-costs').expect(403);
+    await manager.get('/api/startup-costs').expect(403);
+    await manager.post('/api/expenses').send({expense_date:'2095-01-10',category:'Expenses',description:'CAC registration',amount_spent:20000,spread_months:1,startup_months:1}).expect(403);
+    const startup=(await admin.get('/api/startup-costs').expect(200)).body.find(row=>row.expense_id===rent.expense_id);
+    assert.equal(Number(startup.startup_amount),500000);
+    // The Expenses form sends no months, so an edit there keeps the saved spreading and start-up months.
+    const {spread_months,startup_months,...plain}=listed;
+    await admin.patch('/api/correction_edit').send({kind:'expenses',record:{...plain,description:'Factory rent, 2095 (edited)'}}).expect(200);
+    const kept=(await admin.get('/api/expenses').expect(200)).body.find(row=>row.expense_id===rent.expense_id);
+    assert.equal(kept.spread_months,12);assert.equal(kept.startup_months,5);
+    await admin.patch('/api/correction_edit').send({kind:'expenses',record:{...listed,spread_months:6,startup_months:0}}).expect(200);
+    assert.ok(Math.abs((await admin.get('/api/dashboard_period?date=2095-03-15').expect(200)).body.month.expenses.total_expenses-200000)<0.01);
+    // The Director edits a start-up cost's months before production and deletes a start-up cost from its card.
+    const fee=(await admin.post('/api/expenses').send({expense_date:'2095-02-01',category:'Expenses',description:'Registration fee',amount_spent:20000,spread_months:1,startup_months:1}).expect(201)).body;
+    const lease=(await admin.post('/api/expenses').send({expense_date:'2095-01-01',category:'Expenses',description:'Store lease',amount_spent:600000,spread_months:6,startup_months:2}).expect(201)).body;
+    await admin.patch('/api/correction_edit').send({kind:'expenses',record:{expense_id:lease.expense_id,expense_date:'2095-01-01',category:'Expenses',description:'Store lease',amount_spent:600000,spread_months:6,startup_months:3}}).expect(200);
+    assert.equal(Number((await admin.get('/api/startup-costs').expect(200)).body.find(row=>row.expense_id===lease.expense_id).startup_amount),300000);
+    await admin.delete('/api/correction_delete').send({kind:'expenses',record:{expense_id:fee.expense_id}}).expect(200);
+    assert.ok(!(await admin.get('/api/startup-costs').expect(200)).body.some(row=>row.expense_id===fee.expense_id));
+});
+
+test('Manual stock changes keep a Director-only history of creates, edits and deletes',async function(){
+    const item=(await applicationPool.query("INSERT INTO items(name,item_type) VALUES('History trail item','consumable') RETURNING item_id")).rows[0].item_id;
+    const created=(await admin.post('/api/stock_counts').send({count_date:'2080-01-01',item_id:item,received:50,issued:0,adjustment_reason:'Count difference'}).expect(201)).body;
+    await admin.patch('/api/correction_edit').send({kind:'stock',record:{count_id:created.count_id,count_date:'2080-01-02',item_id:item,received:40,issued:0,adjustment_reason:'Other'}}).expect(200);
+    await admin.delete('/api/correction_delete').send({kind:'stock',record:{count_id:created.count_id}}).expect(200);
+    await manager.get('/api/stock-change-history').expect(403);
+    await storekeeper.get('/api/stock-change-history').expect(403);
+    const history=(await admin.get('/api/stock-change-history').expect(200)).body.rows.filter(row=>row.count_id===created.count_id);
+    assert.deepEqual(history.map(row=>row.action),['Deleted','Edited','Created'],'Newest first');
+    const [deleted,edited,first]=history;
+    assert.equal(first.after_values.count_date,'2080-01-01');assert.equal(Number(first.after_values.received),50);assert.equal(first.after_values.adjustment_reason,'Count difference');
+    assert.equal(first.after_item,'History trail item');assert.ok(first.changed_by);
+    assert.equal(Number(edited.before_values.received),50);assert.equal(Number(edited.after_values.received),40);
+    assert.equal(edited.after_values.count_date,'2080-01-02');assert.equal(edited.after_values.adjustment_reason,'Other');
+    assert.equal(deleted.after_values,null);assert.equal(Number(deleted.before_values.received),40);
+    // A refused change leaves no history row.
+    await admin.post('/api/stock_counts').send({count_date:'2080-01-03',item_id:item,received:5,issued:5}).expect(400);
+    assert.equal((await applicationPool.query("SELECT count(*)::int AS n FROM stock_change_history WHERE after_values->>'count_date'='2080-01-03'")).rows[0].n,0);
 });
 
 test('logout destroys the authenticated session',async function() {

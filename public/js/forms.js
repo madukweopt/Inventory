@@ -7,6 +7,8 @@ const salesDate=document.querySelector("#sales-date");
 const customer=document.querySelector("#customer");
 const productSold=document.querySelector("#product-sold");
 const salesQuantity=document.querySelector("#sales-quantity");
+const salesOrderedQuantity=document.querySelector("#sales-ordered-quantity");
+const purchaseOrderedQuantity=document.querySelector("#purchase-ordered-quantity");
 const unitPrice=document.querySelector("#unit-price");
 const purchaseDate=document.querySelector("#purchase-date");
 const supplier=document.querySelector("#supplier");
@@ -15,9 +17,29 @@ const quantitySupplied=document.querySelector("#quantity-supplied");
 const unitCost=document.querySelector("#unit-cost");
 const stockDate=document.querySelector("#stock-date");
 const stockName=document.querySelector("#stock-name");
-const received=document.querySelector("#received");
-const issued=document.querySelector("#issued");
 const stockReason=document.querySelector("#stock-reason");
+const stockQuantity=document.querySelector("#stock-quantity");
+const stockRemove=document.querySelector("#stock-remove");
+const stockAdd=document.querySelector("#stock-add");
+// A manual stock change is one quantity with a direction, so received and issued are never both filled.
+// Spills and disposals always remove stock and a return to store always adds it; the others can go either way.
+const stockReasonDirection={ Spill: "remove",Disposal: "remove","Return to store": "add" };
+function syncStockDirection() {
+	if(!stockRemove||!stockAdd) return;
+	const fixed=stockReasonDirection[stockReason.value];
+	if(fixed) {
+		stockRemove.checked=fixed==="remove";
+		stockAdd.checked=fixed==="add";
+	}
+	stockRemove.disabled=fixed==="add";
+	stockAdd.disabled=fixed==="remove";
+}
+if(stockReason) stockReason.addEventListener("change",syncStockDirection);
+if(inventoryForm) inventoryForm.addEventListener("reset",() => setTimeout(syncStockDirection));
+function stockChangeValues() {
+	const quantity=stockQuantity.value;
+	return stockAdd.checked?{ received: quantity,issued: "0" }:{ received: "0",issued: quantity };
+}
 const productionDate=document.querySelector("#production-date");
 const kernelUsed=document.querySelector("#kernel-used");
 const oilProduced=document.querySelector("#oil-produced");
@@ -69,8 +91,7 @@ function limitInventoryDecimals(input) {
 	});
 }
 
-limitInventoryDecimals(received);
-limitInventoryDecimals(issued);
+limitInventoryDecimals(stockQuantity);
 
 // Hides forms, pages and action buttons that the signed-in role cannot use.
 function applyFormPermissions(user) {
@@ -84,6 +105,7 @@ function applyFormPermissions(user) {
 	hideCard('#inventory-form',role!=='admin');
     hideCard('#consumable-usage-form',!['admin','storekeeper'].includes(role));
 	hideCard('#inventory-data',role==='manager');
+	hideCard('#stock-history',role!=='admin');
 	hideCard('#purchases-form',role==='storekeeper');
 	hideCard('#sales-form',role==='storekeeper');
 	hideCard('#production-form',role==='storekeeper');
@@ -93,6 +115,9 @@ function applyFormPermissions(user) {
 	hideCard('#payroll',role!=='admin');
 	hideCard('#employee-addition',role!=='admin');
 	hideCard('#supplier-addition',role==='storekeeper');
+	hideCard('#other-partners',role==='storekeeper');
+	hideCard('#partner-addition',role==='storekeeper');
+	hideCard('#capital-assets',role==='storekeeper');
 	if(priceForm&&role!=='admin') priceForm.hidden=true;
 	if(openPriceFormBtn) openPriceFormBtn.hidden=role!=='admin';
 
@@ -115,11 +140,15 @@ async function displaySelectedForm() {
 	const forms=document.querySelectorAll(".card");
 	const formId=window.location.hash;
 	const isEditMode=new URLSearchParams(window.location.search).get('mode')==='edit';
+	if(formId==='#purchases-form'&&!isEditMode) {
+        document.getElementById('purchase-ordered-field').hidden=false;purchaseOrderedQuantity.required=true;
+	}
 	if(formId==='#sales-form'&&!isEditMode) {
         document.getElementById('sales-billing-basis').disabled=false;
         document.getElementById('sales-representative').closest('.field').hidden=false;
         document.getElementById('sales-representative').disabled=false;
         document.querySelector('label[for="sales-quantity"]').textContent='Quantity Issued (kg)';
+        document.getElementById('sales-ordered-field').hidden=false;salesOrderedQuantity.required=true;
 		salesForm.reset();
 		sessionStorage.removeItem('editRecord');
 		sessionStorage.removeItem('editKind');
@@ -145,6 +174,8 @@ async function displaySelectedForm() {
 	selectedCard.classList.add("show");
 	if(formId==="#sales-data") {
 		loadSalesData();
+	} else if(formId==="#stock-history") {
+		if(window.loadStockHistory) window.loadStockHistory();
 	} else if(formId==="#inventory-data") {
 		loadInventoryData();
 	} else if(formId==="#purchases-data") {
@@ -163,6 +194,12 @@ async function displaySelectedForm() {
 		loadPrices();
 	} else if(formId==="#weighing-tasks") {
 		loadWeighingTasks();
+	} else if(formId==="#other-partners") {
+		if(window.loadOtherPartners) window.loadOtherPartners();
+	} else if(formId==="#partner-addition") {
+		if(window.preparePartnerForm) window.preparePartnerForm();
+	} else if(formId==="#capital-assets") {
+		if(window.loadCapitalAssets) window.loadCapitalAssets();
 	}
 }
 displaySelectedForm();
@@ -623,7 +660,8 @@ async function saveSale(event) {
 		item_id: productSold.value,
 		unit_price: unitPrice.value,
         billing_basis:document.getElementById('sales-billing-basis').value,
-        representative_id:document.getElementById('sales-representative').value
+        representative_id:document.getElementById('sales-representative').value,
+        ordered_quantity:salesOrderedQuantity?salesOrderedQuantity.value:''
 	};
     const retry=authorisationKey('Sale',sale);
     sale.authorisation_key=retry.key;
@@ -674,7 +712,8 @@ async function savePurchases(event) {
 		purchase_date: purchaseDate.value,
 		supplier_id: supplier.value,
 		item_id: materialSupplied.value,
-		unit_cost: unitCost.value
+		unit_cost: unitCost.value,
+		ordered_quantity: purchaseOrderedQuantity?purchaseOrderedQuantity.value:''
 	};
     const retry=authorisationKey('Purchase',purchase);
     purchase.authorisation_key=retry.key;
@@ -718,8 +757,7 @@ async function saveInventory(event) {
 	const inventoryItems={
 		count_date: stockDate.value,
 		item_id: stockName.value,
-		received: received.value,
-		issued: issued.value,
+		...stockChangeValues(),
 		adjustment_reason: stockReason.value
 	};
 	try {
@@ -919,7 +957,7 @@ function createProductionHistory(entries, request, onSaved) {
         if(request&&document.documentElement.dataset.userRole==='admin'&&request.status==='Awaiting Storekeeper'&&!batch.voided){
             const actions=document.createElement('div');actions.className='activity-controls';
             [['Correct entry',false],['Reverse entry',true]].forEach(([label,reverse])=>{
-                const button=document.createElement('button');button.type='button';button.className=reverse?'cancel-weighing-request':'weighing-task-secondary';button.textContent=label;button.onclick=()=>editProductionBatch(request,batch,reverse,onSaved);actions.appendChild(button);
+                const button=document.createElement('button');button.type='button';button.className=reverse?'reverse-entry-button':'weighing-task-secondary';button.textContent=label;button.onclick=()=>editProductionBatch(request,batch,reverse,onSaved);actions.appendChild(button);
             });row.appendChild(actions);
         }
         list.appendChild(row);
@@ -927,6 +965,61 @@ function createProductionHistory(entries, request, onSaved) {
     if(!entries.length){const empty=document.createElement('p');empty.textContent='No individual entries recorded.';list.appendChild(empty);}
     history.appendChild(list);return history;
 }
+
+// Shows a production day's loss: the kernel not recovered as weighed PKO, PKC or sludge.
+// A finished day shows the loss saved at Finish Day (the figure used in profit). An open day shows the
+// kernel not yet accounted for, which may still be in the machines, so it is marked Provisional.
+function createProductionLossNote(record,isFinal) {
+    const kernel=Number(record.kernel_used)||0;
+    const running=Math.max(kernel-(Number(record.pko_produced)||0)-(Number(record.pkc_produced)||0)-(Number(record.sludge_produced)||0),0);
+    const loss=isFinal&&record.process_loss!==undefined&&record.process_loss!==null?Number(record.process_loss)||0:Math.round(running*100)/100;
+    const note=document.createElement('p');note.className='production-loss-note'+(isFinal?' is-final':' is-provisional');
+    const label=document.createElement('span');label.textContent='Production loss';
+    const amount=document.createElement('strong');amount.textContent=formatNumber(loss)+' kg';
+    const share=document.createElement('span');share.className='production-loss-share';
+    share.textContent=(kernel>0?formatNumber(Number((loss/kernel*100).toFixed(2)))+'% of kernel used · ':'')+(isFinal?'Final':'Provisional until Finish Day');
+    note.append(label,amount,share);
+    return note;
+}
+
+// The ordered quantity on a pending sale or purchase card, with Add or Change for the Director or the authorising Manager.
+function createOrderedQuantityBox(request) {
+    const unit=inventoryUnit(request.item);
+    const box=document.createElement('div');box.className='task-ordered'+(request.ordered_quantity==null?' is-missing':'');
+    const label=document.createElement('small');label.textContent=request.request_type==='Sale'?'Customer ordered':'Ordered from supplier';
+    const amount=document.createElement('strong');amount.textContent=request.ordered_quantity==null?'Not recorded':formatNumber(request.ordered_quantity)+' '+unit;
+    box.append(label,amount);
+    if(request.can_change_order) {
+        const change=document.createElement('button');change.type='button';change.className='task-ordered-change';
+        change.textContent=request.ordered_quantity==null?'Add ordered quantity':'Change';
+        change.addEventListener('click',() => {
+            const editor=document.createElement('form');editor.className='task-ordered-editor';
+            const input=document.createElement('input');input.type='number';input.min='0.01';input.step='0.01';input.inputMode='decimal';input.required=true;
+            input.value=request.ordered_quantity??'';input.setAttribute('aria-label','Ordered quantity ('+unit+')');input.placeholder='Quantity ('+unit+')';
+            limitInventoryDecimals(input);
+            const save=document.createElement('button');save.type='submit';save.textContent='Save';
+            const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancel';cancel.className='weighing-task-secondary';
+            cancel.addEventListener('click',() => { editor.replaceWith(change); });
+            editor.addEventListener('submit',async event => {
+                event.preventDefault();save.disabled=true;
+                try {
+                    const response=await fetch('/api/weighing-requests/'+request.request_id+'/ordered-quantity',{method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify({ordered_quantity:input.value})});
+                    const result=await response.json();
+                    weighingTasksMessage.textContent=result.message||result.err;
+                    if(response.ok) await loadWeighingTasks();
+                } catch(error) { weighingTasksMessage.textContent='Could not save the ordered quantity. Please try again.'; }
+                finally { save.disabled=false; }
+            });
+            editor.append(input,save,cancel);change.replaceWith(editor);input.focus();
+        });
+        box.appendChild(change);
+    }
+    return box;
+}
+
+// Production quantities the Storekeeper can enter together or one at a time: [field, entry type, label].
+const PRODUCTION_ENTRY_FIELDS=[['kernel_used','Issue','Kernel issued'],['pko_produced','Receive','PKO received'],
+    ['pkc_produced','Receive','PKC received'],['sludge_produced','Receive','Sludge received']];
 
 function createWeighingTaskCard(request) {
 	const card=document.createElement('article');
@@ -951,6 +1044,11 @@ function createWeighingTaskCard(request) {
         const amount=document.createElement('strong');amount.textContent='₦'+formatNumber(request.request_type==='Sale'?request.unit_price:request.unit_cost)+' / '+inventoryUnit(request.item);
         price.append(label,amount);heading.appendChild(price);
     }
+    // The quantity ordered, so the Storekeeper knows how much to load or expect. Older authorisations may have none;
+    // the Director, or the Manager who authorised it, can add or change it while it is still waiting.
+    if(['Sale','Purchase'].includes(request.request_type)&&(request.ordered_quantity!=null||request.can_change_order)) {
+        heading.appendChild(createOrderedQuantityBox(request));
+    }
     if(request.request_type==='Production') {
         const totals=document.createElement('p');
         totals.className='weighing-task-totals';
@@ -966,6 +1064,7 @@ function createWeighingTaskCard(request) {
         heading.appendChild(totals);
         const yieldNote=document.createElement('p');yieldNote.className='production-yield-status';
         yieldNote.textContent='Oil yield: '+(Number(request.kernel_used)>0?formatNumber(Number((Number(request.pko_produced||0)/Number(request.kernel_used)*100).toFixed(2)))+'%':'—')+' · '+(request.status==='Completed'?'Final':'Provisional');heading.appendChild(yieldNote);
+        heading.appendChild(createProductionLossNote(request,request.status==='Completed'));
         heading.appendChild(createProductionHistory(request.batches||[],request));
     }
     if(request.status==='Completed') {
@@ -1031,7 +1130,6 @@ function createWeighingTaskCard(request) {
 	}
 	form.className='weighing-task-form';
 	form.dataset.requestId=request.request_id;
-    if(request.request_type==='Production') form.dataset.submissionKey=crypto.randomUUID();
 
 	// Adds a labelled input used to complete the authorised activity.
 	function addInput(labelText,name,options={}) {
@@ -1058,30 +1156,23 @@ function createWeighingTaskCard(request) {
         const now=new Date();const today=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
         movementInput.min=String(request.request_date).slice(0,10);
         movementInput.value=today<movementInput.min?movementInput.min:today;
-        const kernelInput=addInput('Kernel issued (kg)','kernel_used',{min:0.01});
-        const productLabel=document.createElement('label');
-        const productText=document.createElement('span');productText.textContent='Product received';
-        const productSelect=document.createElement('select');productSelect.name='received_product';
-        productSelect.innerHTML='<option value="">Select a product</option><option value="pko_produced">Oil (PKO)</option><option value="pkc_produced">Cake (PKC)</option><option value="sludge_produced">Sludge</option>';
-        productLabel.append(productText,productSelect);form.appendChild(productLabel);
-        const receivedInput=addInput('Quantity received (kg)','received_quantity',{min:0.01});
+        // Kernel issued and each product received can be entered together or one at a time.
+        // Each filled quantity is saved as its own Issue Kernel or Receive Product entry.
+        form.dataset.production='true';
+        const inputs=PRODUCTION_ENTRY_FIELDS.map(([name,,label])=>{
+            const input=addInput(label+' (kg)',name,{min:0.01,required:false,placeholder:'Leave blank if none'});
+            limitInventoryDecimals(input);return input;
+        });
         const guidance=document.createElement('p');guidance.className='weighing-task-guidance';
-        guidance.textContent='This entry belongs to production dated '+formatDate(request.request_date)+'. Enter the date the material was actually issued or the product received. Leave production open while materials remain in the machines.';
-        const choice=document.createElement('label');choice.textContent='Production activity';
-        const select=document.createElement('select');
-        select.innerHTML='<option value="Issue">Issue Kernel</option><option value="Receive">Receive Product</option>';
-        choice.appendChild(select);form.prepend(choice);
-        form.dataset.entryType='Issue';
-        function switchActivity(){
-            const issue=select.value==='Issue';form.dataset.entryType=select.value;
-            kernelInput.closest('label').hidden=!issue;kernelInput.disabled=!issue;kernelInput.required=issue;
-            productLabel.hidden=issue;productSelect.disabled=issue;productSelect.required=!issue;
-            receivedInput.closest('label').hidden=issue;receivedInput.disabled=issue;receivedInput.required=!issue;
-            const button=form.querySelector('button[type="submit"]');
-            if(button)button.textContent=issue?'Save Kernel Issue':'Save Product Receipt';
+        guidance.textContent='These entries belong to production dated '+formatDate(request.request_date)+'. Enter the kernel issued, any products received, or both, then save. Each quantity is added to stock straight away as its own entry, and the form stays open for the next weighing. Leave production open while materials remain in the machines.';
+        const status=document.createElement('p');status.className='production-entry-status';status.setAttribute('role','status');
+        function updateButton(){
+            const filled=PRODUCTION_ENTRY_FIELDS.filter((_,index)=>inputs[index].value!=='');
+            const button=form.querySelector('button[type="submit"]');if(!button)return;
+            button.textContent=filled.length>1?'Save '+filled.length+' Entries':filled.length&&filled[0][1]==='Receive'?'Save Product Receipt':filled.length?'Save Kernel Issue':'Save Entries';
         }
-        select.onchange=switchActivity;queueMicrotask(switchActivity);
-        form.appendChild(guidance);
+        inputs.forEach(input=>input.addEventListener('input',updateButton));queueMicrotask(updateButton);
+        form.append(guidance,status);
 	} else {
         // Stock is dated on the day the goods actually arrive or leave, not the authorisation day.
         const movementInput=addInput(request.request_type==='Purchase'?'Date actually received':'Date actually dispatched','movement_date',{type:'date'});
@@ -1091,6 +1182,11 @@ function createWeighingTaskCard(request) {
 		const quantityInput=addInput(request.request_type==='Purchase'?
 			'Quantity received ('+inventoryUnit(request.item)+')':
 			'Quantity issued ('+inventoryUnit(request.item)+')','quantity',{ min:0.01 });
+		if(['Sale','Purchase'].includes(request.request_type)&&request.ordered_quantity!=null) {
+			quantityInput.placeholder='Ordered: '+formatNumber(request.ordered_quantity)+' '+inventoryUnit(request.item);
+			form.dataset.orderedQuantity=request.ordered_quantity;form.dataset.orderedUnit=inventoryUnit(request.item);
+			form.dataset.orderedBy=request.request_type==='Sale'?'the customer ordered':'the order was for';
+		}
 		if(request.request_type==='Sale') {
 			const total=document.createElement('p');
 			total.className='weighing-sale-total';
@@ -1116,7 +1212,7 @@ function createWeighingTaskCard(request) {
 	const submit=document.createElement('button');
 	submit.type='submit';
 	submit.textContent=request.request_type==='Purchase'?'Confirm Receipt':
-		request.request_type==='Sale'?'Confirm Dispatch':'Save Kernel Issue';
+		request.request_type==='Sale'?'Confirm Dispatch':'Save Entries';
     const formActions=document.createElement('div');
     formActions.className='weighing-task-actions';
     formActions.appendChild(submit);
@@ -1135,7 +1231,7 @@ function createWeighingTaskCard(request) {
         const finish=document.createElement('button');
         finish.type='button';
         finish.className='weighing-task-secondary';
-        finish.textContent='Finish Day';
+        finish.textContent='Finish Day';finish.dataset.action='finish-day';
         finish.disabled=!(request.batches||[]).length;
         finish.addEventListener('click',async () => {
             if(!window.confirm('Have all materials for this production been processed and all products weighed and recorded? Finish Day makes its yield final and closes further entries.')) return;
@@ -1186,20 +1282,24 @@ function createFinishedProductionHistory(){
 
 // Build one row per job, using its current stage even when requests refresh concurrently.
 let pendingWorkLoad=0;
-async function loadWeighingTasks() {
+// A quiet reload (after a receipt or dispatch is saved) keeps the search, job type, loaded jobs and open job.
+let pendingWorkView={query:'',type:'',visible:10,openKey:null};
+async function loadWeighingTasks(options) {
     if(!weighingTaskList)return;
+    const quiet=Boolean(options&&options.quiet===true);
     const load=++pendingWorkLoad;
-    weighingTaskList.textContent='Loading pending work...';weighingTasksMessage.textContent='';
+    if(!quiet){pendingWorkView={query:'',type:'',visible:10,openKey:null};weighingTaskList.textContent='Loading pending work...';weighingTasksMessage.textContent='';}
+    const view=pendingWorkView;
     try{
         const responses=await Promise.all([fetch('/api/weighing-requests'),fetch('/api/delivery-notes/pending')]);
         if(responses.some(response=>!response.ok))throw Error('Could not load pending work.');
         const [requests,deliveries]=await Promise.all(responses.map(response=>response.json()));
         if(load!==pendingWorkLoad)return;
         const jobs=new Map();
-        for(const request of requests)jobs.set('request:'+request.request_id,{type:request.request_type,date:request.request_date,
+        for(const request of requests)jobs.set('request:'+request.request_id,{key:'request:'+request.request_id,type:request.request_type,date:request.request_date,
             title:request.request_type==='Sale'?request.customer+' · '+request.item:request.request_type==='Purchase'?request.supplier+' · '+request.item:'Production',
             stage:request.request_type==='Sale'?'Record factory dispatch':request.request_type==='Purchase'?'Record goods received':'Issue kernels or receive products',request});
-        for(const delivery of deliveries)jobs.set(delivery.request_id?'request:'+delivery.request_id:'delivery:'+delivery.sales_id,{type:'Sale',date:delivery.sales_date,
+        for(const delivery of deliveries)jobs.set(delivery.request_id?'request:'+delivery.request_id:'delivery:'+delivery.sales_id,{key:delivery.request_id?'request:'+delivery.request_id:'delivery:'+delivery.sales_id,type:'Sale',date:delivery.sales_date,
             title:delivery.customer+' · '+delivery.item,stage:delivery.delivery_status,delivery});
         const rows=[...jobs.values()].sort((a,b)=>a.date.localeCompare(b.date));
         const fragment=document.createDocumentFragment(),tools=document.createElement('div');tools.className='pending-work-tools';
@@ -1211,7 +1311,8 @@ async function loadWeighingTasks() {
         const list=document.createElement('div');list.className='pending-work-list';
         const more=document.createElement('button');more.type='button';more.textContent='Load more';
         tools.append(searchLabel,typeLabel);fragment.append(tools,count,list,more);
-        let visible=10;
+        search.value=view.query;type.value=view.type;
+        let visible=view.visible,restoreOpen=quiet;
         function render(){
             const query=search.value.trim().toLowerCase();
             const filtered=rows.filter(row=>(!type.value||row.type===type.value)&&[row.title,row.date,row.type,row.stage].join(' ').toLowerCase().includes(query));
@@ -1219,27 +1320,97 @@ async function loadWeighingTasks() {
             for(const row of filtered.slice(0,visible)){
                 const job=document.createElement('details');job.className='pending-work-job';
                 const summary=document.createElement('summary'),heading=document.createElement('span'),stage=document.createElement('span');
-                const title=document.createElement('strong');title.textContent=row.title;const meta=document.createElement('small');meta.textContent=row.type+' · '+formatDate(row.date);
-                heading.append(title,meta);stage.className='pending-work-stage';stage.textContent=row.stage;summary.append(heading,stage);
+                // The job type gets its own coloured label; a delivery awaiting the Director is highlighted in yellow.
+                const title=document.createElement('strong');title.textContent=row.title;const meta=document.createElement('small');
+                const type=document.createElement('span');type.className='pending-work-type type-'+row.type.toLowerCase();type.textContent=row.type;
+                meta.append(type,document.createTextNode(' '+formatDate(row.date)));
+                heading.append(title,meta);stage.className='pending-work-stage'+(row.stage==='Awaiting Director approval'?' is-approval':'');stage.textContent=row.stage;summary.append(heading,stage);
                 const body=document.createElement('div');body.className='pending-work-body';job.append(summary,body);
                 let built=false;
                 job.addEventListener('toggle',()=>{
-                    if(!job.open)return;
+                    if(!job.open){if(view.openKey===row.key)view.openKey=null;return;}
+                    view.openKey=row.key;
                     for(const other of list.children)if(other!==job)other.open=false;
                     if(built)return;built=true;
                     if(row.request)body.appendChild(createWeighingTaskCard(row.request));
                     else{const help=document.createElement('p');help.textContent=row.stage;const open=document.createElement('button');open.type='button';open.textContent='Open Delivery Note';open.onclick=()=>window.openDeliveryNote(row.delivery.sales_id);body.append(help,open);}
                 });list.appendChild(job);
+                if(restoreOpen&&row.key===view.openKey)job.open=true;
             }
+            restoreOpen=false;
             if(!filtered.length){const empty=document.createElement('p');empty.className='weighing-tasks-empty';empty.textContent=rows.length?'No matching jobs.':'There is no pending work.';list.appendChild(empty);}
             more.hidden=visible>=filtered.length;
         }
-        search.oninput=type.onchange=()=>{visible=10;render();};more.onclick=()=>{visible+=10;render();};render();
+        search.oninput=type.onchange=()=>{view.query=search.value;view.type=type.value;visible=view.visible=10;render();};more.onclick=()=>{visible=view.visible=visible+10;render();};render();
         if(document.documentElement.dataset.userRole==='admin'){fragment.append(createFinishedProductionHistory(),createLegacyReview());}
+        const scroll=window.scrollY;
         weighingTaskList.replaceChildren(fragment);
+        if(quiet)window.scrollTo(0,scroll);
         if(window.refreshPendingWeighingBadge)window.refreshPendingWeighingBadge();
         if(window.styleReferenceWeighingList)window.styleReferenceWeighingList(weighingTaskList);
-    }catch(error){if(load===pendingWorkLoad)weighingTaskList.textContent='Pending work could not be loaded.';}
+    }catch(error){if(load===pendingWorkLoad){if(quiet)weighingTasksMessage.textContent='Saved. The list could not be refreshed; select Refresh.';else weighingTaskList.textContent='Pending work could not be loaded.';}}
+}
+
+// Rebuilds one production card in place after an entry is saved, keeping the open entry form,
+// its date and any quantities not yet saved, so the Storekeeper carries on where they stopped.
+async function refreshProductionCard(form) {
+    const card=form.closest('.weighing-task-card');
+    const response=await fetch('/api/weighing-requests');
+    if(!response.ok) throw new Error('Could not refresh the production card.');
+    const request=(await response.json()).find(row=>String(row.request_id)===form.dataset.requestId);
+    const entry=card&&card.querySelector(':scope>.weighing-task-entry');
+    if(!request||!entry) return loadWeighingTasks({quiet:true});
+    const fresh=createWeighingTaskCard(request);
+    const freshEntry=fresh.querySelector(':scope>.weighing-task-entry');
+    if(!freshEntry) return loadWeighingTasks({quiet:true});
+    if(card.querySelector('.activity-history')?.open) fresh.querySelector('.activity-history').open=true;
+    freshEntry.replaceWith(entry);
+    const finish=form.querySelector('[data-action="finish-day"]');
+    if(finish) finish.disabled=!(request.batches||[]).length;
+    card.replaceWith(fresh);
+}
+
+// Saves each filled production quantity as its own entry: kernel issued first, then each product received.
+// Every quantity keeps its own submission key until it is saved, so retrying after a lost connection is safe.
+async function saveProductionEntries(form,submit) {
+    const status=form.querySelector('.production-entry-status');
+    const filled=PRODUCTION_ENTRY_FIELDS.map(([name,type,label])=>({name,type,label,input:form.elements[name]})).filter(field=>field.input.value!=='');
+    if(!filled.length) {
+        status.textContent='Enter the kernel issued or at least one product received.';
+        submit.disabled=false;return;
+    }
+    form.entryKeys=form.entryKeys||{};
+    const saved=[];let failure='';
+    status.textContent='Saving…';
+    for(const field of filled) {
+        form.entryKeys[field.name]=form.entryKeys[field.name]||crypto.randomUUID();
+        const body={entry_type:field.type,submission_key:form.entryKeys[field.name],movement_date:form.elements.movement_date.value,
+            scale_ticket:form.elements.scale_ticket.value,kernel_used:'0',pko_produced:'0',pkc_produced:'0',sludge_produced:'0'};
+        body[field.name]=field.input.value;
+        if(field.type==='Receive') body.received_product=field.name;
+        try {
+            const response=await fetch('/api/weighing-requests/'+form.dataset.requestId+'/complete',{
+                method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+            const result=await response.json();
+            if(!response.ok) { failure=field.label+' was not saved: '+(result.err||'please try again.');break; }
+            saved.push(field.label+' '+formatNumber(field.input.value)+' kg');
+            field.input.value='';delete form.entryKeys[field.name];
+        } catch(error) {
+            failure=field.label+' could not be confirmed. Select Save again to retry it safely.';break;
+        }
+    }
+    if(!failure) form.elements.scale_ticket.value='';
+    form.querySelectorAll('input[type="number"]').forEach(input=>input.dispatchEvent(new Event('input')));
+    const message=(saved.length?'Saved and added to stock: '+saved.join(', ')+'.':'')+(failure?(saved.length?' ':'')+failure:'');
+    if(saved.length) {
+        try { await refreshProductionCard(form); } catch(error) { console.error(error); }
+        if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
+    }
+    status.textContent=message;status.classList.toggle('error',Boolean(failure));
+    appNotify(message);
+    submit.disabled=false;
+    const next=PRODUCTION_ENTRY_FIELDS.map(([name])=>form.elements[name]).find(input=>input.value!=='')||form.elements.kernel_used;
+    if(next&&form.isConnected) next.focus({preventScroll:true});
 }
 
 // Saves the Storekeeper quantities once and completes the related business record and Inventory movement.
@@ -1248,8 +1419,14 @@ async function completeWeighingTask(event) {
 	const form=event.currentTarget;
 	const submit=form.querySelector('button[type="submit"]');
 	submit.disabled=true;
+    if(form.dataset.production==='true') return saveProductionEntries(form,submit);
 	weighingTasksMessage.textContent='Saving physical quantities...';
 	const values=Object.fromEntries(new FormData(form).entries());
+    // Loading or receiving more than was ordered needs a second look before it is saved.
+    if(form.dataset.orderedQuantity&&Number(values.quantity)>Number(form.dataset.orderedQuantity)&&
+       !window.confirm('You entered '+formatNumber(values.quantity)+' '+form.dataset.orderedUnit+', but '+form.dataset.orderedBy+' '+formatNumber(form.dataset.orderedQuantity)+' '+form.dataset.orderedUnit+'. Save it anyway?')) {
+        submit.disabled=false;weighingTasksMessage.textContent='';return;
+    }
     if(form.driverSignature) {
         try { values.driver_signature=form.driverSignature(); }
         catch(error) { weighingTasksMessage.textContent='The driver must sign before you confirm dispatch.';submit.disabled=false;return; }
@@ -1258,14 +1435,6 @@ async function completeWeighingTask(event) {
         values.kernel_test={sample_weight_g:values.sample_weight_g,impurity_weight_g:values.impurity_weight_g,entry_key:values.impurity_entry_key};
     }
     for(const field of ['include_kernel_test','sample_weight_g','impurity_weight_g','impurity_entry_key'])delete values[field];
-    if(form.dataset.submissionKey) values.submission_key=form.dataset.submissionKey;
-    if(form.dataset.entryType) {
-        values.entry_type=form.dataset.entryType;
-        values.kernel_used=values.entry_type==='Issue'?values.kernel_used:'0';
-        for(const key of ['pko_produced','pkc_produced','sludge_produced'])values[key]='0';
-        if(values.entry_type==='Receive')values[values.received_product]=values.received_quantity;
-        delete values.received_quantity;
-    }
 	try {
 		const response=await fetch('/api/weighing-requests/'+form.dataset.requestId+'/complete',{
 			method: 'PATCH',
@@ -1278,8 +1447,10 @@ async function completeWeighingTask(event) {
 			submit.disabled=false;
 			return;
 		}
-		await loadWeighingTasks();
+		// The completed job leaves the list without resetting the search, filter or loaded jobs.
+		await loadWeighingTasks({quiet:true});
 		weighingTasksMessage.textContent=result.message;
+		appNotify(result.message);
 	} catch(error) {
 		console.error(error);
 		weighingTasksMessage.textContent='The quantities could not be saved.';
@@ -1324,6 +1495,25 @@ async function saveExpenses(event) {
 		console.error(err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
 	}
+}
+// Diesel and electricity are bought as stock and costed into production, so warn before they are entered as an expense.
+// Words like "electrician" or "fuel for the van" do not match, so electrical repairs and vehicle fuel are not flagged.
+const energyExpensePattern=/\b(diesel|electricity|kwh|nepa|phcn|light bill|power bill|meter token|prepaid meter|prepaid units)\b/i;
+const expenseEnergyWarning=document.querySelector("#expense-energy-warning");
+function looksLikeEnergyExpense() {
+	return energyExpensePattern.test(expenseDescription?.value||"");
+}
+if(expensesForm&&expenseDescription&&expenseEnergyWarning) {
+	expenseDescription.addEventListener("input",() => { expenseEnergyWarning.hidden=!looksLikeEnergyExpense(); });
+	expensesForm.addEventListener("reset",() => { expenseEnergyWarning.hidden=true; });
+	// Runs before saving a new expense or an edit, and stops the save unless the user confirms.
+	expensesForm.addEventListener("submit",event => {
+		if(!looksLikeEnergyExpense()) return;
+		if(!window.confirm("This looks like diesel or electricity. Their cost is already in production cost through Purchases and Daily Usage, so saving it here counts it twice. Save it as an expense anyway?")) {
+			event.preventDefault();
+			event.stopImmediatePropagation();
+		}
+	},true);
 }
 if(expensesForm) {
 	expensesForm.addEventListener("submit",saveExpenses);
@@ -1503,26 +1693,121 @@ function salePaymentSummary(sale) {
 	return { total: total,paid: paid,remaining: remaining,status: status };
 }
 
-// Builds the shared company, customer and sale heading for a printable document.
-function buildSaleDocumentHeading(data,title,number) {
+// Adds a small line icon in front of a document element.
+function withDocumentIcon(element,name) {
+	if(window.AppUI) element.prepend(AppUI.icon(name));
+	return element;
+}
+
+// Builds address, phone and email lines, skipping any detail that is not saved.
+function documentContactLines(lines) {
+	const box=createDocumentText('div','sale-doc-contact');
+	lines.forEach(function(line) {
+		if(line[1]) box.append(withDocumentIcon(createDocumentText('span','',line[1]),line[0]));
+	});
+	return box;
+}
+
+// Shows a payment status as a coloured badge, optionally with its own wording.
+function documentStatusBadge(status,text) {
+	const icons={ 'Paid':'confirm','Payment Received':'confirm','Reversed':'alert' };
+	const badge=createDocumentText('span','sale-doc-status status-'+status.toLowerCase().replace(/[^a-z]+/g,'-'),text||status);
+	return withDocumentIcon(badge,icons[status]||'clock');
+}
+
+// Builds the shared letterhead and document title, with the reference details used on the printed copy.
+function buildSaleDocumentHeading(data,title,number,metaRows) {
 	const fragment=document.createDocumentFragment();
 	const company=createDocumentText('div','sale-print-company');
-	company.append(
+	const logo=document.createElement('img');
+	logo.className='sale-doc-logo';
+	logo.alt=(data.company.company_name||'Company')+' logo';
+	logo.src=data.company.logo_path||'/images/logo.png';
+	const details=createDocumentText('div','sale-doc-company');
+	details.append(
 		createDocumentText('h2','',data.company.company_name||'Company'),
-		createDocumentText('p','',data.company.business_address||''),
-		createDocumentText('p','',[data.company.phone_number,data.company.email].filter(Boolean).join(' · '))
+		documentContactLines([['pin',data.company.business_address],['phone',data.company.phone_number],['mail',data.company.email]])
 	);
+	company.append(logo,details);
 	const titleBox=createDocumentText('div','sale-print-title');
-	titleBox.append(createDocumentText('h1','',title),createDocumentText('strong','',number));
-	const customer=createDocumentText('div','sale-print-customer');
-	customer.append(
-		createDocumentText('span','','Customer'),
-		createDocumentText('strong','',data.sale.customer),
-		createDocumentText('p','',data.sale.customer_address||''),
-		createDocumentText('p','',[data.sale.customer_phone,data.sale.customer_email].filter(Boolean).join(' · '))
-	);
-	fragment.append(company,titleBox,customer);
+	const meta=createDocumentText('dl','sale-doc-meta doc-print-only');
+	(metaRows||[]).forEach(function(row) {
+		const line=document.createElement('div');
+		line.append(createDocumentText('dt','',row[0]+':'),createDocumentText('dd','',row[1]));
+		meta.append(line);
+	});
+	titleBox.append(createDocumentText('h1','',title),createDocumentText('strong','sale-doc-number doc-screen-only',number),meta);
+	fragment.append(company,titleBox);
 	return fragment;
+}
+
+// Builds the customer block: who the invoice is for or who paid.
+function buildSaleDocumentParty(data,screenLabel,printLabel,status,statusOnScreen,statusText) {
+	const customer=createDocumentText('div','sale-print-customer');
+	const party=createDocumentText('div','sale-doc-party');
+	party.append(
+		withDocumentIcon(createDocumentText('span','doc-screen-only',screenLabel),'user'),
+		createDocumentText('span','doc-print-only sale-doc-party-label',printLabel),
+		createDocumentText('strong','',data.sale.customer),
+		documentContactLines([['pin',data.sale.customer_address],['phone',data.sale.customer_phone],['mail',data.sale.customer_email]])
+	);
+	customer.append(party);
+	if(status) {
+		const badge=documentStatusBadge(status,statusText);
+		if(!statusOnScreen) badge.classList.add('doc-print-only');
+		customer.append(badge);
+	}
+	return customer;
+}
+
+// Builds a document table from header labels and rows; the first column can be printed only.
+function buildSaleDocumentTable(headers,rows,printOnlyFirst) {
+	const wrap=createDocumentText('div','sale-doc-table-wrap');
+	const table=document.createElement('table');
+	table.className='sale-doc-table';
+	const head=document.createElement('tr');
+	headers.forEach(function(label,index) {
+		const cell=createDocumentText('th','',label);
+		if(printOnlyFirst&&index===0) cell.classList.add('doc-print-only');
+		head.append(cell);
+	});
+	const body=document.createElement('tbody');
+	rows.forEach(function(values) {
+		const row=document.createElement('tr');
+		values.forEach(function(value,index) {
+			const cell=createDocumentText('td','',value);
+			if(printOnlyFirst&&index===0) cell.classList.add('doc-print-only');
+			row.append(cell);
+		});
+		body.append(row);
+	});
+	const thead=document.createElement('thead');
+	thead.append(head);
+	table.append(thead,body);
+	wrap.append(table);
+	return wrap;
+}
+
+// Builds the printed sign-off area with lines for a name and signature.
+function buildSaleDocumentSignoff(people,screenToo) {
+	const signoff=createDocumentText('div','sale-doc-signoff'+(screenToo?'':' doc-print-only'));
+	people.forEach(function(person) {
+		const block=document.createElement('div');
+		block.append(
+			createDocumentText('span','',person[0]),
+			createDocumentText('i','sale-doc-sign-line',''),
+			createDocumentText('strong','',person[1]||'Name and signature')
+		);
+		signoff.append(block);
+	});
+	return signoff;
+}
+
+// Marks the Invoice or Receipt tab as the document being shown.
+function setSaleDocumentTab(name) {
+	document.querySelectorAll('#sale-document .sale-doc-tabs button').forEach(function(button) {
+		button.classList.toggle('active',button.dataset.document===name);
+	});
 }
 
 // Displays the invoice for the current sale.
@@ -1532,26 +1817,41 @@ function showSaleInvoice() {
 	const sale=data.sale;
 	const summary=salePaymentSummary(sale);
 	const printArea=document.querySelector('.sale-print-area');
-	const meta=createDocumentText('div','sale-print-meta');
-	meta.append(
-		createCardValues('Invoice Date',formatDate(sale.sales_date)),
-		createCardValues('Payment Due',formatDate(sale.due_date||sale.sales_date)),
-		createCardValues('Status',summary.status)
+	const dueDate=formatDate(sale.due_date||sale.sales_date);
+	const dates=createDocumentText('div','sale-print-meta doc-screen-only');
+	dates.append(
+		withDocumentIcon(createCardValues('Invoice Date',formatDate(sale.sales_date)),'calendar'),
+		withDocumentIcon(createCardValues('Payment Due',dueDate),'calendar'),
+		documentStatusBadge(summary.status)
 	);
-	const item=createDocumentText('div','sale-invoice-item');
-	item.append(
-		createCardValues('Product',sale.item),
-		createCardValues('Quantity',formatNumber(sale.quantity)+' kg'),
-        createCardValues('Payment weight',sale.billing_basis==='Customer'?'Customer’s agreed weight':'Factory weight'),
-		createCardValues('Unit Price','₦'+formatNumber(sale.unit_price)),
-		createCardValues('Invoice Amount','₦'+formatNumber(summary.total))
+	const basis=sale.billing_basis==='Customer'?'Customer’s agreed weight':'Factory weight';
+	const item=buildSaleDocumentTable(
+		['#','Product','Quantity','Payment Weight','Unit Price','Amount'],
+		[['1',sale.item,formatNumber(sale.quantity)+' kg',basis,'₦'+formatNumber(sale.unit_price),'₦'+formatNumber(summary.total)]],
+		true
 	);
+	const terms=createDocumentText('div','sale-doc-terms doc-print-only');
+	const termList=document.createElement('ul');
+	['Payment due on or before '+dueDate+'.',
+		sale.billing_basis==='Customer'?'Invoiced on the buyer’s agreed weight.':'Invoiced on the factory dispatch weight.',
+		'Quote the invoice number with every payment.'].forEach(function(text) { termList.append(createDocumentText('li','',text)); });
+	terms.append(createDocumentText('h3','','Terms:'),termList);
 	const totals=createDocumentText('div','sale-document-totals');
-	totals.append(
-		createCardValues('Total Paid','₦'+formatNumber(summary.paid)),
-		createCardValues('Amount Remaining','₦'+formatNumber(summary.remaining))
+	const invoiceAmount=createCardValues('Invoice Amount','₦'+formatNumber(summary.total));
+	invoiceAmount.classList.add('doc-print-only');
+	const remaining=createCardValues('Amount Remaining','₦'+formatNumber(summary.remaining));
+	remaining.classList.add('is-balance');
+	totals.append(invoiceAmount,createCardValues('Total Paid','₦'+formatNumber(summary.paid)),remaining);
+	const summaryRow=createDocumentText('div','sale-doc-summary');
+	summaryRow.append(terms,totals);
+	printArea.replaceChildren(
+		buildSaleDocumentHeading(data,'INVOICE',sale.invoice_number,[['Invoice No',sale.invoice_number],['Invoice Date',formatDate(sale.sales_date)],['Payment Due',dueDate]]),
+		buildSaleDocumentParty(data,'Customer','Bill To:',summary.status,false,'Status: '+summary.status),
+		dates,item,summaryRow,
+		buildSaleDocumentSignoff([['Issued By'],['Authorised By']],false),
+		createDocumentText('p','sale-doc-thanks doc-print-only','Thank you for your business.')
 	);
-	printArea.replaceChildren(buildSaleDocumentHeading(data,'INVOICE',sale.invoice_number),meta,item,totals);
+	setSaleDocumentTab('invoice');
 }
 
 // Displays one statement containing the invoice and every payment made against it.
@@ -1562,26 +1862,25 @@ function showSaleStatement() {
 	const printArea=document.querySelector('.sale-print-area');
 	const list=createDocumentText('div','sale-statement-list');
 	list.append(createDocumentText('h3','','Payments'));
-	if(data.payments.length===0) list.append(createDocumentText('p','','No payments have been recorded.'));
-	data.payments.forEach(function(payment) {
-		const row=createDocumentText('div','sale-statement-row');
-		row.append(
-			createDocumentText('span','',formatDate(payment.payment_date)),
-			createDocumentText('span','',payment.receipt_number+(payment.reversed_at?' · Reversed':'')),
-			createDocumentText('span','',payment.payment_method),
-			createDocumentText('strong','',(payment.reversed_at?'₦0 (was ₦':'₦')+formatNumber(payment.amount)+(payment.reversed_at?')':''))
-		);
-		list.append(row);
-	});
+	if(data.payments.length===0) list.append(createDocumentText('p','sale-doc-empty','No payments have been recorded.'));
+	else list.append(buildSaleDocumentTable(['Date','Receipt','Method','Amount'],data.payments.map(function(payment) {
+		return [formatDate(payment.payment_date),payment.receipt_number+(payment.reversed_at?' · Reversed':''),payment.payment_method,
+			(payment.reversed_at?'₦0 (was ₦':'₦')+formatNumber(payment.amount)+(payment.reversed_at?')':'')];
+	}),false));
 	const totals=createDocumentText('div','sale-document-totals');
+	const remaining=createCardValues('Amount Remaining','₦'+formatNumber(summary.remaining));
+	remaining.classList.add('is-balance');
 	totals.append(
 		createCardValues('Invoice Amount','₦'+formatNumber(summary.total)),
 		createCardValues('Total Paid','₦'+formatNumber(summary.paid)),
-		createCardValues('Amount Remaining','₦'+formatNumber(summary.remaining))
+		remaining
 	);
 	printArea.replaceChildren(
-		buildSaleDocumentHeading(data,'ACCOUNT STATEMENT',data.sale.invoice_number),list,totals
+		buildSaleDocumentHeading(data,'ACCOUNT STATEMENT',data.sale.invoice_number,[['Invoice No',data.sale.invoice_number],['Invoice Date',formatDate(data.sale.sales_date)],['Status',summary.status]]),
+		buildSaleDocumentParty(data,'Customer','Statement For:',summary.status,true),
+		list,totals
 	);
+	setSaleDocumentTab('');
 }
 
 // Displays the receipt belonging to one saved payment.
@@ -1592,17 +1891,30 @@ function showSaleReceipt(payment,paymentIndex) {
 	},0);
 	const remaining=Math.max(Number(data.sale.total)-paidBefore,0);
 	const printArea=document.querySelector('.sale-print-area');
+	const amount=createDocumentText('div','sale-receipt-amount');
+	amount.append(createCardValues('Amount Received','₦'+formatNumber(payment.amount)),createCardValues('Payment Method',payment.payment_method));
 	const details=createDocumentText('div','sale-receipt-details');
 	[
-		['Invoice Number',data.sale.invoice_number],
-		['Payment Date',formatDate(payment.payment_date)],
-		['Amount Received','₦'+formatNumber(payment.amount)],
-		['Payment Method',payment.payment_method],
+		['Invoice Amount','₦'+formatNumber(data.sale.total)],
+		['Total Paid (to date)','₦'+formatNumber(paidBefore)],
+		['Balance Remaining','₦'+formatNumber(remaining)],
 		['Bank Reference',payment.reference_number||'Not provided'],
-		['Amount Remaining','₦'+formatNumber(remaining)],
-		...(payment.reversed_at?[['Status','Reversed: '+(payment.reversal_reason||'')]]:[])
-	].forEach(function(field) { details.append(createCardValues(field[0],field[1])); });
-	printArea.replaceChildren(buildSaleDocumentHeading(data,'RECEIPT',payment.receipt_number),details);
+		...(payment.reversed_at?[['Reversed',payment.reversal_reason||'']]:[])
+	].forEach(function(field) {
+		const value=createCardValues(field[0],field[1]);
+		if(field[0]==='Balance Remaining') value.classList.add('is-balance');
+		details.append(value);
+	});
+	printArea.replaceChildren(
+		buildSaleDocumentHeading(data,'RECEIPT',payment.receipt_number,[['Receipt No',payment.receipt_number],['Payment Date',formatDate(payment.payment_date)],['Related Invoice',data.sale.invoice_number]]),
+		buildSaleDocumentParty(data,'Received From','Received From:',payment.reversed_at?'Reversed':'Payment Received',true),
+		amount,
+		createDocumentText('h3','sale-doc-section-title','Payment Details:'),
+		details,
+		createDocumentText('p','sale-doc-thanks','Thank you for your payment.'),
+		buildSaleDocumentSignoff([['Received By',payment.recorded_by_name]],true)
+	);
+	setSaleDocumentTab('receipt');
 	printArea.scrollIntoView({ behavior: 'smooth',block: 'start' });
 }
 
@@ -1700,11 +2012,11 @@ async function loadSaleDocument() {
 	page.querySelector('#record-sale-payment').hidden=role==='storekeeper';
 	const paymentList=page.querySelector('.sale-payment-list');
 	paymentList.replaceChildren();
-	if(data.payments.length===0) paymentList.textContent='No payments have been recorded.';
+	if(data.payments.length===0) paymentList.append(createDocumentText('p','sale-doc-empty','No payments have been recorded.'));
 	data.payments.forEach(function(payment,index) {
-		const row=createDocumentText('div','sale-payment-row');
+		const row=createDocumentText('div','sale-payment-row'+(payment.reversed_at?' is-reversed':''));
 		row.append(
-			createDocumentText('span','',formatDate(payment.payment_date)),
+			createDocumentText('span','',formatDate(payment.payment_date)+' · '+payment.receipt_number),
 			createDocumentText('strong','','₦'+formatNumber(payment.amount)),
 			createDocumentText('span','',payment.reversed_at?'Reversed · '+(payment.reversal_reason||''):payment.payment_method)
 		);
@@ -1720,8 +2032,20 @@ async function loadSaleDocument() {
 		}
 		paymentList.append(row);
 	});
+	// The Receipt tab opens the newest payment that still counts; it is unavailable until a payment exists.
+	const receiptTab=page.querySelector('#sale-tab-receipt');
+	const latestIndex=data.payments.map(function(payment) { return !payment.reversed_at; }).lastIndexOf(true);
+	const receiptIndex=latestIndex>=0?latestIndex:data.payments.length-1;
+	receiptTab.disabled=receiptIndex<0;
+	receiptTab.onclick=function() { if(receiptIndex>=0) showSaleReceipt(data.payments[receiptIndex],receiptIndex); };
 	if(page.dataset.ready!=='true') {
 		page.dataset.ready='true';
+		[['#show-sale-invoice','document'],['#record-sale-payment','card'],['#show-sale-statement','chart'],['#print-sale-document','printer'],
+			['#sale-tab-invoice','document'],['#sale-tab-receipt','receipt'],['.sale-document-heading h1','coins'],['.sale-document-heading a','back'],['.sale-payment-history h2','coins']].forEach(function(entry) {
+			const element=page.querySelector(entry[0]);
+			if(element) withDocumentIcon(element,entry[1]);
+		});
+		page.querySelector('#sale-tab-invoice').addEventListener('click',showSaleInvoice);
 		page.querySelector('#show-sale-invoice').addEventListener('click',showSaleInvoice);
 		page.querySelector('#show-sale-statement').addEventListener('click',showSaleStatement);
 		page.querySelector('#record-sale-payment').addEventListener('click',openSalePaymentDialog);
@@ -1731,7 +2055,7 @@ async function loadSaleDocument() {
     const existingNoteButton=page.querySelector('.open-delivery-note');if(existingNoteButton)existingNoteButton.hidden=!data.sale.has_delivery_note;
     if(data.sale.has_delivery_note){
         let noteButton=page.querySelector('.open-delivery-note');
-        if(!noteButton){noteButton=document.createElement('button');noteButton.type='button';noteButton.className='open-delivery-note';noteButton.textContent='Delivery Note';page.querySelector('.sale-document-actions').appendChild(noteButton);}
+        if(!noteButton){noteButton=document.createElement('button');noteButton.type='button';noteButton.className='open-delivery-note';noteButton.textContent='Delivery Note';withDocumentIcon(noteButton,'truck');page.querySelector('.sale-document-actions').insertBefore(noteButton,page.querySelector('#print-sale-document'));}
         noteButton.onclick=()=>window.openDeliveryNote(data.sale.sales_id);
     }
 }
@@ -1849,6 +2173,8 @@ function displayCards(list,config,htmlDataList,visibleRecord,loadMoreBtn) {
         }
 		// Handles click events from editBtn.
 		editBtn.addEventListener("click",() => {
+			// Some records are edited in their own dialog, such as rent paid for several months.
+			if(config.openEdit&&config.openEdit(row)) return;
 			sessionStorage.setItem("editRecord",JSON.stringify(row));
 			sessionStorage.setItem("editKind",config.kind);
 			sessionStorage.setItem(
@@ -1957,6 +2283,12 @@ async function renderSalesCard(salesList) {
             const button=document.createElement('button');button.type='button';button.textContent='Delivery Note';
             button.onclick=event=>{event.stopPropagation();window.openDeliveryNote(row.sales_id);};card.card.querySelector('.card-actions').appendChild(button);
             const status=document.createElement('p');status.textContent='Payment by '+(row.billing_basis==='Customer'?'customer’s agreed weight':'factory weight')+(row.invoice_number?'':' · Invoice pending');card.body.after(status);
+            // Customer-weight sales also show what left the factory, inside the same quantity box.
+            if(row.billing_basis==='Customer'){
+                const factory=document.createElement('p');factory.className='ref-factory-weight';
+                factory.textContent='Factory weight: '+formatNumber(row.factory_quantity??row.quantity)+' kg';
+                card.body.children[1].appendChild(factory);
+            }
         },
 		// Returns the record identifier used by the card.
 		id: row => row.sales_id,
@@ -1974,10 +2306,10 @@ async function renderSalesCard(salesList) {
 			},
 			{
 					label: "Quantity",
-				// Derives the displayed field value from the current record.
-				value: row => formatNumber(row.factory_quantity??row.quantity),
+				// Shows the weight the customer is charged for, so quantity × unit price = total.
+				value: row => row.billing_basis==='Customer'&&!row.invoice_number?"Pending":formatNumber(row.billing_basis==='Customer'?row.quantity:row.factory_quantity??row.quantity),
 				// Returns the unit displayed beside the current value.
-				unit: () => "kg"
+				unit: row => row.billing_basis==='Customer'&&!row.invoice_number?"":"kg"
 			},
 			{
 				label: "Unit Price",
@@ -2058,6 +2390,21 @@ function renderExpensesCard(expensesList) {
 	const expensesConfig={
 		kind: "expenses",
 		formId: "expenses-form",
+        // A payment spread over several months says so under the card, with its start-up months.
+        decorate:(card,row)=>{
+            const months=Number(row.spread_months)||1,startup=Number(row.startup_months)||0;
+            if(months===1&&!startup)return;
+            const note=document.createElement('p');note.className='expense-spread-note';
+            note.textContent=months>1?'Spread over '+months+' months: ₦'+formatNumber(Number(row.amount_spent)/months)+' a month'+(startup?', first '+startup+' as start-up costs':''):'Start-up cost (before production)';
+            card.body.after(note);
+        },
+        // Rent paid for several months and start-up costs are edited in their own dialogs, so their months can be changed too.
+        openEdit:row=>{
+            if(Number(row.spread_months)>1&&!Number(row.startup_months)&&window.openPrepaidDialog){window.openPrepaidDialog(row);return true;}
+            // Start-up costs open the start-up dialog, so their months before production can be changed too.
+            if(Number(row.startup_months)>0&&window.openStartupDialog){window.openStartupDialog(row);return true;}
+            return false;
+        },
 		// Returns the record identifier used by the card.
 		id: row => row.expense_id,
 		// Returns the record date used for display and filtering.
@@ -2514,7 +2861,7 @@ function renderProductionCard(productionList) {
                     };history.appendChild(reopen);
                 }
             }
-            card.body.after(meta,history);
+            card.body.after(createProductionLossNote(row,row.yield_status==='Final'),meta,history);
         },
 		field: [
 			{
@@ -2812,9 +3159,12 @@ function editForm() {
 		stockDate.value=record.count_date.slice(0,10);
 		stockName.value=record.item_id;
 		updateEntryUnit(stockName,".inventory-entry-unit");
-		received.value=record.received;
-		issued.value=record.issued;
 		stockReason.value=record.adjustment_reason||'Other';
+		// Older entries may have both boxes filled; they open as their net change.
+		const netChange=Math.round((Number(record.received||0)-Number(record.issued||0))*100)/100;
+		stockAdd.checked=netChange>0;stockRemove.checked=netChange<=0;
+		stockQuantity.value=Math.abs(netChange)||'';
+		syncStockDirection();
 
 		inventoryForm.removeEventListener("submit",saveInventory);
 		inventoryForm.addEventListener("submit",saveEdit);
@@ -2843,6 +3193,7 @@ function editForm() {
         productionForm.prepend(explanation);
 	} else if(kind==="sales") {
 		salesQuantity.readOnly=false;
+        document.getElementById('sales-ordered-field').hidden=true;salesOrderedQuantity.required=false;
 		salesDate.value=record.sales_date.slice(0,10);
 		customer.value=record.customer_id;
 		productSold.value=record.item_id;
@@ -2863,6 +3214,7 @@ function editForm() {
 			"Save Sales";
 	} else if(kind==="purchases") {
 		quantitySupplied.readOnly=false;
+        document.getElementById('purchase-ordered-field').hidden=true;purchaseOrderedQuantity.required=false;
 		purchaseDate.value=record.purchase_date.slice(0,10);
 		supplier.value=record.supplier_id;
 		materialSupplied.value=record.item_id;
@@ -2879,6 +3231,7 @@ function editForm() {
 		expenseCategory.value=record.category;
 		expenseDescription.value=record.description;
 		expenseAmount.value=record.amount_spent;
+		if(expenseEnergyWarning) expenseEnergyWarning.hidden=!looksLikeEnergyExpense();
 
 		expensesForm.removeEventListener("submit",saveExpenses);
 		expensesForm.addEventListener("submit",saveEdit);
@@ -2900,8 +3253,7 @@ async function saveEdit(event) {
 			count_id: record.count_id,
 			count_date: stockDate.value,
 			item_id: stockName.value,
-			received: received.value,
-			issued: issued.value,
+			...stockChangeValues(),
 			adjustment_reason: stockReason.value
 		};
 	} else if(kind==="production") {

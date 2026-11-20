@@ -129,7 +129,18 @@ async function correctRecord(pool,kind,record,operation,userId=null) {
     } finally { client.release(); }
 }
 module.exports={ correctRecord };
-async function correctManualStock(pool,record,operation) {
+// Adds one row to the manual stock history trail inside the caller's transaction.
+// The values kept are the ones a person enters, so the Director can see exactly what changed.
+// pg reads a date column as local midnight, so the day is taken from local parts (toISOString could shift it a day).
+const localDay=value=>value instanceof Date?value.getFullYear()+'-'+String(value.getMonth()+1).padStart(2,'0')+'-'+String(value.getDate()).padStart(2,'0'):String(value).slice(0,10);
+const stockHistoryValues=row=>row?{count_date:localDay(row.count_date),
+    item_id:row.item_id,received:row.received,issued:row.issued,adjustment_reason:row.adjustment_reason??null,daily_usage:String(row.source_part||'').startsWith('Use:')}:null;
+async function recordStockHistory(client,countId,action,before,after,userId) {
+    await client.query('INSERT INTO stock_change_history(count_id,action,before_values,after_values,changed_by) VALUES($1,$2,$3,$4,$5)',
+        [countId,action,before?JSON.stringify(stockHistoryValues(before)):null,after?JSON.stringify(stockHistoryValues(after)):null,userId||null]);
+}
+
+async function correctManualStock(pool,record,operation,userId) {
     const client=await pool.connect();
     try {
         await client.query('BEGIN');await lockStock(client);
@@ -149,7 +160,10 @@ async function correctManualStock(pool,record,operation) {
                 [record.count_date,record.item_id,received,issued,reason,record.count_id]);
         }
         await protectStock(client,before);
+        if(operation==='delete')await recordStockHistory(client,current.count_id,'Deleted',current,null,userId);
+        else await recordStockHistory(client,current.count_id,'Edited',current,{...result.rows[0],source_part:current.source_part},userId);
         await client.query('COMMIT');return result.rows[0];
     }catch(error){await client.query('ROLLBACK');throw error;}finally{client.release();}
 }
 module.exports.correctManualStock=correctManualStock;
+module.exports.recordStockHistory=recordStockHistory;
