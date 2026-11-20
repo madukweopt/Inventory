@@ -15,16 +15,26 @@ if(loginForm) {
         try { const saved=sessionStorage.getItem('loginUsername'); if(saved&&!username.value) username.value=saved; } catch(storageError) {}
         history.replaceState(null,'',location.pathname);
     }
-    loginForm.addEventListener('submit',function() {
+    // Android only hides the keyboard once the typing box is no longer editable and has lost focus, and it needs a
+    // moment to do so. Sending the form straight away replaces the page first, leaving the keyboard open on the dashboard.
+    let sending=false;
+    loginForm.addEventListener('submit',function(event) {
+        event.preventDefault();
+        if(sending) return;
+        sending=true;
         try { sessionStorage.setItem('loginUsername',username.value); } catch(storageError) {}
+        const fields=[...loginForm.querySelectorAll('input')];
+        fields.forEach(field=>field.readOnly=true); // read-only fields are still sent with the form
         if(document.activeElement instanceof HTMLElement) document.activeElement.blur();
         const button=loginForm.querySelector('button[type="submit"]');
-        // Disabled after the browser has collected the form, so a second tap cannot send it twice.
-        setTimeout(()=>{button.disabled=true;button.textContent='Signing in…';},0);
+        button.disabled=true;button.textContent='Signing in…';
+        // form.submit() is still a real form sign-in, so the browser can offer to save the password.
+        setTimeout(()=>HTMLFormElement.prototype.submit.call(loginForm),250);
     });
     // Coming back to this page (for example with the Back button) shows a usable Login button again.
     window.addEventListener('pageshow',function() {
         const button=loginForm.querySelector('button[type="submit"]');
-        button.disabled=false;button.textContent='Login';
+        button.disabled=false;button.textContent='Login';sending=false;
+        loginForm.querySelectorAll('input').forEach(field=>field.readOnly=false);
     });
 }
