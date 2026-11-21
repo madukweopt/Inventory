@@ -308,3 +308,23 @@
     #sale-document .sale-item-card{padding:2px 14px}
 }
 @media print{#sale-document .sale-summary-card{display:none!important}}
+
+/* Buttons respond when touched: a quick tint on hover, and a press that shrinks and darkens slightly. */
+@media screen{
+    #sale-document :is(.sale-document-actions button,.sale-doc-tabs button,.sale-payment-row button,.sale-document-heading>a){
+        -webkit-tap-highlight-color:transparent;touch-action:manipulation;cursor:pointer;
+        transition:transform .08s ease,background-color .15s ease,box-shadow .15s ease,filter .15s ease}
+    #sale-document :is(.sale-document-actions button,.sale-payment-row button):hover{background:#f1f8ec;box-shadow:0 2px 8px rgba(18,77,36,.12)}
+    #sale-document .sale-document-actions #record-sale-payment:hover{filter:brightness(1.08);background:linear-gradient(135deg,var(--sd-dark),var(--sd-green))}
+    #sale-document .sale-doc-tabs button:not(.active):not(:disabled):hover{background:#e2ecdf}
+    #sale-document :is(.sale-document-actions button,.sale-payment-row button):active{transform:scale(.97);background:#e3f0da;box-shadow:inset 0 2px 6px rgba(18,77,36,.18)}
+    #sale-document .sale-document-actions #record-sale-payment:active{filter:brightness(.88);background:linear-gradient(135deg,var(--sd-dark),var(--sd-green));box-shadow:inset 0 3px 8px rgba(0,0,0,.25)}
+    #sale-document .sale-doc-tabs button:not(:disabled):active{transform:scale(.97);filter:brightness(.94)}
+    #sale-document .sale-document-heading>a:active{transform:scale(.97);opacity:.7}
+    #sale-document :is(.sale-document-actions button,.sale-doc-tabs button,.sale-payment-row button,.sale-document-heading>a):focus-visible{outline:3px solid #7fbf57;outline-offset:2px}
+    #sale-document :is(.sale-document-actions button,.sale-doc-tabs button,.sale-payment-row button):disabled{cursor:default;transform:none}
+    @media (prefers-reduced-motion:reduce){
+        #sale-document :is(.sale-document-actions button,.sale-doc-tabs button,.sale-payment-row button,.sale-document-heading>a){transition:none}
+        #sale-document :is(.sale-document-actions button,.sale-doc-tabs button,.sale-payment-row button,.sale-document-heading>a):active{transform:none}
+    }
+}
