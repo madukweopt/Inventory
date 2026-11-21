@@ -30,3 +30,14 @@ Manual stock changes keep a history trail in `stock_change_history` (`database/m
 Payments, manual stock changes and expenses are saved only once even if Save is tapped twice or retried after a lost connection: each form fill sends a one-time key, and the same key returns the entry already saved. The migration is `database/migrations/20261121_submission_keys.sql` (already applied to the development database; apply it to any other database before deploying).
 
 Every successful save, edit and delete made through the app, and every sign-in, is written to the Activity Log (`database/migrations/20261121_activity_log.sql`, already applied to the development database). Each entry keeps the person who really did it, the account in use (so work the Director does through Switch Account is credited to the Director), what was done, which record and when; no request contents or passwords are stored. The Director reads it in Data → Activity Log, filtered by person, record type and dates.
+
+## Database changes (migrations)
+
+Each file in `database/migrations` changes the database once (a new table or column, or a one-time correction of records). The database keeps a list of the files it has received in `schema_migrations`, and **the server applies any new files itself when it starts**, before taking requests, each fully or not at all. If one fails, the server does not start and says which file and why.
+
+- A new, empty database is built from `database/schema.sql` on first start, and every current file is recorded as included.
+- To add a change: create a new file named `YYYYMMDD_description.sql` (and add the same change to `database/schema.sql`). Never edit a file that has already been applied; the server warns if one was.
+- `npm run migrate` applies new files without starting the server; `npm run migrate -- --status` lists applied and pending files and changes nothing.
+- A database that already has tables but no list (set up before this, or by hand) is refused at start. If it is up to date, run `npm run migrate -- --baseline` once: it checks the database against `schema.sql` (every table, column and index) and only then records the files. The development database was baselined on 21 November 2026.
+
+Earlier notes in this README that say a migration was "already applied" describe how it was done by hand before this list existed.

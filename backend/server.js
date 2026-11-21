@@ -3345,10 +3345,19 @@ app.get('/api/supplier-supplies',requireRole(['admin','manager','storekeeper']),
 })
 
 if(require.main===module) {
-	app.listen(PORT,() => {
-		console.log(`Server running at http://localhost:${PORT}`);
-		// Opens two connections now, so the first page after a restart does not wait for them.
-		refreshDatabaseAddress().then(() => Promise.all([pool.query('SELECT 1'),pool.query('SELECT 1')])).catch(error => console.error("Database warm-up failed:",error.message));
+	// New database changes in database/migrations are applied before the server takes any request. If one fails
+	// the server does not start, so it never runs against a half-updated database.
+	require('./migrations').migrate(pool,{ log: message => console.log(message) }).then(result => {
+		if(result.created) console.log('Database created from database/schema.sql.');
+		else if(result.applied.length) console.log('Applied '+result.applied.length+' database change(s).');
+		app.listen(PORT,() => {
+			console.log(`Server running at http://localhost:${PORT}`);
+			// Opens two connections now, so the first page after a restart does not wait for them.
+			refreshDatabaseAddress().then(() => Promise.all([pool.query('SELECT 1'),pool.query('SELECT 1')])).catch(error => console.error("Database warm-up failed:",error.message));
+		});
+	}).catch(error => {
+		console.error('The server did not start: '+error.message);
+		process.exit(1);
 	});
 }
 
