@@ -131,6 +131,19 @@ if(secondBtn) {
 	secondBtn.addEventListener("click",displayData);
 }
 
+// After a report form is saved and cleared, go back to the top and open the navigation panel with the
+// Forms list expanded, so the next form can be chosen straight away.
+function openFormsMenu() {
+	window.scrollTo({top:0,behavior:'smooth'});
+	if(!submenuAndBtn) return;
+	submenuAndBtn.classList.add('show');
+	if(firstBtn&&!firstBtn.hidden&&submenuOne) {
+		firstBtn.classList.add('show');
+		submenuOne.classList.add('show');
+	}
+}
+window.openFormsMenu=openFormsMenu;
+
 const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {

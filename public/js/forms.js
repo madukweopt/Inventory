@@ -688,6 +688,7 @@ async function saveSale(event) {
 		sessionStorage.removeItem(retry.slot);
 		salesForm.reset();
 		salesPriceMessage.textContent='Select a sales date and product to load its price.';
+		if(window.openFormsMenu) window.openFormsMenu();
 		managerSalePrice.querySelector('strong').textContent='—';
 		managerSalePrice.querySelector('small').textContent='Select the sales date and product.';
 		managerSalePrice.classList.remove('has-price','price-error');
@@ -738,6 +739,7 @@ async function savePurchases(event) {
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		sessionStorage.removeItem(retry.slot);
 		purchaseForm.reset();
+		if(window.openFormsMenu) window.openFormsMenu();
 	} catch(err) {
 		console.error("Network problem",err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
@@ -778,6 +780,7 @@ async function saveInventory(event) {
 		console.log("saved:",savedStock);
 		appNotify("Stock submited successfully");
 		inventoryForm.reset();
+		if(window.openFormsMenu) window.openFormsMenu();
 	} catch(err) {
 		console.error(err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
@@ -817,6 +820,7 @@ async function saveProduction(event) {
 		appNotify("Production authorised and sent to Storekeeper for weighing.");
 		if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
 		productionForm.reset();
+		if(window.openFormsMenu) window.openFormsMenu();
 	} catch(err) {
 		console.error(err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
@@ -1498,6 +1502,7 @@ async function saveExpenses(event) {
 		const savedExpense=await response.json();
 		appNotify("Expense submitted successfully");
 		expensesForm.reset();
+		if(window.openFormsMenu) window.openFormsMenu();
 		console.log("submitted:",savedExpense);
 	} catch(err) {
 		console.error(err);
