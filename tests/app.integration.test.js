@@ -304,6 +304,23 @@ test('customers, suppliers, company details and employees can be managed',async 
 	await storekeeper.patch('/api/customers/'+ids.customer).send({}).expect(403);
 });
 
+// A new live database has no company record; the Director's first save must create it.
+test('saving company details creates the record when the database has none yet',async function() {
+    const saved=(await applicationPool.query('SELECT * FROM company_details WHERE company_id=1')).rows[0];
+    await applicationPool.query('DELETE FROM company_details');
+    try {
+        const created=await admin.patch('/api/company').field('company_name','First Live Company').field('phone_number','08055555555')
+            .field('business_address','Factory Road').field('remove_logo','false').expect(200);
+        assert.equal(created.body.company_name,'First Live Company');assert.equal(created.body.company_id,1);
+        assert.equal((await admin.get('/api/company').expect(200)).body.company_name,'First Live Company');
+        const updated=await admin.patch('/api/company').field('company_name','Second Save').field('remove_logo','false').expect(200);
+        assert.equal(updated.body.company_name,'Second Save');
+        assert.equal(Number((await applicationPool.query('SELECT count(*) FROM company_details')).rows[0].count),1);
+    } finally {
+        if(saved) await applicationPool.query(`UPDATE company_details SET company_name=$1,phone_number=$2,business_address=$3 WHERE company_id=1`,[saved.company_name,saved.phone_number,saved.business_address]);
+    }
+});
+
 test('salary history, employee status and payroll calculations work',async function() {
 	await admin.post('/api/employees/'+ids.employee+'/salary-history').send({
 		new_salary: 150000,effective_date: '2026-07-01',reason: 'Annual increase'
