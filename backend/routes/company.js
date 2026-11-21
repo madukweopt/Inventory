@@ -48,21 +48,25 @@ router.patch('/api/company',requireRole(['admin']),function(req,res) {
 				logoPath='/images/company/'+req.file.filename;
 			}
 
+			// A new database has no company record yet: the first save creates it, later saves update it.
 			const result=await pool.query(
-				`UPDATE company_details SET
-				company_name=$1,
-				registration_number=$2,
-				tax_identification_number=$3,
-				phone_number=$4,
-				email=$5,
-				website=$6,
-				business_address=$7,
-				bank_name=$8,
-				account_number=$9,
-				account_name=$10,
-				logo_path=$11,
+				`INSERT INTO company_details
+				(company_id,company_name,registration_number,tax_identification_number,phone_number,email,website,
+				business_address,bank_name,account_number,account_name,logo_path,updated_at)
+				VALUES (1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,CURRENT_TIMESTAMP)
+				ON CONFLICT (company_id) DO UPDATE SET
+				company_name=EXCLUDED.company_name,
+				registration_number=EXCLUDED.registration_number,
+				tax_identification_number=EXCLUDED.tax_identification_number,
+				phone_number=EXCLUDED.phone_number,
+				email=EXCLUDED.email,
+				website=EXCLUDED.website,
+				business_address=EXCLUDED.business_address,
+				bank_name=EXCLUDED.bank_name,
+				account_number=EXCLUDED.account_number,
+				account_name=EXCLUDED.account_name,
+				logo_path=EXCLUDED.logo_path,
 				updated_at=CURRENT_TIMESTAMP
-				WHERE company_id=1
 				RETURNING *`,
 				[
 					company.company_name.trim(),
