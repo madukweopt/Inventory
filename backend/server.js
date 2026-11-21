@@ -284,6 +284,19 @@ app.get('/debug-settings',function(req,res) {
 const failedLogins=new Map();
 const loginLockMinutes=15;
 const loginAttemptLimit=5;
+const failedLoginLimit=10000;
+// Forgets failed sign-ins whose 15-minute window has passed, so made-up usernames cannot fill the server's memory.
+// Above the limit, the oldest entries go first (the map keeps them in the order they were added).
+function pruneFailedLogins(now=Date.now()) {
+	for(const [key,attempts] of failedLogins) {
+		if(now-attempts.first>=loginLockMinutes*60000) failedLogins.delete(key);
+	}
+	for(const key of failedLogins.keys()) {
+		if(failedLogins.size<=failedLoginLimit) break;
+		failedLogins.delete(key);
+	}
+}
+setInterval(pruneFailedLogins,5*60000).unref();
 
 // Handles POST /api/login requests.
 // The login page posts an ordinary form, so the browser closes the keyboard and offers to save the password;
@@ -315,7 +328,8 @@ app.post('/api/login',express.urlencoded({extended:false,limit:'4kb'}),async fun
 		if(!passwordMatch) {
 			const current=attempts&&Date.now()-attempts.first<loginLockMinutes*60000? attempts:{ count: 0,first: Date.now() };
 			current.count+=1;
-			failedLogins.set(attemptKey,current);
+			failedLogins.delete(attemptKey);failedLogins.set(attemptKey,current); // moved to the end: newest last
+			if(failedLogins.size>failedLoginLimit) pruneFailedLogins();
 			return reply(400,{ message: 'Invalid username or password' },'invalid');
 		}
 		failedLogins.delete(attemptKey);
@@ -3313,5 +3327,5 @@ if(require.main===module) {
 	});
 }
 
-module.exports={ app,pool,calculateCosts,calculateChecks };
+module.exports={ app,pool,calculateCosts,calculateChecks,failedLogins,pruneFailedLogins };
 

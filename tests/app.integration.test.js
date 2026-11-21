@@ -90,6 +90,24 @@ test.after(async function() {
 	}
 });
 
+// Failed sign-ins are forgotten after the 15-minute lockout window, and at most 10,000 are kept.
+test('the failed sign-in counter forgets expired entries and stays bounded',function() {
+    const {failedLogins,pruneFailedLogins}=require(path.join(projectRoot,'backend','server.js'));
+    const saved=new Map(failedLogins);failedLogins.clear();
+    try {
+        const now=Date.now();
+        failedLogins.set('old|ip',{count:5,first:now-16*60000});
+        failedLogins.set('recent|ip',{count:2,first:now-60000});
+        pruneFailedLogins(now);
+        assert.deepEqual([...failedLogins.keys()],['recent|ip']);
+        for(let index=0;index<10005;index++) failedLogins.set('user'+index+'|ip',{count:1,first:now});
+        pruneFailedLogins(now);
+        assert.equal(failedLogins.size,10000);
+        assert.equal(failedLogins.has('recent|ip'),false);
+        assert.equal(failedLogins.has('user10004|ip'),true);
+    } finally { failedLogins.clear();for(const [key,value] of saved) failedLogins.set(key,value); }
+});
+
 test('every response carries the security headers',async function() {
     const page=await request(app).get('/login.html').expect(200);
     assert.match(page.headers['content-security-policy'],/default-src 'self'/);
