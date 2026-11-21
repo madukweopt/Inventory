@@ -6,7 +6,8 @@ const path=require('node:path');
 const root=path.join(__dirname,'..');
 const read=file=>fs.readFileSync(path.join(root,file),'utf8');
 const formsHtml=fs.readFileSync(path.join(root,'public','html','forms.html'),'utf8');
-const formsJs=fs.readFileSync(path.join(root,'public','js','forms.js'),'utf8');
+// The forms page script is split by area; the checks below read all of its parts together.
+const formsJs=['forms.js','pending-weighing.js'].map(file=>fs.readFileSync(path.join(root,'public','js',file),'utf8')).join('\n');
 const navigationCss=fs.readFileSync(path.join(root,'public','css','navigation.css'),'utf8');
 const navigationJs=fs.readFileSync(path.join(root,'public','js','navigation.js'),'utf8');
 
