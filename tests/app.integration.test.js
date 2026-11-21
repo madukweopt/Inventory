@@ -1344,6 +1344,20 @@ test('Manual stock changes keep a Director-only history of creates, edits and de
     assert.equal((await applicationPool.query("SELECT count(*)::int AS n FROM stock_change_history WHERE after_values->>'count_date'='2080-01-03'")).rows[0].n,0);
 });
 
+// A failed logout answers once with an error instead of replying twice, which would stop the server.
+test('a logout that cannot end the session reports the failure and the server keeps running',async function() {
+    const agent=request.agent(app);
+    await login(agent,'storekeeper_test','StorePass123');
+    const realQuery=applicationPool.query;
+    applicationPool.query=function(text,...rest) {
+        if(/^DELETE FROM .*session.* WHERE sid = \$1/.test(String(text&&text.text||text))) return Promise.reject(new Error('Simulated session store failure'));
+        return realQuery.call(this,text,...rest);
+    };
+    try { await agent.post('/api/logout').expect(500).expect(response=>assert.equal(response.body.message,'logout failed')); }
+    finally { applicationPool.query=realQuery; }
+    await request(app).get('/login.html').expect(200);
+});
+
 test('logout destroys the authenticated session',async function() {
 	await manager.post('/api/logout').expect(200);
 	await manager.get('/api/current-user').expect(401);

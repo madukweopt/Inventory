@@ -3189,12 +3189,15 @@ app.post('/api/return-to-admin',async function(req,res) {
 app.post('/api/logout',(req,res) => {
 	// Completes the response after attempting to destroy the session.
 	return req.session.destroy(err => {
+		// Answer once: a failed logout returns here, so the success reply below is never sent as well
+		// (a second reply throws an error that would stop the server).
 		if(err) {
-			res.status(500).json({
+			console.error(err);
+			return res.status(500).json({
 				message: 'logout failed'
-			})
+			});
 		}
-		res.json({
+		return res.json({
 			message: 'Logged out'
 		});
 	});
