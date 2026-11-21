@@ -133,16 +133,20 @@ if(secondBtn) {
 
 // After a report form is saved and cleared, go back to the top and open the navigation panel with the
 // Forms list expanded, so the next form can be chosen straight away.
-function openFormsMenu() {
+// Closing a Data page does the same with the Data list expanded.
+function openNavSection(section) {
 	window.scrollTo({top:0,behavior:'smooth'});
 	if(!submenuAndBtn) return;
 	submenuAndBtn.classList.add('show');
-	if(firstBtn&&!firstBtn.hidden&&submenuOne) {
-		firstBtn.classList.add('show');
-		submenuOne.classList.add('show');
+	const [button,list]=section==='data'?[secondBtn,submenuTwo]:[firstBtn,submenuOne];
+	if(button&&!button.hidden&&list) {
+		button.classList.add('show');
+		list.classList.add('show');
 	}
 }
+function openFormsMenu() { openNavSection('forms'); }
 window.openFormsMenu=openFormsMenu;
+window.openDataMenu=function() { openNavSection('data'); };
 // A cancelled edit reopens the forms page with ?menu=forms so the menu shows on a clean page.
 if(new URLSearchParams(location.search).get('menu')==='forms') {
 	history.replaceState(null,'',location.pathname);

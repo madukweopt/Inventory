@@ -1496,6 +1496,22 @@ function cancelReportForm(form) {
     close.addEventListener('click',event=>{event.stopPropagation();cancelReportForm(form);});
     card.classList.add('has-cancel-x');card.prepend(close);
 });
+// The Data pages get the same ✕: it closes the page and opens the navigation panel with the Data list expanded.
+['inventory-data','stock-history','purchases-data','sales-data','production-data','expenses-data'].forEach(id=>{
+    const card=document.getElementById(id);
+    if(!card) return;
+    const close=document.createElement('button');
+    close.type='button';close.className='form-cancel-x';
+    close.setAttribute('aria-label','Close this page');close.title='Close';
+    close.textContent='✕';
+    close.addEventListener('click',event=>{
+        event.stopPropagation();
+        card.classList.remove('show');
+        history.replaceState(null,'',location.pathname);
+        if(window.openDataMenu) window.openDataMenu();
+    });
+    card.classList.add('has-cancel-x');card.prepend(close);
+});
 
 // Validates the submitted expenses data and sends it to the server for saving.
 async function saveExpenses(event) {

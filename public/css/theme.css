@@ -2173,3 +2173,6 @@ body:has(.portal) {
 .card>.form-cancel-x {position:absolute;top:14px;right:14px;z-index:2;display:grid;place-items:center;width:48px;height:48px;min-height:0;margin:0;padding:0;border:1px solid #d8ddd9;border-radius:50%;background:#fff;color:#2e3a33;font-size:26px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.08);}
 .card>.form-cancel-x:hover,.card>.form-cancel-x:focus-visible {background:#fdecea;border-color:#e7b8b2;color:#a32b20;}
 @media(max-width:600px){.card>.form-cancel-x {top:10px;right:10px;width:44px;height:44px;font-size:24px;}.card.has-cancel-x>h2 {padding:0 50px;}}
+/* Data pages: keep their headings clear of the ✕. */
+.card.has-cancel-x .ref-page-heading {padding-right:56px;}
+@media(max-width:600px){.card.has-cancel-x .ref-page-heading {padding-right:50px;}}
