@@ -1,0 +1,41 @@
+# Runs all the tests on GitHub every time code is pushed or a pull request is opened.
+# A fresh temporary PostgreSQL database is started for each run and thrown away afterwards;
+# it never touches the development or live database, and no secrets are needed.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inventory_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      # Test-only values for the temporary database above; not used anywhere else.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/inventory_test
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/inventory_test
+      DATABASE_SSL: disable
+      SESSION_SECRET: test-run-only-session-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test

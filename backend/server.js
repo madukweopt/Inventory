@@ -88,7 +88,8 @@ class SavedAddressClient extends Client {
 		}
 		const { connectionString,...rest }=options;
 		const { sslmode,channel_binding,...settings }=databaseSettings;
-		super({ ...settings,...rest,host: address,ssl: { ...rest.ssl,servername: databaseHost } });
+		// With secure connections off (the automatic test runs' temporary database) no SSL settings are added.
+		super({ ...settings,...rest,host: address,ssl: rest.ssl?{ ...rest.ssl,servername: databaseHost }:false });
 		this.savedAddress=address;
 	}
 	connect(callback) {
@@ -106,9 +107,7 @@ class SavedAddressClient extends Client {
 const pool=new Pool({
 	Client: SavedAddressClient,
 	connectionString: process.env.DATABASE_URL,
-	ssl: {
-		rejectUnauthorized: true
-	},
+	ssl: require('./database-ssl').databaseSsl(),
 	idleTimeoutMillis: 4*60*1000,
 	keepAlive: true,
 	keepAliveInitialDelayMillis: 10000,

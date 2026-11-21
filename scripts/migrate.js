@@ -8,7 +8,7 @@ const {Pool}=require('pg');
 const {migrate,baseline,migrationStatus}=require('../backend/migrations');
 
 (async()=>{
-    const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true}});
+    const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:require('../backend/database-ssl').databaseSsl()});
     try {
         if(process.argv.includes('--status')) {
             const status=await migrationStatus(pool);

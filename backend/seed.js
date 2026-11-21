@@ -457,7 +457,7 @@ async function main(){
     fs.mkdirSync(folder,{recursive:true,mode:0o700});
     let backup=path.join(folder,'database.dump');
     const maintenanceUrl=new URL(databaseUrl);maintenanceUrl.hostname=maintenanceUrl.hostname.replace('-pooler','');
-    const pool=new Pool({connectionString:maintenanceUrl.toString(),ssl:{rejectUnauthorized:true},max:1,connectionTimeoutMillis:30000,idleTimeoutMillis:0,keepAlive:true,keepAliveInitialDelayMillis:10000});
+    const pool=new Pool({connectionString:maintenanceUrl.toString(),ssl:require('./database-ssl').databaseSsl(),max:1,connectionTimeoutMillis:30000,idleTimeoutMillis:0,keepAlive:true,keepAliveInitialDelayMillis:10000});
     pool.on('error',error=>console.error('Database connection interrupted:',error.code||error.message));
     try{
         console.log('Backing up the current database before reset...');

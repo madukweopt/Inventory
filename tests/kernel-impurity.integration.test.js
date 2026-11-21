@@ -12,10 +12,10 @@ let adminPool,pool,server,admin,manager,storekeeper,purchaseId,otherId;
 const firstKey=crypto.randomUUID();
 test.before(async()=>{
     const url=new URL(process.env.TEST_DATABASE_URL||process.env.DATABASE_URL);url.hostname=url.hostname.replace('-pooler','');
-    adminPool=new Pool({connectionString:url.toString(),ssl:{rejectUnauthorized:true}});
+    adminPool=new Pool({connectionString:url.toString(),ssl:require('../backend/database-ssl').databaseSsl()});
     await adminPool.query('CREATE SCHEMA "'+schema+'"');
     url.searchParams.set('options','-c search_path='+schema);
-    pool=new Pool({connectionString:url.toString(),ssl:{rejectUnauthorized:true}});
+    pool=new Pool({connectionString:url.toString(),ssl:require('../backend/database-ssl').databaseSsl()});
     await pool.query(fs.readFileSync(path.join(__dirname,'../database/schema.sql'),'utf8'));
     const hash=await argon2.hash('kernel-test-password');
     for(const role of ['admin','manager','storekeeper'])await pool.query('INSERT INTO users(username,password_hash,role) VALUES($1,$2,$1)',[role,hash]);

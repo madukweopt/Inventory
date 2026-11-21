@@ -44,7 +44,7 @@ async function login(agent,username,password) {
 test.before(async function() {
 	assert.ok(baseDatabaseUrl,'Set TEST_DATABASE_URL or DATABASE_URL before running tests');
 	const isolatedDatabaseUrl=unpooledDatabaseUrl(baseDatabaseUrl);
-	administrationPool=new Pool({ connectionString: isolatedDatabaseUrl,ssl: { rejectUnauthorized: true } });
+	administrationPool=new Pool({ connectionString: isolatedDatabaseUrl,ssl: require('../backend/database-ssl').databaseSsl() });
 	await administrationPool.query('CREATE SCHEMA "'+schemaName+'"');
 	const setupClient=await administrationPool.connect();
 	try {

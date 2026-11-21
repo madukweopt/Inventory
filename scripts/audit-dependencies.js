@@ -1,7 +1,7 @@
 // Read-only audit: prints counts and internal IDs, never customer details or credentials.
 require('dotenv').config({ quiet:true });
 const {Pool}=require('pg');
-const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true}});
+const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:require('../backend/database-ssl').databaseSsl()});
 const checks={
     orphan_authorisations:`SELECT wr.request_id,wr.request_type,wr.status FROM weighing_requests wr
         WHERE wr.status<>'Cancelled' AND wr.completed_record_id IS NOT NULL AND (

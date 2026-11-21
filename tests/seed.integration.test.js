@@ -9,9 +9,9 @@ let adminPool,pool,server;
 function urlForSchema(value,schema){const url=new URL(value);url.hostname=url.hostname.replace('-pooler','');if(schema)url.searchParams.set('options','-c search_path='+schema);return url.toString();}
 test.before(async()=>{
     const database=process.env.TEST_DATABASE_URL||process.env.DATABASE_URL;assert.ok(database);
-    adminPool=new Pool({connectionString:urlForSchema(database),ssl:{rejectUnauthorized:true}});
+    adminPool=new Pool({connectionString:urlForSchema(database),ssl:require('../backend/database-ssl').databaseSsl()});
     await adminPool.query('CREATE SCHEMA "'+schemaName+'"');
-    pool=new Pool({connectionString:urlForSchema(database,schemaName),ssl:{rejectUnauthorized:true}});
+    pool=new Pool({connectionString:urlForSchema(database,schemaName),ssl:require('../backend/database-ssl').databaseSsl()});
     await pool.query(fs.readFileSync(path.join(__dirname,'../database/schema.sql'),'utf8'));
     process.env.NODE_ENV='test';process.env.SESSION_SECRET='isolated-seed-test-session-secret';process.env.DATABASE_URL=urlForSchema(database,schemaName);
     server=require('../backend/server');

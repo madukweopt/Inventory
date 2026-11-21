@@ -5,7 +5,7 @@ const fs=require('fs');
 const os=require('os');
 const path=require('path');
 const {Pool}=require('pg');
-const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:{rejectUnauthorized:true}});
+const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:require('../backend/database-ssl').databaseSsl()});
 (async()=>{
     const client=await pool.connect();
     try {

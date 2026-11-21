@@ -41,3 +41,9 @@ Each file in `database/migrations` changes the database once (a new table or col
 - A database that already has tables but no list (set up before this, or by hand) is refused at start. If it is up to date, run `npm run migrate -- --baseline` once: it checks the database against `schema.sql` (every table, column and index) and only then records the files. The development database was baselined on 21 November 2026.
 
 Earlier notes in this README that say a migration was "already applied" describe how it was done by hand before this list existed.
+
+## Automatic test runs
+
+GitHub runs all the tests (`npm test`) every time code is pushed or a pull request is opened, using a fresh temporary database that is thrown away afterwards (`.github/workflows/tests.yml`). Each push shows a green tick when every test passed, or a red cross with the failing test named. If the app is deployed from GitHub (for example on Railway), turn on the host's option to deploy only commits whose checks passed.
+
+The temporary test database has no secure connection, so the test run sets `DATABASE_SSL=disable`. Everywhere else connections are always secure; that setting is refused when `NODE_ENV=production`.

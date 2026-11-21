@@ -20,7 +20,7 @@ async function emptySchemaPool() {
     const schema='inventory_test_'+crypto.randomBytes(6).toString('hex');
     await administration.query('CREATE SCHEMA "'+schema+'"');schemas.push(schema);
     const url=new URL(unpooled(baseDatabaseUrl));url.searchParams.set('options','-c search_path='+schema);
-    return new Pool({connectionString:url.toString(),ssl:{rejectUnauthorized:true},max:2});
+    return new Pool({connectionString:url.toString(),ssl:require('../backend/database-ssl').databaseSsl(),max:2});
 }
 // A copy of the real migration files plus any extra test files.
 function migrationDir(extra={}) {
@@ -33,7 +33,7 @@ const exists=async(pool,table)=>(await pool.query("SELECT to_regclass(current_sc
 
 test.before(async()=>{
     assert.ok(baseDatabaseUrl,'Set TEST_DATABASE_URL or DATABASE_URL before running tests');
-    administration=new Pool({connectionString:unpooled(baseDatabaseUrl),ssl:{rejectUnauthorized:true},max:1});
+    administration=new Pool({connectionString:unpooled(baseDatabaseUrl),ssl:require('../backend/database-ssl').databaseSsl(),max:1});
 });
 test.after(async()=>{
     for(const schema of schemas) await administration.query('DROP SCHEMA IF EXISTS "'+schema+'" CASCADE');
