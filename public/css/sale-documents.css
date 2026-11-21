@@ -223,3 +223,88 @@
     #sale-document .sale-doc-party>strong{margin:2px 0 4px}
     #sale-document .sale-print-customer .sale-doc-status{font-size:1rem}
 }
+
+/* Phone design from images/sales_details.png (screen only; the printed A4 copy above is unchanged). */
+@media screen{
+    /* Back link above a plain title. */
+    #sale-document .sale-document-heading{display:flex;flex-direction:column;gap:4px}
+    #sale-document .sale-document-heading>a{order:-1;align-self:flex-start;gap:8px;margin:0 0 10px;padding:4px 0;border:0;background:none;color:var(--sd-dark);font-size:1.05rem}
+    #sale-document .sale-document-heading>a .ui-icon svg{width:20px;height:20px;stroke-width:2.4}
+    #sale-document .sale-document-heading p{margin:4px 0 0;color:var(--sd-muted)}
+
+    /* Summary: amount remaining on the left, total paid and status on the right. */
+    #sale-document .sale-summary-card{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);overflow:hidden;border:1px solid #c7e0bb;border-radius:16px;background:#fff}
+    #sale-document .sale-summary-card:empty{display:none}
+    #sale-document .sale-summary-remaining{display:grid;align-content:center;gap:6px;padding:18px 20px;background:linear-gradient(110deg,#e7f4dc,#f4faef)}
+    #sale-document .sale-summary-paid{display:grid;align-content:center;justify-items:start;gap:6px;padding:14px 18px;border-left:1px solid #d6e6d0;background:linear-gradient(110deg,#f4faef,#fbfdf9)}
+    #sale-document .sale-summary-card span{font-size:.98rem;color:var(--sd-text)}
+    #sale-document .sale-summary-remaining strong{font-size:clamp(1.7rem,8.4vw,2.5rem);font-weight:900;line-height:1.1;color:var(--sd-text);overflow-wrap:anywhere}
+    #sale-document .sale-summary-paid>strong{font-size:clamp(1.2rem,5.4vw,1.5rem);font-weight:900;color:var(--sd-text)}
+    #sale-document .sale-summary-paid .sale-doc-status{padding:6px 12px;font-size:.95rem}
+
+    /* Record Payment full width, then a 2 x 2 grid of white buttons with the icon beside the label. */
+    #sale-document .sale-document-actions{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    #sale-document .sale-document-actions button,
+    #sale-document .sale-document-actions .open-delivery-note,
+    #sale-document .sale-document-actions #print-sale-document,
+    #sale-document .sale-document-actions:has(#record-sale-payment[hidden]) :is(#show-sale-invoice,#show-sale-statement){
+        grid-column:auto;flex-direction:row;justify-content:flex-start;gap:14px;min-height:58px;padding:10px 16px;
+        border:1px solid #cfd8d1;border-radius:12px;background:#fff;color:var(--sd-dark);font-size:1rem;white-space:nowrap}
+    #sale-document .sale-document-actions button .ui-icon svg{width:26px;height:26px;stroke:var(--sd-green)}
+    /* A long label such as Account Statement wraps inside its button on narrow phones instead of being cut off. */
+    #sale-document .sale-document-actions button{min-width:0;white-space:normal;text-align:left;line-height:1.2}
+    #sale-document .sale-document-actions button .ui-icon{flex:0 0 auto}
+    #sale-document .sale-document-actions #record-sale-payment{order:-1;grid-column:1/-1;justify-content:center;min-height:58px;border-color:var(--sd-dark);background:linear-gradient(135deg,var(--sd-dark),var(--sd-green));color:#fff;font-size:1.08rem}
+    #sale-document .sale-document-actions #record-sale-payment .ui-icon svg{stroke:#fff}
+    /* With no delivery note the print button takes the whole last row. */
+    #sale-document .sale-document-actions:not(:has(.open-delivery-note:not([hidden]))) #print-sale-document{grid-column:1/-1;justify-content:center}
+
+    /* Document card without the corner decoration. */
+    #sale-document .sale-document-panel{padding:0;background:none;box-shadow:none}
+    #sale-document .sale-doc-tabs{max-width:none}
+    #sale-document .sale-print-area{gap:14px;padding:18px 18px 18px}
+    #sale-document .sale-print-area::before,#sale-document .sale-payment-history::before{display:none}
+    #sale-document .sale-print-title{border-top-width:2px;border-bottom-width:2px}
+
+    /* Invoice and payment due dates side by side. */
+    #sale-document .sale-print-meta{grid-template-columns:repeat(2,minmax(0,1fr));border-bottom:0}
+
+    /* Item card. */
+    #sale-document .sale-item-card{display:grid;padding:4px 18px;border:1px solid var(--sd-line);border-radius:14px;background:#fff}
+    #sale-document .sale-item-row{display:grid;gap:10px;padding:10px 0}
+    #sale-document .sale-item-row+.sale-item-row{border-top:1px solid var(--sd-line)}
+    #sale-document .sale-item-top,#sale-document .sale-item-pair{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+    #sale-document .sale-item-row>div{display:grid;gap:2px;padding:0;border:0;background:none}
+    #sale-document .sale-item-pair>div+div{padding-left:16px;border-left:1px solid var(--sd-line)}
+    #sale-document .sale-item-amount{justify-items:end;text-align:right}
+    #sale-document .sale-print-area .sale-item-row span{font-size:.88rem;color:var(--sd-muted)}
+    #sale-document .sale-print-area .sale-item-row strong{margin:0;font-size:1.1rem;font-weight:800;color:var(--sd-text)}
+    #sale-document .sale-item-row small:empty{display:none}
+
+    /* Totals stacked: Total Paid, then Amount Remaining highlighted. */
+    #sale-document .sale-document-totals{grid-template-columns:1fr;border:1px solid #c7e0bb;background:#fff}
+    #sale-document .sale-document-totals>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 18px}
+    #sale-document .sale-document-totals>div+div{border-left:0;border-top:1px solid #d6e6d0}
+    #sale-document .sale-print-area .sale-document-totals span{font-size:1rem}
+    #sale-document .sale-print-area .sale-document-totals strong{font-size:1.1rem;font-weight:800;text-align:right}
+    #sale-document .sale-document-totals .is-balance{background:linear-gradient(110deg,#dff0cf,#eef7e6)}
+    #sale-document .sale-print-area .sale-document-totals .is-balance :is(span,strong){color:var(--sd-dark);font-weight:800}
+    #sale-document .sale-print-area .sale-document-totals .is-balance strong{font-size:clamp(1.25rem,5.6vw,1.6rem);font-weight:900}
+
+    /* Payment history: title with a count badge and a quiet empty state. */
+    #sale-document .sale-payment-history{border:1px solid var(--sd-line);box-shadow:none}
+    #sale-document .sale-payment-count{display:inline-grid;place-items:center;min-width:32px;height:32px;padding:0 8px;border-radius:16px;background:var(--sd-lime);color:var(--sd-dark);font-size:1rem;font-weight:800}
+    #sale-document .sale-payment-list .sale-doc-empty{display:grid;justify-items:center;gap:8px;padding:20px 16px;text-align:center;background:#f1f3f1}
+    #sale-document .sale-payment-list .sale-doc-empty .ui-icon{width:40px;height:40px}
+    #sale-document .sale-payment-list .sale-doc-empty .ui-icon svg{width:40px;height:40px;stroke:#5b6b62}
+}
+@media screen and (max-width:420px){
+    #sale-document .sale-summary-remaining{padding:16px 14px}
+    #sale-document .sale-summary-paid{padding:12px}
+    #sale-document .sale-document-actions button,
+    #sale-document .sale-document-actions .open-delivery-note,
+    #sale-document .sale-document-actions #print-sale-document{gap:8px;padding:10px 10px;font-size:.9rem}
+    #sale-document .sale-document-actions button .ui-icon svg{width:22px;height:22px}
+    #sale-document .sale-item-card{padding:2px 14px}
+}
+@media print{#sale-document .sale-summary-card{display:none!important}}

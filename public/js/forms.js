@@ -1875,8 +1875,7 @@ function showSaleInvoice() {
 	const dates=createDocumentText('div','sale-print-meta doc-screen-only');
 	dates.append(
 		withDocumentIcon(createCardValues('Invoice Date',formatDate(sale.sales_date)),'calendar'),
-		withDocumentIcon(createCardValues('Payment Due',dueDate),'calendar'),
-		documentStatusBadge(summary.status)
+		withDocumentIcon(createCardValues('Payment Due',dueDate),'calendar')
 	);
 	const basis=sale.billing_basis==='Customer'?'Customer’s agreed weight':'Factory weight';
 	const item=buildSaleDocumentTable(
@@ -1884,6 +1883,17 @@ function showSaleInvoice() {
 		[['1',sale.item,formatNumber(sale.quantity)+' kg',basis,'₦'+formatNumber(sale.unit_price),'₦'+formatNumber(summary.total)]],
 		true
 	);
+	item.classList.add('doc-print-only');
+	// On screen the item is a card: product and amount, quantity and unit price, then payment weight.
+	const itemCard=createDocumentText('div','sale-item-card doc-screen-only');
+	const itemTop=createDocumentText('div','sale-item-row sale-item-top');
+	const amount=createCardValues('Amount','₦'+formatNumber(summary.total));amount.classList.add('sale-item-amount');
+	itemTop.append(createCardValues('Product',sale.item),amount);
+	const itemPair=createDocumentText('div','sale-item-row sale-item-pair');
+	itemPair.append(createCardValues('Quantity',formatNumber(sale.quantity)+' kg'),createCardValues('Unit Price','₦'+formatNumber(sale.unit_price)));
+	const itemBasis=createDocumentText('div','sale-item-row');
+	itemBasis.append(createCardValues('Payment Weight',basis));
+	itemCard.append(itemTop,itemPair,itemBasis);
 	const terms=createDocumentText('div','sale-doc-terms doc-print-only');
 	const termList=document.createElement('ul');
 	['Payment due on or before '+dueDate+'.',
@@ -1901,7 +1911,7 @@ function showSaleInvoice() {
 	printArea.replaceChildren(
 		buildSaleDocumentHeading(data,'INVOICE',sale.invoice_number,[['Invoice No',sale.invoice_number],['Invoice Date',formatDate(sale.sales_date)],['Payment Due',dueDate]]),
 		buildSaleDocumentParty(data,'Customer','Bill To:',summary.status,false,'Status: '+summary.status),
-		dates,item,summaryRow,
+		dates,itemCard,item,summaryRow,
 		buildSaleDocumentSignoff([['Issued By'],['Authorised By']],false),
 		createDocumentText('p','sale-doc-thanks doc-print-only','Thank you for your business.')
 	);
@@ -2048,12 +2058,24 @@ function openPaymentReversalDialog(payment) {
 	dialog.showModal();
 }
 
+// The box under the page title: amount remaining, total paid and the payment status.
+function renderSaleSummaryCard(sale) {
+	const box=document.querySelector('#sale-document .sale-summary-card');
+	if(!box) return;
+	const summary=salePaymentSummary(sale);
+	const remaining=createDocumentText('div','sale-summary-remaining');
+	remaining.append(createDocumentText('span','','Amount Remaining'),createDocumentText('strong','','₦'+formatNumber(summary.remaining)));
+	const paid=createDocumentText('div','sale-summary-paid');
+	paid.append(createDocumentText('span','','Total Paid'),createDocumentText('strong','','₦'+formatNumber(summary.paid)),documentStatusBadge(summary.status));
+	box.replaceChildren(remaining,paid);
+}
+
 // Fetches and displays the selected sale, its invoice and payment history.
 async function loadSaleDocument() {
 	const saleId=new URLSearchParams(window.location.search).get('saleId');
 	if(!saleId) return;
 	const page=document.querySelector('#sale-document');
-    currentSaleDocumentData=null;page.querySelector('.sale-print-area').replaceChildren();
+    currentSaleDocumentData=null;page.querySelector('.sale-print-area').replaceChildren();page.querySelector('.sale-summary-card').replaceChildren();
 	const response=await fetch('/api/sales/'+saleId+'/invoice');
     if(response.status===409){window.openDeliveryNote(saleId);return;}
 	const data=await response.json();
@@ -2062,11 +2084,17 @@ async function loadSaleDocument() {
 		return;
 	}
 	currentSaleDocumentData=data;
+	renderSaleSummaryCard(data.sale);
 	const role=document.documentElement.dataset.userRole;
 	page.querySelector('#record-sale-payment').hidden=role==='storekeeper';
 	const paymentList=page.querySelector('.sale-payment-list');
 	paymentList.replaceChildren();
-	if(data.payments.length===0) paymentList.append(createDocumentText('p','sale-doc-empty','No payments have been recorded.'));
+	if(data.payments.length===0) paymentList.append(withDocumentIcon(createDocumentText('p','sale-doc-empty','No payments have been recorded.'),'card'));
+	// The number of payments sits beside the Payment History title.
+	const historyTitle=page.querySelector('.sale-payment-history h2');
+	let paymentCount=historyTitle.querySelector('.sale-payment-count');
+	if(!paymentCount) { paymentCount=createDocumentText('span','sale-payment-count','');historyTitle.append(paymentCount); }
+	paymentCount.textContent=String(data.payments.length);
 	data.payments.forEach(function(payment,index) {
 		const row=createDocumentText('div','sale-payment-row'+(payment.reversed_at?' is-reversed':''));
 		row.append(
