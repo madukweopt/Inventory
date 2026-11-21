@@ -47,3 +47,12 @@ Earlier notes in this README that say a migration was "already applied" describe
 GitHub runs all the tests (`npm test`) every time code is pushed or a pull request is opened, using a fresh temporary database that is thrown away afterwards (`.github/workflows/tests.yml`). Each push shows a green tick when every test passed, or a red cross with the failing test named. If the app is deployed from GitHub (for example on Railway), turn on the host's option to deploy only commits whose checks passed.
 
 The temporary test database has no secure connection, so the test run sets `DATABASE_SSL=disable`. Everywhere else connections are always secure; that setting is refused when `NODE_ENV=production`.
+
+## Moving to the live database (carry-over)
+
+The development database holds test records alongside real ones. Only the real records go to the live database: login accounts (with their current passwords), the basic items, other partners with their jobs and payments, capital assets, and the start-up and prepaid expenses shown on Assets and Start-up Costs. Test sales, purchases, production, stock, customers, suppliers, employees, prices and the demo company details stay behind.
+
+1. `npm run carry-over -- export` writes `carry-over/carry-over-data.json` from the development database. The file holds password hashes and business records: keep it private (Git ignores the folder).
+2. Create the new, empty live database and start the server against it once; it builds all the tables.
+3. `TARGET_DATABASE_URL=<live database URL> npm run carry-over -- import --confirm-database <live database name> --dry-run` checks everything and shows the counts without keeping anything; run it again without `--dry-run` to copy. The import keeps record numbers (so jobs, payments and assets stay linked), runs all or nothing, and refuses a database that is not set up, already has these records, is the development database, or is not named in `--confirm-database`.
+4. Sign in as the Director, enter the real company details on Company Details and the current prices on Prices.
