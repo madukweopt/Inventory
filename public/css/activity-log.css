@@ -1,0 +1,16 @@
+/* Activity Log: filters, then one card per action, newest first. */
+#activity-log .activity-log-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 14px}
+#activity-log .activity-log-filters label{display:grid;gap:4px;font-size:.85rem;font-weight:700;color:#425b4c}
+#activity-log .activity-log-filters :is(select,input){width:100%;min-width:0;margin:0}
+#activity-log .activity-log-list{display:grid;gap:10px}
+#activity-log .activity-log-item{display:grid;gap:4px;padding:10px 12px;border:1px solid #dde6e0;border-left:4px solid #1d6b34;border-radius:10px;background:#fff}
+#activity-log .activity-log-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+#activity-log .activity-log-action{color:#1b2a20;font-size:1rem}
+#activity-log .activity-log-when{color:#607167;font-size:.85rem;white-space:nowrap}
+#activity-log .activity-log-who{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0;font-size:.9rem;color:#2f4437}
+#activity-log .activity-log-person{font-weight:700}
+#activity-log .activity-log-switched{padding:2px 8px;border-radius:6px;background:#ffe98a;color:#5c4700;font-size:.8rem;font-weight:700}
+#activity-log .activity-log-record{margin:0;font-size:.85rem;color:#607167}
+#activity-log .activity-log-empty{padding:14px;border-radius:10px;background:#f1f5f0}
+#activity-log #activity-log-more{margin-top:12px}
+@media(max-width:600px){#activity-log .activity-log-filters{grid-template-columns:repeat(2,minmax(0,1fr))}}

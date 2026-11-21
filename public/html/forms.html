@@ -6,6 +6,14 @@
         <title>Forms and Records</title>
         <link rel="stylesheet" href="/css/navigation.css" />
         <link rel="stylesheet" href="/css/app.css" />
+        <link rel="stylesheet" href="/css/theme.css" />
+        <link rel="stylesheet" href="/css/data-pages.css" />
+        <link rel="stylesheet" href="/css/record-references.css" />
+        <link rel="stylesheet" href="/css/workspace-references.css" />
+        <link rel="stylesheet" href="/css/delivery-notes.css" />
+        <link rel="stylesheet" href="/css/sale-documents.css" />
+        <link rel="stylesheet" href="/css/partners.css" />
+        <link rel="stylesheet" href="/css/activity-log.css" />
     </head>
     <body>
         <nav class="main-menu">
@@ -54,6 +62,8 @@
 
                 <div class="submenu-two">
                     <a href="/forms.html#inventory-data">Inventory Data </a>
+                    <a href="/forms.html#stock-history">Stock Change History</a>
+                    <a href="/forms.html#activity-log">Activity Log</a>
                     <a href="/forms.html#purchases-data">Purchases Data </a>
                     <a href="/forms.html#sales-data">Sales Data </a>
                     <a href="/forms.html#production-data">Production Data</a>
@@ -85,6 +95,22 @@
                     Suppliers
                 </button>
 
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="partners-button"
+                >
+                    Other Partners
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="assets-button"
+                >
+                    Assets and Start-up Costs
+                </button>
+
                 <p class="nav-label">System</p>
                 <button type="button" class="submenu-button">
                     Notification
@@ -99,6 +125,13 @@
                 >
                     Prices
                 </button>
+
+                <button type="button" class="submenu-button" id="weighing-tasks-button">
+                    <span>Pending Weighing</span>
+                    <span class="pending-weighing-badge" hidden>0</span>
+                </button>
+                <button type="button" class="submenu-button" id="consumable-usage-button" hidden>Daily Usage</button>
+                <button type="button" class="submenu-button" id="sops-button">SOPs</button>
 
                 <button
                     type="button"
@@ -155,45 +188,58 @@
                         </select>
                     </div>
 
-                    <div class="field-row">
-                        <div class="field">
-                            <label for="received">
-                                Received (<span class="inventory-entry-unit"
-                                    >kg</span
-                                >)
-                            </label>
-                            <input
-                                type="number"
-                                id="received"
-                                name="received"
-                                min="0"
-                                step="0.01"
-								inputmode="decimal"
-                                placeholder="0"
-                                required
-                            />
-                        </div>
+                    <div class="field">
+                        <label for="stock-reason">Reason for change</label>
+                        <select id="stock-reason" name="stock-reason" required>
+                            <option value="" disabled selected>
+                                Select a reason
+                            </option>
+                            <option>Spill</option>
+                            <option>Disposal</option>
+                            <option>Count difference</option>
+                            <option>Return to store</option>
+                            <option>Other</option>
+                        </select>
+                    </div>
 
-                        <div class="field">
-                            <label for="issued">
-                                Issued (<span class="inventory-entry-unit"
-                                    >kg</span
-                                >)
-                            </label>
-                            <input
-                                type="number"
-                                id="issued"
-                                name="issued"
-                                min="0"
-                                step="0.01"
-								inputmode="decimal"
-                                placeholder="0"
-                                required
-                            />
-                        </div>
+                    <fieldset class="field stock-direction">
+                        <legend>Change</legend>
+                        <label><input type="radio" name="stock-direction" id="stock-remove" value="remove" required /> Remove from stock</label>
+                        <label><input type="radio" name="stock-direction" id="stock-add" value="add" /> Add to stock</label>
+                        <small id="stock-direction-help">Remove when stock is short, spilt or thrown away. Add when the count finds more than the app shows.</small>
+                    </fieldset>
+
+                    <div class="field">
+                        <label for="stock-quantity">
+                            Quantity (<span class="inventory-entry-unit">kg</span>)
+                        </label>
+                        <input
+                            type="number"
+                            id="stock-quantity"
+                            name="quantity"
+                            min="0.01"
+                            step="0.01"
+                            inputmode="decimal"
+                            placeholder="0"
+                            required
+                        />
+                        <small>Enter only the difference, not the counted total.</small>
                     </div>
 
                     <button type="submit">Submit Inventory</button>
+                </form>
+            </section>
+
+            <section class="card" id="consumable-usage">
+                <h2>Daily Consumable Usage</h2>
+                <p class="form-description">Record the electricity, diesel or other consumables actually used. This reduces stock and updates the day's closing balance.</p>
+                <form id="consumable-usage-form">
+                    <div class="field"><label for="usage-date">Date used</label><input id="usage-date" type="date" required /></div>
+                    <div class="field"><label for="usage-item">Consumable</label><select id="usage-item" required><option value="" disabled selected>Select a consumable</option></select></div>
+                    <div class="field"><label for="usage-quantity">Quantity used (<span id="usage-unit">select an item</span>)</label><input id="usage-quantity" type="number" min="0.01" step="0.01" inputmode="decimal" required /></div>
+                    <p class="form-description">Record each quantity once. Purchases are received through Pending Weighing.</p>
+                    <button type="submit">Save Daily Usage</button>
+                    <a href="/forms.html#inventory-data">View daily inventory balances</a>
                 </form>
             </section>
 
@@ -216,14 +262,9 @@
                     <div class="field">
                         <label for="expense-category">Category</label>
                         <select id="expense-category" name="category" required>
-                            <option value="" disabled selected>
-                                Select a category
-                            </option>
-                            <option value="Expenses">Expenses</option>
-                            <option value="Asset/Capital Expenditure">
-                                Asset/Capital Expenditure
-                            </option>
+                            <option value="Expenses" selected>Running expenses</option>
                         </select>
+                        <small>Machines, tanks and other things the company owns go in Assets and Start-up Costs. Work paid through Other Partners is added here automatically.</small>
                     </div>
 
                     <div class="field">
@@ -234,6 +275,9 @@
                             rows="2"
                             required
                         ></textarea>
+                        <p class="expense-energy-warning" id="expense-energy-warning" role="alert" hidden>
+                            Diesel and electricity are not expenses. Buy them with a purchase authorisation and <strong>Confirm Receipt</strong>, and record what is used in <strong>Daily Usage</strong>. Their cost is already in production cost, so entering it here counts it twice.
+                        </p>
                     </div>
 
                     <div class="field">
@@ -252,10 +296,10 @@
                 </form>
             </section>
 
-            <section class="card">
+            <section class="card manager-authorisation-card">
                 <h2>Production Report</h2>
                 <p class="form-description">
-                    Provide details of the day's production
+                    Authorise the production date and working time. The Storekeeper will enter all weighed quantities.
                 </p>
                 <form id="production-form">
                     <div class="field">
@@ -276,8 +320,8 @@
                                 id="kernel-used"
                                 name="kernel-used"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -288,8 +332,8 @@
                                 id="oil-produced"
                                 name="oil-produced"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
                     </div>
@@ -302,8 +346,8 @@
                                 id="pkc-produced"
                                 name="pkc-produced"
                                 min="0"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -315,12 +359,20 @@
                                 type="text"
                                 id="production-hours"
                                 name="production-hours"
-                                inputmode="numeric"
-                                pattern="[0-9]+:[0-5][0-9]"
-                                placeholder="HH:MM"
+                                placeholder="00:30"
+                                pattern="[0-9]{2}:[0-5][0-9]"
+                                title="Enter hours and minutes, for example 00:30 or 08:50"
+                                aria-describedby="production-hours-help"
                                 required
                             />
+                            <small id="production-hours-help">Hours:minutes — 00:30 means 30 minutes; 08:30 means 8 hours 30 minutes.</small>
                         </div>
+                    </div>
+
+                    <div class="field">
+                        <label for="sludge-produced">Sludge Produced (kg)</label>
+                        <input type="number" id="sludge-produced" min="0" step="0.01"
+                            placeholder="Entered by Storekeeper" readonly />
                     </div>
 
                     <div class="field">
@@ -329,22 +381,23 @@
                             type="text"
                             id="down-time"
                             name="down-time"
-                            inputmode="numeric"
-                            pattern="[0-9]+:[0-5][0-9]"
-                            placeholder="HH:MM"
+                            placeholder="00:50"
+                            pattern="[0-9]{2}:[0-5][0-9]"
+                            title="Enter hours and minutes, for example 00:00 or 00:50"
+                            aria-describedby="down-time-help"
                             required
                         />
+                        <small id="down-time-help">Hours:minutes — enter 00:00 for no downtime, or 00:50 for 50 minutes.</small>
                     </div>
 
-                    <button type="submit">Submit Production</button>
+                    <button type="submit">Authorise Production</button>
                 </form>
             </section>
 
-            <section class="card">
+            <section class="card manager-authorisation-card">
                 <h2>Inventory Purchases</h2>
                 <p class="form-description">
-                    Record details of inventory purchases. Fill this form for
-                    each purchase.
+                    Authorise the supplier, material and cost. The Storekeeper will enter the received quantity.
                 </p>
                 <form id="purchases-form">
                     <div class="field">
@@ -379,10 +432,25 @@
                         </select>
                     </div>
 
+                    <div class="field" id="purchase-ordered-field">
+                        <label for="purchase-ordered-quantity">Quantity ordered (<span class="purchase-entry-unit">kg</span>)</label>
+                        <input
+                            type="number"
+                            id="purchase-ordered-quantity"
+                            name="ordered_quantity"
+                            min="0.01"
+                            step="0.01"
+                            inputmode="decimal"
+                            placeholder="What was agreed with the supplier"
+                            required
+                        />
+                        <small>The Storekeeper sees this when the goods arrive. She records the actual weighed quantity at receipt.</small>
+                    </div>
+
                     <div class="field-row">
                         <div class="field">
                             <label for="quantity-supplied"
-                                >Quantity Supplied (<span
+                                >Quantity Supplied by Storekeeper (<span
                                     class="purchase-entry-unit"
                                     >kg</span
                                 >)</label
@@ -393,8 +461,8 @@
                                 name="quantity-supplied"
                                 min="0"
                                 step="0.01"
-                                placeholder="0"
-                                required
+                                placeholder="Entered by Storekeeper"
+                                readonly
                             />
                         </div>
 
@@ -416,15 +484,14 @@
                         </div>
                     </div>
 
-                    <button type="submit">Submit Purchase</button>
+                    <button type="submit">Authorise Purchase</button>
                 </form>
             </section>
 
-            <section class="card">
+            <section class="card manager-authorisation-card">
                 <h2>Sales Report</h2>
                 <p class="form-description">
-                    Record details of sales transactions. Fill this form for
-                    each product sold.
+                    Authorise the customer and product. The Storekeeper will enter the dispatched quantity.
                 </p>
                 <form id="sales-form">
                     <div class="field">
@@ -454,37 +521,56 @@
                         </select>
                     </div>
 
-                    <div class="field-row">
+                    <div id="manager-sale-price" class="manager-sale-price" aria-live="polite">
+                        <span>Selected product price</span>
+                        <strong>—</strong>
+                        <small>Select the sales date and product.</small>
+                    </div>
+
+                    <div class="field" id="sales-ordered-field">
+                        <label for="sales-ordered-quantity">Quantity ordered (<span class="sales-ordered-unit">kg</span>)</label>
+                        <input
+                            type="number"
+                            id="sales-ordered-quantity"
+                            name="ordered_quantity"
+                            min="0.01"
+                            step="0.01"
+                            inputmode="decimal"
+                            placeholder="What the customer asked for"
+                            required
+                        />
+                        <small>The Storekeeper sees this when loading. She records the actual weighed quantity at dispatch.</small>
+                    </div>
+
+                    <div class="field-row sales-storekeeper-quantity">
                         <div class="field">
-                            <label for="sales-quantity">Quantity (kg)</label>
+                            <label for="sales-quantity">Quantity Issued (kg)</label>
                             <input
                                 type="number"
                                 id="sales-quantity"
                                 name="quantity"
                                 min="0"
-                                placeholder="0"
-                                required
-                            />
-                        </div>
-
-                        <div class="field">
-                            <label for="unit-price">Unit Price (₦/kg)</label>
-                            <input
-                                type="number"
-                                id="unit-price"
-                                name="unit-price"
-                                min="0"
-                                placeholder="0"
+                                placeholder="To be entered by Storekeeper"
                                 readonly
-                                required
                             />
-                            <small id="sales-price-message">
-                                Select a sales date and product to load its price.
-                            </small>
                         </div>
                     </div>
 
-                    <button type="submit">Submit Sale</button>
+                    <div class="field"><label for="sales-billing-basis">Payment weight</label><select id="sales-billing-basis" required><option value="Factory">Factory weight</option><option value="Customer">Customer’s agreed weight</option></select></div>
+                    <div class="field"><label for="sales-representative">Accompanying representative</label><select id="sales-representative" required><option value="">Loading representatives…</option></select><small>The Director can assign another approved staff member. The Manager accompanies their own deliveries.</small></div>
+                    <input type="hidden" id="unit-price" name="unit-price" />
+                    <small id="sales-price-message" hidden>
+                        Select a sales date and product to load its price.
+                    </small>
+
+                    <div class="field" id="sales-correction-field" hidden>
+                        <label for="sales-correction-price">Unit price (₦)</label>
+                        <input type="number" id="sales-correction-price" min="0.01" step="0.01" inputmode="decimal" />
+                        <label for="sales-correction-reason">Reason for correction</label>
+                        <textarea id="sales-correction-reason" name="sales-correction-reason" maxlength="300"></textarea>
+                    </div>
+
+                    <button type="submit">Authorise Sale</button>
                 </form>
             </section>
 
@@ -543,24 +629,66 @@
                     </button>
                 </div>
             </section>
+            <section class="card" id="delivery-note">
+                <a class="delivery-close-x" href="/forms.html#sales-data" aria-label="Close and go back to Sales" title="Close"></a>
+                <div class="delivery-note-toolbar"><h1>Delivery Note</h1><button type="button" id="print-delivery-note">Print / Save PDF</button></div>
+                <p id="delivery-note-message" role="status"></p>
+                <article id="delivery-note-document"></article>
+                <div id="delivery-note-controls"></div>
+            </section>
 			<section class="card sale-document-page" id="sale-document">
 				<div class="sale-document-heading">
 					<div><h1>Sale and Payments</h1><p>View the invoice, record payments and open individual receipts.</p></div>
 					<a href="/forms.html#sales-data">Back to Sales</a>
 				</div>
+				<div class="sale-summary-card" aria-live="polite"></div>
 				<div class="sale-document-actions">
 					<button type="button" id="show-sale-invoice">Invoice</button>
-					<button type="button" id="show-sale-statement">Account Statement</button>
 					<button type="button" id="record-sale-payment">Record Payment</button>
+					<button type="button" id="show-sale-statement">Account Statement</button>
 					<button type="button" id="print-sale-document">Print / Save PDF</button>
 				</div>
 				<p class="sale-document-message"></p>
-				<section class="sale-print-area"></section>
+				<section class="sale-document-panel">
+					<div class="sale-doc-tabs" role="group" aria-label="Document">
+						<button type="button" id="sale-tab-invoice" data-document="invoice">Invoice</button>
+						<button type="button" id="sale-tab-receipt" data-document="receipt">Receipt</button>
+					</div>
+					<section class="sale-print-area"></section>
+				</section>
 				<section class="sale-payment-history">
 					<h2>Payment History</h2>
 					<div class="sale-payment-list"></div>
 				</section>
 			</section>
+
+            <section class="card" id="activity-log">
+                <h2>Activity Log</h2>
+                <p class="form-description">Every save, edit and delete made in the app, and every sign-in: who really did it, which account was in use, and when. Nothing here can be changed.</p>
+                <div class="activity-log-filters">
+                    <label>Person<select id="activity-log-person"><option value="">Everyone</option></select></label>
+                    <label>Record type<select id="activity-log-type"><option value="">All types</option></select></label>
+                    <label>From<input type="date" id="activity-log-from"></label>
+                    <label>To<input type="date" id="activity-log-to"></label>
+                </div>
+                <div id="activity-log-list" class="activity-log-list" aria-live="polite"></div>
+                <button type="button" id="activity-log-more" hidden>Load more</button>
+            </section>
+
+            <section class="card" id="stock-history">
+                <h2>Stock Change History</h2>
+                <p class="form-description">Every manual stock change, and every edit or deletion of one, with who made it and when. Nothing here can be changed.</p>
+                <label class="stock-history-filter">Show
+                    <select id="stock-history-filter">
+                        <option value="">All changes</option>
+                        <option value="Created">Created</option>
+                        <option value="Edited">Edited</option>
+                        <option value="Deleted">Deleted</option>
+                    </select>
+                </label>
+                <div id="stock-history-list" class="stock-history-list" aria-live="polite"></div>
+                <button type="button" id="stock-history-more" hidden>Load more</button>
+            </section>
 
             <section class="card" id="inventory-data">
                 <table class="data-table-view">
@@ -578,6 +706,7 @@
                 </table>
                 <div
                     class="data-card-view data-record-page inventory-record-page"
+                    id="inventory-card-view"
                 >
                     <h2>INVENTORY RECORD</h2>
                     <div class="data-filters inventory-filters">
@@ -695,6 +824,7 @@
                             <th>Kernel Used (kg)</th>
                             <th>PKO-produced (kg)</th>
                             <th>PKC Produced (kg)</th>
+                            <th>Sludge Produced (kg)</th>
                             <th>PKO yield</th>
                             <th>PKC yield</th>
                             <th>Production Hours</th>
@@ -708,8 +838,8 @@
                     id="production-card-view"
                 >
                     <h2>PRODUCTION RECORD</h2>
-                    <div class="data-filters no-item-filter">
-                        <div class="data-date-filter">
+                    <div class="data-filters inventory-filters no-item-filter">
+                        <div class="data-date-filter inventory-date-filter">
                             <input
                                 type="date"
                                 id="production-date-from"
@@ -723,7 +853,7 @@
                             />
                         </div>
                     </div>
-                    <div class="data-list-heading">
+                    <div class="data-list-heading inventory-list-heading">
                         <span id="production-record-count"></span>
                         <select class="data-sort" id="production-sort">
                             <option value="newest">Newest first</option>
@@ -769,9 +899,6 @@
                         >
                             <option value="">All Categories</option>
                             <option value="Expenses">Expenses</option>
-                            <option value="Asset/Capital Expenditure">
-                                Asset/Capital Expenditure
-                            </option>
                         </select>
                         <div class="data-date-filter inventory-date-filter">
                             <input
@@ -936,6 +1063,97 @@
                     <button type="button" id="cancel-button">Cancel</button>
                     <button type="submit" id="submit-button">Submit</button>
                 </form>
+            </section>
+            <section id="other-partners" class="card">
+                <div class="header">
+                    <h1>Other Partners</h1>
+                    <button id="add-partner">+ Add Partner</button>
+                    <p>Fabricators, installers, equipment dealers and repairers, their jobs and what we have paid them.</p>
+                </div>
+                <div>
+                    <input
+                        type="search"
+                        id="partner-search"
+                        placeholder=" Search by name"
+                    />
+                </div>
+                <div>
+                    <label for="sort-partners">Sort by:</label>
+                    <select id="sort-partners">
+                        <option value="">Name</option>
+                        <option value="">Oldest</option>
+                        <option value="">Most Recent</option>
+                        <option value="">Highest Value</option>
+                    </select>
+                </div>
+                <div class="partner-cards"></div>
+            </section>
+            <section id="partner-addition" class="card">
+                <h2>Add Partner</h2>
+                <p>Record a welder, fabricator, electrician, dealer or other partner.</p>
+                <form id="partner-form">
+                    <label for="partner-name">Partner Name</label>
+                    <input type="text" id="partner-name" name="name" required maxlength="150" placeholder="Enter partner or company name" />
+                    <label for="partner-phone">Phone Number</label>
+                    <input type="tel" id="partner-phone" name="phone" placeholder="Enter phone number" />
+                    <label for="partner-address">Address/Location</label>
+                    <input type="text" id="partner-address" name="address" placeholder="Enter address" />
+                    <label for="partner-email">Email Address</label>
+                    <input type="email" id="partner-email" name="email" placeholder="Email address" />
+                    <label for="partner-work">Type of Work</label>
+                    <input type="text" id="partner-work" name="work_type" placeholder="For example: welding and fabrication" />
+                    <label for="partner-note">Note (Optional)</label>
+                    <input type="text" id="partner-note" name="note" placeholder="Add any other note about this partner" />
+                    <button type="button" class="partner-cancel" id="cancel-button">Cancel</button>
+                    <button type="submit" id="submit-button">Submit</button>
+                </form>
+            </section>
+            <section id="capital-assets" class="card">
+                <div class="header">
+                    <h1>Assets and Start-up Costs</h1>
+                    <button id="add-asset">+ Add Asset</button>
+                    <p>What the company owns and what it cost to set up before production. Assets do not reduce profit.</p>
+                </div>
+                <div class="asset-tabs" role="tablist" aria-label="Show">
+                    <button type="button" role="tab" data-asset-tab="summary" aria-selected="true">Summary</button>
+                    <button type="button" role="tab" data-asset-tab="assets" aria-selected="false">Assets</button>
+                    <button type="button" role="tab" data-asset-tab="startup" aria-selected="false">Start-up Costs</button>
+                    <button type="button" role="tab" data-asset-tab="prepaid" aria-selected="false">Prepaid Costs</button>
+                </div>
+                <div class="asset-tab-panel" data-asset-panel="summary" role="tabpanel">
+                <div class="asset-summary"></div>
+                <div class="asset-breakdown"></div>
+                </div>
+                <div class="asset-tab-panel" data-asset-panel="assets" role="tabpanel" hidden>
+                <div class="asset-section-heading">
+                    <h2 class="asset-section-title">Assets</h2>
+                    <button type="button" class="asset-search-toggle" aria-label="Search assets" aria-expanded="false"></button>
+                </div>
+                <input type="search" class="asset-search" placeholder="Search by asset, type or where it came from" aria-label="Search assets" hidden />
+                <div class="asset-cards"></div>
+                </div>
+                <section class="startup-panel asset-tab-panel" data-asset-panel="startup" role="tabpanel" hidden>
+                    <div class="startup-panel-heading">
+                        <span class="startup-panel-icon"></span>
+                        <div>
+                            <h2 class="asset-section-title">Start-up Costs</h2>
+                            <p class="asset-section-help">Expenses from before production, such as rent during installation.</p>
+                        </div>
+                    </div>
+                    <button type="button" id="add-startup-cost">+ Add Start-up Cost</button>
+                    <div class="startup-cards"></div>
+                </section>
+                <section class="startup-panel prepaid-panel asset-tab-panel" data-asset-panel="prepaid" role="tabpanel" hidden>
+                    <div class="startup-panel-heading">
+                        <span class="startup-panel-icon"></span>
+                        <div>
+                            <h2 class="asset-section-title">Prepaid Costs</h2>
+                            <p class="asset-section-help">Rent, insurance or a yearly licence paid in advance after production started. The dashboard counts an equal share each day, like salaries.</p>
+                        </div>
+                    </div>
+                    <button type="button" id="add-prepaid-expense">+ Add Prepaid Cost</button>
+                    <div id="prepaid-expense-list" class="prepaid-list" aria-live="polite"></div>
+                </section>
             </section>
             <section id="employee-addition" class="card">
                 <h2>Add Employee</h2>
@@ -1193,9 +1411,38 @@
                     </div>
                 </form>
             </section>
+            <section id="weighing-tasks" class="card weighing-tasks-page">
+                <div class="weighing-tasks-heading">
+                    <div>
+                        <h1>Pending Weighing</h1>
+                        <p>Complete quantities for activities already authorised by the Manager.</p>
+                    </div>
+                    <button type="button" id="refresh-weighing-tasks">Refresh</button>
+                </div>
+                <p class="weighing-tasks-message" role="status"></p>
+                <div class="weighing-task-list"></div>
+            </section>
         </main>
+        <script src="/js/ui.js"></script>
         <script src="/js/debug-tools.js"></script>
         <script src="/js/navigation.js"></script>
+        <script src="/js/kernel-impurity.js"></script>
+        <script src="/js/record-references.js"></script>
+        <script src="/js/workspace-references.js"></script>
         <script src="/js/forms.js"></script>
+        <script src="/js/prices.js"></script>
+        <script src="/js/company.js"></script>
+        <script src="/js/sale-document.js"></script>
+        <script src="/js/data-lists.js"></script>
+        <script src="/js/customers-suppliers.js"></script>
+        <script src="/js/employees.js"></script>
+        <script src="/js/pending-weighing.js"></script>
+        <script src="/js/consumable-usage.js"></script>
+        <script src="/js/delivery-notes.js"></script>
+        <script src="/js/partners.js"></script>
+        <script src="/js/stock-history.js"></script>
+        <script src="/js/activity-log.js"></script>
+        <script src="/js/data-pages.js"></script>
+        <script src="/js/date-filters.js"></script>
     </body>
 </html>

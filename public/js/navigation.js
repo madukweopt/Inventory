@@ -10,10 +10,16 @@ const secondBtn=document.querySelector(".second");
 const logoutBtn=document.querySelector('.nav-logout');
 const customersBtn=document.querySelector('#customers-button');
 const suppliersBtn=document.querySelector('#suppliers-button');
+const partnersBtn=document.querySelector('#partners-button');
+const assetsBtn=document.querySelector('#assets-button');
 const employeesBtn=document.querySelector('#employees-button');
 const companyDetailsBtn=document.querySelector('#company-details-button');
 const pricesBtn=document.querySelector('#prices-button');
+const weighingTasksBtn=document.querySelector('#weighing-tasks-button');
+const pendingWeighingBadge=document.querySelector('.pending-weighing-badge');
 const manageUsersBtn=document.querySelector('#manage-users-button');
+const sopsBtn=document.querySelector('#sops-button');
+if(sopsBtn) sopsBtn.addEventListener('click',()=>{window.location.href='/sops.html';});
 const switchAccountBtn=document.createElement('button');
 switchAccountBtn.type='button';
 switchAccountBtn.classList.add('submenu-button');
@@ -24,6 +30,30 @@ if(manageUsersBtn) {
 	manageUsersBtn.insertAdjacentElement('afterend',switchAccountBtn);
 }
 let currentUser=null;
+let pendingBadgeTimer=null;
+
+// Loads the number of activities still waiting for Storekeeper quantities.
+async function refreshPendingWeighingBadge() {
+	if(!pendingWeighingBadge) return;
+	try {
+		const response=await fetch('/api/weighing-requests');
+		if(!response.ok) throw new Error('Could not load pending weighing count');
+		const requests=await response.json();
+        const deliveries=await fetch('/api/delivery-notes/pending');
+        if(!deliveries.ok)throw new Error('Could not load pending deliveries');
+        const jobs=new Set(requests.map(row=>'request:'+row.request_id));
+        for(const row of await deliveries.json())jobs.add(row.request_id?'request:'+row.request_id:'delivery:'+row.sales_id);
+        const count=jobs.size;
+        pendingWeighingBadge.textContent=String(count);
+        pendingWeighingBadge.hidden=count===0;
+        weighingTasksBtn.setAttribute('aria-label','Pending Weighing, '+count+' waiting');
+	} catch(error) {
+		console.error(error);
+		pendingWeighingBadge.hidden=true;
+	}
+}
+
+window.refreshPendingWeighingBadge=refreshPendingWeighingBadge;
 
 // Shows only the navigation choices and dashboard sections allowed for the signed-in role.
 function applyRoleVisibility(user) {
@@ -36,10 +66,14 @@ function applyRoleVisibility(user) {
 		});
 	};
 
-	hide('a[href$="#inventory-form"]',role==='manager');
+	hide('a[href$="#inventory-form"]',role!=='admin');
+    hide('#consumable-usage-button',!['admin','storekeeper'].includes(role));
 	hide('a[href$="#inventory-data"]',role==='manager');
+	hide('a[href$="#stock-history"], a[href$="#activity-log"]',role!=='admin');
 	hide('a[href$="#purchases-form"], a[href$="#sales-form"], a[href$="#production-form"], a[href$="#expenses-form"]',role==='storekeeper');
+	hide('.first',role==='storekeeper');
 	hide('#employees-button',role==='storekeeper');
+	hide('#partners-button, #assets-button',role==='storekeeper');
 	hide('#manage-users-button',role!=='admin');
 	hide('#production-panel, #sales-panel',role==='storekeeper');
 	hide('#profit-panel',role!=='admin');
@@ -97,7 +131,73 @@ if(secondBtn) {
 	secondBtn.addEventListener("click",displayData);
 }
 
-const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #employees-button, #company-details-button, #prices-button");
+// After a report form is saved and cleared, go back to the top and open the navigation panel with the
+// Forms list expanded, so the next form can be chosen straight away.
+// Closing a Data page does the same with the Data list expanded.
+function openNavSection(section) {
+	window.scrollTo({top:0,behavior:'smooth'});
+	if(!submenuAndBtn) return;
+	submenuAndBtn.classList.add('show');
+	const [button,list]=section==='data'?[secondBtn,submenuTwo]:[firstBtn,submenuOne];
+	// Only the list asked for is open.
+	const [otherButton,otherList]=section==='data'?[firstBtn,submenuOne]:[secondBtn,submenuTwo];
+	if(otherButton) otherButton.classList.remove('show');
+	if(otherList) otherList.classList.remove('show');
+	if(button&&!button.hidden&&list) {
+		button.classList.add('show');
+		list.classList.add('show');
+	}
+}
+function openFormsMenu() { openNavSection('forms'); }
+window.openFormsMenu=openFormsMenu;
+window.openDataMenu=function() { openNavSection('data'); };
+
+// The app pages visited in this tab, so closing a form or Data page can return to the page that was open before it.
+const pageTrailKey='pageTrail';
+const currentPageAddress=()=>location.pathname+location.search+location.hash;
+function readPageTrail() { try { return JSON.parse(sessionStorage.getItem(pageTrailKey)||'[]'); } catch(error) { return []; } }
+function rememberPage() {
+	const trail=readPageTrail();
+	if(trail[trail.length-1]===currentPageAddress()) return;
+	trail.push(currentPageAddress());
+	try { sessionStorage.setItem(pageTrailKey,JSON.stringify(trail.slice(-30))); } catch(error) {}
+}
+// Opens the menu section asked for by the ✕ on the page just closed.
+function openRequestedNavSection() {
+	try {
+		const request=JSON.parse(sessionStorage.getItem('openNavSection')||'null');
+		if(!request) return;
+		sessionStorage.removeItem('openNavSection');
+		if(Date.now()-request.at<15000) openNavSection(request.section);
+	} catch(error) {}
+}
+// Closes the current form or Data page: goes back to the previous page in the app (or the dashboard when there
+// is none), then opens the navigation panel there with the Forms or Data list expanded.
+function closeToPreviousPage(section) {
+	const trail=readPageTrail();
+	while(trail.length&&trail[trail.length-1]===currentPageAddress()) trail.pop();
+	try {
+		sessionStorage.setItem(pageTrailKey,JSON.stringify(trail));
+		sessionStorage.setItem('openNavSection',JSON.stringify({ section,at:Date.now() }));
+	} catch(error) {}
+	if(trail.length&&history.length>1) history.back();
+	else location.href='/index.html';
+}
+window.closeToPreviousPage=closeToPreviousPage;
+rememberPage();
+openRequestedNavSection();
+// Going back within the forms page changes only the address; the page shown is updated by forms.js.
+window.addEventListener('hashchange',() => { rememberPage();openRequestedNavSection(); });
+window.addEventListener('popstate',() => { rememberPage();openRequestedNavSection(); });
+// Going back to another page can restore it from the browser's back-forward cache without running scripts again.
+window.addEventListener('pageshow',event => { if(event.persisted) { rememberPage();openRequestedNavSection(); } });
+// A cancelled edit reopens the forms page with ?menu=forms so the menu shows on a clean page.
+if(new URLSearchParams(location.search).get('menu')==='forms') {
+	history.replaceState(null,'',location.pathname);
+	openFormsMenu();
+}
+
+const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {
 	// Handles click events from link.
@@ -128,6 +228,20 @@ if(suppliersBtn) {
 	suppliersBtn.addEventListener('click',() => {
 		window.location.href='/forms.html#suppliers';
 	});
+}
+
+// Opens the partners who fabricate, install, supply equipment or repair for the company.
+if(partnersBtn) {
+	partnersBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#other-partners';
+	});
+}
+
+// Opens the register of machines, tanks and other things the company owns.
+if(assetsBtn) {
+	assetsBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#capital-assets';
+	});
 
 }
 
@@ -153,6 +267,16 @@ if(pricesBtn) {
 	});
 }
 
+const consumableUsageBtn=document.querySelector('#consumable-usage-button');
+if(consumableUsageBtn)consumableUsageBtn.addEventListener('click',()=>{window.location.href='/forms.html#consumable-usage';});
+
+if(weighingTasksBtn) {
+	// Opens the Storekeeper's authorised work waiting for physical quantities.
+	weighingTasksBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#weighing-tasks';
+	});
+}
+
 // Loads and displays the currently signed-in user.
 async function loadCurrentUser() {
 	const response=await fetch("/api/current-user");
@@ -166,6 +290,8 @@ async function loadCurrentUser() {
 		loggedIn.textContent=result.username;
 	}
 	applyRoleVisibility(result);
+	refreshPendingWeighingBadge();
+	if(!pendingBadgeTimer) pendingBadgeTimer=window.setInterval(refreshPendingWeighingBadge,30000);
 	return result;
 }
 
@@ -305,7 +431,7 @@ if(manageUsersBtn&&userDialog) {
 			await loadUserAccounts();
 			userDialog.showModal();
 		} catch(error) {
-			alert(error.message);
+			appNotify(error.message);
 		}
 	});
 
@@ -423,7 +549,7 @@ if(switchAccountBtn&&switchAccountDialog) {
 			const response=await fetch('/api/return-to-admin',{ method: 'POST' });
 			const result=await response.json();
 			if(!response.ok) {
-				alert(result.message||'Could not return to the admin account');
+				appNotify(result.message||'Could not return to the admin account');
 				return;
 			}
 			window.location.replace('/index.html');
@@ -449,7 +575,7 @@ if(switchAccountBtn&&switchAccountDialog) {
 				'Create a manager or storekeeper account first.':'';
 			switchAccountDialog.showModal();
 		} catch(error) {
-			alert(error.message);
+			appNotify(error.message);
 		}
 	});
 

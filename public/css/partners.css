@@ -1,0 +1,250 @@
+/* Other Partners details (jobs and payments) and the Capital Assets register. Card tops reuse the supplier styles. */
+#other-partners,#capital-assets{--pt-green:#1d6b34;--pt-dark:#124d24;--pt-line:#dde6e0;--pt-text:#111b2b;--pt-muted:#4f5d6b;--pt-tile:#f3f7f4}
+#other-partners .partner-empty,#capital-assets .partner-empty{margin:10px 0;padding:12px 14px;border-radius:10px;background:#f1f5f2;color:var(--pt-text);font-size:13px}
+
+/* Details panel under a partner card. */
+#other-partners .partner-details{display:grid;gap:12px;margin-top:12px;padding:12px;border-top:1px solid var(--pt-line);background:#fbfdfb;border-radius:0 0 12px 12px}
+#other-partners .partner-details-note{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;align-items:start;padding:10px 12px;border:1px solid var(--pt-line);border-radius:10px;background:#fff}
+#other-partners .partner-details-note .partner-details-edit-btn{grid-column:2;grid-row:1/span 2;padding:7px 12px;border:1px solid #c7dcca;border-radius:9px;background:#fff;color:var(--pt-dark);font-weight:700;font-size:12px}
+#other-partners .partner-details-heading{margin:0;color:var(--pt-dark);font-size:14px;font-weight:800}
+#other-partners .partner-details-note-text,#other-partners .partner-details-work{margin:0;color:var(--pt-muted);font-size:13px}
+#other-partners .partner-details-summary,#other-partners .partner-job-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#other-partners .partner-details-summary>div,#other-partners .partner-job-values>div{display:grid;gap:2px;padding:8px 10px;border:1px solid var(--pt-line);border-radius:9px;background:var(--pt-tile)}
+#other-partners .partner-details-summary span,#other-partners .partner-job-values span{color:var(--pt-muted);font-size:11px;font-weight:700}
+#other-partners .partner-details-summary strong,#other-partners .partner-job-values strong{color:var(--pt-text);font-size:15px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+#other-partners .partner-details-summary small:empty,#other-partners .partner-job-values small:empty,#capital-assets small:empty{display:none}
+#other-partners .is-owed,#capital-assets .is-owed{background:#fff3d6!important;border-color:#f1d79a!important}
+#other-partners .partner-add-job{justify-self:start;padding:9px 14px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--pt-dark),var(--pt-green));color:#fff;font-weight:800}
+#other-partners .partner-job-count{color:var(--pt-muted);font-weight:600}
+#other-partners .partner-job-list{display:grid;gap:10px}
+
+/* One job: type, date, cost kind, agreed/paid/owed and its payments. */
+#other-partners .partner-job{display:grid;gap:8px;padding:12px;border:1px solid var(--pt-line);border-radius:12px;background:#fff}
+#other-partners .partner-job-top{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+#other-partners .partner-job-type,#capital-assets .asset-type{padding:3px 9px;border-radius:7px;font-size:12px;font-weight:800}
+#other-partners .type-fabrication{background:#e2edfc;color:#1d4c94}
+#other-partners .type-installation{background:#dff4f1;color:#0b5c55}
+#other-partners .type-equipment-purchase{background:#eee6fb;color:#5a3796}
+#other-partners .type-repair{background:#fde4e1;color:#9b2a1e}
+#other-partners .type-maintenance-service{background:#fdf0d9;color:#8a4f08}
+#other-partners .type-other{background:#ececec;color:#3b3b3b}
+#other-partners .partner-job-date{color:var(--pt-muted);font-size:12px}
+#other-partners .partner-job-cost{margin-left:auto;padding:3px 8px;border-radius:7px;font-size:11px;font-weight:700}
+#other-partners .cost-capital{background:#e1f2da;color:var(--pt-green)}
+#other-partners .cost-running{background:#f1f1f1;color:#444}
+#other-partners .partner-job-description{margin:0;color:var(--pt-text);font-size:14px;font-weight:600}
+#other-partners .partner-payments-heading{margin:2px 0 0;color:var(--pt-dark);font-size:12px;font-weight:800}
+#other-partners .partner-payments{display:grid;gap:6px}
+#other-partners .partner-payment{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:7px 10px;border-radius:9px;background:var(--pt-tile);font-size:12px;color:var(--pt-muted)}
+#other-partners .partner-payment strong{color:var(--pt-text);font-size:13px;white-space:nowrap}
+#other-partners .partner-payment button{padding:4px 8px;border:1px solid #f0c4c0;border-radius:7px;background:#fff;color:#a3271d;font-size:11px;font-weight:700}
+#other-partners .partner-job-actions,#capital-assets .partner-job-actions{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+#other-partners .partner-job-actions button,#capital-assets .partner-job-actions button{padding:7px 12px;border:1px solid #c7dcca;border-radius:9px;background:#fff;color:var(--pt-dark);font-weight:700;font-size:12px}
+#other-partners .partner-job-actions .partner-pay{border:0;background:linear-gradient(135deg,var(--pt-dark),var(--pt-green));color:#fff}
+#other-partners .partner-job-actions .partner-delete,#capital-assets .partner-job-actions .partner-delete{border-color:#f0c4c0;color:#a3271d}
+
+/* Capital Assets register. */
+#capital-assets .asset-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0 14px}
+#capital-assets .asset-summary>div,#capital-assets .asset-values>div{display:grid;gap:2px;padding:9px 10px;border:1px solid var(--pt-line);border-radius:10px;background:#fff}
+#capital-assets .asset-summary>div:first-child{background:linear-gradient(135deg,#e7f5df,#d7edcb);border-color:#c5e2b3}
+#capital-assets .asset-summary span,#capital-assets .asset-values span{color:var(--pt-muted);font-size:11px;font-weight:700}
+#capital-assets .asset-summary strong,#capital-assets .asset-values strong{color:var(--pt-text);font-size:15px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+#capital-assets .asset-cards{display:grid;gap:10px}
+#capital-assets .asset-card{display:grid;gap:8px;padding:12px;border:1px solid var(--pt-line);border-left:4px solid var(--pt-green);border-radius:12px;background:#fff;box-shadow:0 1px 4px rgba(20,40,30,.05)}
+#capital-assets .asset-card-top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}
+#capital-assets .asset-name{color:var(--pt-text);font-size:15px}
+#capital-assets .type-machine{background:#e2edfc;color:#1d4c94}
+#capital-assets .type-tank{background:#dff4f1;color:#0b5c55}
+#capital-assets .type-electrical{background:#fdf0d9;color:#8a4f08}
+#capital-assets .type-building,#capital-assets .type-vehicle{background:#eee6fb;color:#5a3796}
+#capital-assets .type-other{background:#ececec;color:#3b3b3b}
+#capital-assets .asset-values{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px}
+#capital-assets .asset-source,#capital-assets .asset-note{margin:0;color:var(--pt-muted);font-size:12px}
+
+/* Dialog fields. */
+.partner-dialog form{display:grid;gap:10px}
+.partner-dialog label{display:grid;gap:5px}
+.partner-dialog label small{color:#5b6b61;font-weight:500}
+
+@media(max-width:420px){
+    #other-partners .partner-details{padding:10px 8px}
+    #other-partners .partner-details-summary strong,#other-partners .partner-job-values strong{font-size:13px}
+    #capital-assets .asset-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+/* Job and asset buttons sit side by side instead of stretching full width. */
+#other-partners .partner-job-actions button,#capital-assets .partner-job-actions button{flex:1 1 0;width:auto;min-width:0;margin:0}
+#other-partners .partner-details-note .partner-details-delete-btn{grid-column:2;justify-self:end;padding:7px 12px;border:1px solid #f0c4c0;border-radius:9px;background:#fff;color:#a3271d;font-weight:700;font-size:12px;width:auto}
+
+/* Assets and Start-up Costs: five totals, value by type, and the start-up list. */
+#capital-assets .asset-summary{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+#capital-assets .asset-summary>div:first-child{background:#fff;border-color:var(--pt-line)}
+#capital-assets .asset-summary>.is-assets{background:linear-gradient(135deg,#e7f5df,#d7edcb)!important;border-color:#c5e2b3!important}
+#capital-assets .asset-summary>.is-startup{background:#eef4fb;border-color:#cfdff2}
+#capital-assets .asset-summary>.is-total{background:linear-gradient(135deg,#124d24,#1d6b34);border-color:#124d24}
+#capital-assets .asset-summary>.is-total span,#capital-assets .asset-summary>.is-total strong{color:#fff}
+#capital-assets .asset-breakdown{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+#capital-assets .asset-type-total{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:9px;font-size:12px;font-weight:700}
+#capital-assets .asset-type-total strong{font-size:13px}
+#capital-assets .asset-section-title{margin:18px 0 6px;color:var(--pt-text);font-size:18px}
+#capital-assets .asset-section-help{margin:0 0 8px;color:var(--pt-muted);font-size:12px}
+#capital-assets .startup-cards{display:grid;gap:10px}
+#capital-assets .startup-card{display:grid;gap:6px;padding:12px;border:1px solid #cfdff2;border-left:4px solid #3a6fb0;border-radius:12px;background:#fff}
+#capital-assets .startup-amount{color:#1d3f6b;font-size:15px;font-weight:800;white-space:nowrap}
+#capital-assets #add-startup-cost{margin-top:8px;background:linear-gradient(135deg,#1d3f6b,#3a6fb0)!important;border-color:#1d3f6b!important;color:#fff!important}
+
+/* ===== Assets and Start-up Costs, styled to the reference design ===== */
+#capital-assets .asset-title-icon{display:inline-grid;place-items:center;flex:0 0 52px;width:52px;height:52px;border-radius:13px;background:linear-gradient(135deg,#0d5a26,#1d7a37);box-shadow:0 2px 6px rgba(13,90,38,.25)}
+#capital-assets .asset-title-icon .ui-icon,#capital-assets .asset-title-icon svg{width:30px;height:30px;flex-basis:30px;stroke:#fff}
+/* Totals: four icon tiles and a full-width Total Invested bar. */
+#capital-assets .asset-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 10px}
+#capital-assets .asset-summary>.asset-total{display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--pt-line);border-radius:12px;background:#fff;box-shadow:0 1px 3px rgba(20,40,30,.05)}
+#capital-assets .asset-total>.ui-icon,#capital-assets .asset-total>.ui-icon svg{width:30px;height:30px;flex:0 0 30px}
+#capital-assets .asset-total>div{display:grid;gap:1px;min-width:0}
+#capital-assets .asset-total span{color:#2b3542;font-size:12px;font-weight:600}
+#capital-assets .asset-total strong{color:#0e1726;font-size:clamp(15px,4.6vw,19px);font-weight:900;white-space:nowrap}
+#capital-assets .asset-total.is-assets{background:linear-gradient(135deg,#e9f6e2,#d8eecd)!important;border-color:#c7e4b6!important}
+#capital-assets .asset-total.is-assets>.ui-icon svg{stroke:#1d6b34}
+#capital-assets .asset-total.is-paid,#capital-assets .asset-total.is-startup{background:linear-gradient(135deg,#eef4fd,#dfeafb)!important;border-color:#cddcf2!important}
+#capital-assets .asset-total.is-paid>.ui-icon svg,#capital-assets .asset-total.is-startup>.ui-icon svg{stroke:#1d3f6b}
+#capital-assets .asset-total.is-owed-total{background:#fff}
+#capital-assets .asset-total.is-owed-total.has-owed{background:#fff6e0!important;border-color:#f1d79a!important}
+#capital-assets .asset-invested{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:12px;background:linear-gradient(90deg,#0d5426,#167a35);color:#fff}
+#capital-assets .asset-invested>div{display:flex;align-items:center;gap:12px;font-weight:800;font-size:15px}
+#capital-assets .asset-invested .ui-icon,#capital-assets .asset-invested .ui-icon svg{width:28px;height:28px;flex:0 0 28px;stroke:#fff}
+#capital-assets .asset-invested strong{font-size:clamp(18px,5.6vw,24px);font-weight:900;white-space:nowrap}
+/* Value by type: the largest in dark green, the rest grey. */
+#capital-assets .asset-type-total{gap:14px;padding:8px 14px;border-radius:10px;background:#ebeeeb;color:#1f2a24;font-size:13px}
+#capital-assets .asset-type-total.is-largest{background:linear-gradient(90deg,#0d5426,#167a35);color:#fff}
+/* Assets heading with the search button. */
+#capital-assets .asset-section-heading{display:flex;align-items:center;justify-content:space-between;margin:14px 0 8px}
+#capital-assets .asset-section-heading .asset-section-title{margin:0;font-size:22px;font-weight:900}
+#capital-assets .asset-search-toggle{display:grid;place-items:center;width:40px;height:40px;padding:0;border:1px solid #cfe0d2;border-radius:10px;background:#fff;box-shadow:none}
+#capital-assets .asset-search-toggle .ui-icon svg{width:22px;height:22px;stroke:#1d6b34}
+#capital-assets .asset-search{width:100%;margin:0 0 10px;padding:10px 12px;border:1px solid #cfd9d2;border-radius:10px;background:#fff}
+/* Asset card: picture tile, name and type, three figures, source line, buttons. */
+#capital-assets .asset-card{display:grid;grid-template-columns:minmax(88px,26%) minmax(0,1fr);gap:8px 12px;padding:12px;border:1px solid #dbe5dd;border-left:4px solid #167a35;border-radius:14px;background:#fff;box-shadow:0 1px 4px rgba(20,40,30,.06)}
+#capital-assets .asset-picture{grid-row:1;display:grid;place-items:center;align-self:start;aspect-ratio:4/3;border-radius:10px;background:linear-gradient(135deg,#eef4fd,#dfe9f7)}
+#capital-assets .asset-picture .ui-icon,#capital-assets .asset-picture svg{width:46%;height:auto;aspect-ratio:1;flex:none;stroke:#2c5d9b}
+#capital-assets .asset-picture.type-tank{background:linear-gradient(135deg,#e3f6f3,#cdeee8)}#capital-assets .asset-picture.type-tank svg{stroke:#0b5c55}
+#capital-assets .asset-picture.type-electrical{background:linear-gradient(135deg,#fdf3df,#f8e5bf)}#capital-assets .asset-picture.type-electrical svg{stroke:#8a4f08}
+#capital-assets .asset-picture.type-other{background:linear-gradient(135deg,#f0f1f0,#e2e4e2)}#capital-assets .asset-picture.type-other svg{stroke:#3b3b3b}
+#capital-assets .asset-main{display:grid;gap:8px;min-width:0}
+#capital-assets .asset-card-top{flex-wrap:nowrap;align-items:flex-start}
+#capital-assets .asset-name{font-size:15px;font-weight:800;line-height:1.3}
+#capital-assets .asset-type{flex:none;padding:3px 10px;font-size:12px}
+#capital-assets .asset-values{grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:6px}
+#capital-assets .asset-values>div{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid #e1e7e2;border-radius:9px;background:#fff}
+#capital-assets .asset-values>div>.ui-icon,#capital-assets .asset-values>div>.ui-icon svg{width:22px;height:22px;flex:0 0 22px;stroke:#1d6b34}
+#capital-assets .asset-values>div>div{display:grid;min-width:0}
+#capital-assets .asset-values span{font-size:11px;color:#3b4652;font-weight:600}
+#capital-assets .asset-values strong{font-size:clamp(12px,3.6vw,14px);font-weight:800;white-space:nowrap}
+#capital-assets .asset-values>.is-owed>.ui-icon svg{stroke:#8a5a12}
+#capital-assets .asset-source{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:0;color:#2b3542;font-size:12px}
+#capital-assets .asset-source .ui-icon,#capital-assets .asset-source .ui-icon svg{width:18px;height:18px;flex:0 0 18px;stroke:#1d6b34}
+#capital-assets .asset-note{grid-column:1/-1}
+#capital-assets .asset-actions{grid-column:1/-1;flex-wrap:nowrap}
+#capital-assets .asset-actions button{display:flex;align-items:center;justify-content:center;gap:8px;padding:8px 10px;border:1px solid #9fcba9;border-radius:10px;background:#fff;color:#0d5426;font-size:13px;font-weight:800}
+#capital-assets .asset-actions button .ui-icon,#capital-assets .asset-actions button .ui-icon svg{width:18px;height:18px;flex:0 0 18px;stroke:currentColor}
+#capital-assets .asset-actions .partner-delete{border-color:#f0a8a2;color:#c0262d}
+/* Start-up Costs panel. */
+#capital-assets .startup-panel{display:grid;gap:10px;margin-top:18px;padding:14px;border:1px solid #e2e8e3;border-radius:16px;background:#fbfcfb}
+#capital-assets .startup-panel-heading{display:flex;align-items:flex-start;gap:12px}
+#capital-assets .startup-panel-icon{display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;border-radius:10px;background:#7bc950}
+#capital-assets .startup-panel-icon .ui-icon,#capital-assets .startup-panel-icon svg{width:24px;height:24px;stroke:#0d5426}
+#capital-assets .startup-panel .asset-section-title{margin:0;font-size:22px;font-weight:900}
+#capital-assets .startup-panel .asset-section-help{margin:2px 0 0;font-size:13px;color:#2b3542}
+#capital-assets #add-startup-cost{margin:0}
+#capital-assets .startup-card{grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;border:1px solid #cfdff2;border-left:4px solid #2a5fa8}
+#capital-assets .startup-card>.ui-icon,#capital-assets .startup-card>.ui-icon svg{width:28px;height:28px;flex:0 0 28px;stroke:#1d6b34}
+#capital-assets .startup-card-text{display:grid;gap:2px;min-width:0}
+#capital-assets .startup-amount{align-self:start;color:#1d3f6b}
+@media(max-width:420px){
+    #capital-assets .asset-card{grid-template-columns:minmax(78px,27%) minmax(0,1fr);padding:10px}
+    #capital-assets .asset-values{grid-template-columns:repeat(3,minmax(0,1fr))}
+    #capital-assets .asset-values>div{gap:5px;padding:5px 6px}
+    #capital-assets .asset-values>div>.ui-icon,#capital-assets .asset-values>div>.ui-icon svg{width:18px;height:18px;flex-basis:18px}
+}
+/* Phone fit: figures run full width under the picture and name; the Total Invested bar beats the older tile rule. */
+#capital-assets .asset-summary>.asset-invested{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border:0;border-radius:12px;background:linear-gradient(90deg,#0d5426,#167a35);color:#fff}
+#capital-assets .asset-summary>.asset-invested span,#capital-assets .asset-summary>.asset-invested strong{color:#fff}
+#capital-assets .asset-total span{font-size:11.5px;line-height:1.25}
+#capital-assets .asset-card{grid-template-columns:minmax(80px,24%) minmax(0,1fr);align-items:start}
+#capital-assets .asset-main{display:contents}
+#capital-assets .asset-card-top{grid-column:2;grid-row:1;align-self:center}
+#capital-assets .asset-values{grid-column:1/-1;grid-row:2;grid-template-columns:repeat(auto-fit,minmax(0,1fr));grid-auto-flow:column}
+#capital-assets .asset-values>div{padding:6px 7px;gap:6px}
+#capital-assets .asset-values strong{font-size:clamp(11.5px,3.3vw,14px)}
+@media(max-width:420px){#capital-assets .asset-card{grid-template-columns:minmax(72px,24%) minmax(0,1fr)}#capital-assets .asset-values{grid-template-columns:none}}
+#capital-assets .asset-values{display:flex;flex-wrap:wrap}
+#capital-assets .asset-values>div{flex:1 1 28%;min-width:0}
+#capital-assets .asset-picture .ui-icon{width:46px;height:46px;flex:none}
+#capital-assets .asset-picture .ui-icon svg{width:100%;height:100%;aspect-ratio:auto}
+
+/* Assets Owned split into Paid and Still owed on one bar, so the three amounts read as one figure. */
+#capital-assets .asset-summary{grid-template-columns:1fr}
+#capital-assets .asset-summary>.asset-owned{display:grid;gap:10px;padding:12px 14px;border:1px solid #c7e4b6;border-radius:12px;background:linear-gradient(135deg,#f1f9ec,#e1f1d6)}
+#capital-assets .asset-owned-head{display:flex;align-items:center;gap:12px}
+#capital-assets .asset-owned-head>.ui-icon,#capital-assets .asset-owned-head>.ui-icon svg{width:30px;height:30px;flex:0 0 30px;stroke:#1d6b34}
+#capital-assets .asset-owned-head>div{display:grid;gap:1px}
+#capital-assets .asset-owned-head span{color:#2b3542;font-size:12px;font-weight:600}
+#capital-assets .asset-owned-head strong{color:#0e1726;font-size:clamp(18px,5.6vw,24px);font-weight:900;white-space:nowrap}
+#capital-assets .asset-owned-bar{display:flex;height:12px;overflow:hidden;border-radius:999px;background:#f3c25a}
+#capital-assets .asset-owned-bar .is-paid-part{display:block;height:100%;background:linear-gradient(90deg,#0d5426,#2a9a4a)}
+#capital-assets .asset-owned-legend{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#capital-assets .asset-owned-legend>div{display:grid;grid-template-columns:10px auto 1fr;grid-template-rows:auto auto;column-gap:7px;align-items:center;padding:7px 9px;border-radius:9px;background:#fff}
+#capital-assets .asset-owned-legend i{grid-row:1/span 2;width:10px;height:10px;border-radius:50%;background:#1d6b34}
+#capital-assets .asset-owned-legend .is-owed-row i{background:#e2a43a}
+#capital-assets .asset-owned-legend span{grid-column:2/-1;color:#3b4652;font-size:11.5px;font-weight:700}
+#capital-assets .asset-owned-legend strong{grid-column:2;color:#0e1726;font-size:clamp(13px,4vw,16px);font-weight:900;white-space:nowrap}
+#capital-assets .asset-owned-legend small{grid-column:3;justify-self:end;color:#4f5d6b;font-size:11px;font-weight:700}
+#capital-assets .asset-owned-legend .is-owed-row.has-owed{background:#fff6e0}
+#capital-assets .asset-summary>.asset-total.is-startup{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center}
+#capital-assets .asset-startup-note{grid-column:3;justify-self:end;color:#1d3f6b;font-size:11px;font-weight:600;text-align:right}
+#capital-assets .asset-invested-sum{display:grid;justify-items:end;gap:1px}
+#capital-assets .asset-invested-sum small{color:#d8f0dc;font-size:11px;font-weight:600;white-space:nowrap}
+/* Fit the combined totals inside a phone screen. */
+#capital-assets .asset-summary{grid-template-columns:minmax(0,1fr)}
+#capital-assets .asset-summary>*{min-width:0}
+#capital-assets .asset-summary>div.asset-owned:first-child{background:linear-gradient(135deg,#f1f9ec,#e1f1d6);border-color:#c7e4b6}
+#capital-assets .asset-owned-legend{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+#capital-assets .asset-owned-legend>div{grid-template-columns:10px minmax(0,1fr) auto;min-width:0}
+#capital-assets .asset-owned-legend strong{grid-column:2/-1}
+#capital-assets .asset-owned-legend small{grid-column:3;grid-row:1}
+#capital-assets .asset-summary>.asset-total.is-startup{grid-template-columns:30px minmax(0,1fr)}
+#capital-assets .asset-startup-note{grid-column:2;justify-self:start;text-align:left;margin-top:2px}
+#capital-assets .asset-summary>.asset-invested{flex-wrap:wrap}
+#capital-assets .asset-invested>div:first-child span{white-space:nowrap}
+#capital-assets .asset-invested-sum{margin-left:auto;min-width:0}
+#capital-assets .asset-invested-sum small{white-space:normal;text-align:right}
+#other-partners .is-balance-owed{background:#fde4e4!important;border-color:#f3b4b4!important}
+#other-partners .is-balance-owed strong{color:#b42318!important}
+#other-partners .is-balance-paid{background:#e3f6e8!important;border-color:#a9dcb7!important}
+#other-partners .is-balance-paid strong{color:#146c2e!important}
+/* Prepaid Costs tab on Assets and Start-up Costs, for the Director only. */
+html:not([data-user-role=admin]) #add-prepaid-expense,html:not([data-user-role=admin]) #capital-assets [data-asset-tab=prepaid]{display:none}
+#add-prepaid-expense{justify-self:start;margin:0;padding:9px 14px;border:1px solid #00642c;border-radius:10px;background:linear-gradient(120deg,#005529,#008119);color:#fff;font-weight:750;font-size:13px}
+/* Prepaid costs already added, listed on the Prepaid Costs tab (Director only). */
+html:not([data-user-role=admin]) #prepaid-expense-list{display:none}
+.prepaid-list{display:grid;gap:8px}
+.prepaid-list:empty{display:none}
+.prepaid-list-heading{margin:0;font-size:14px;font-weight:800}
+.prepaid-empty{margin:0;color:#5d6b63;font-size:13px}
+.prepaid-item{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #cfe3d5;border-left:4px solid #008119;border-radius:10px;background:#f6fbf7}
+.prepaid-item-text{display:grid;gap:2px;min-width:0}
+.prepaid-item-text strong{font-size:14px;overflow-wrap:anywhere}
+.prepaid-item-text p{margin:0;color:#5d6b63;font-size:12px}
+.prepaid-item-actions{display:flex;gap:8px}
+.prepaid-item-actions button{padding:7px 12px;border-radius:8px;border:1px solid #00642c;background:#fff;color:#00642c;font-weight:700;font-size:13px}
+.prepaid-item-actions .prepaid-delete{border-color:#d9a3a3;color:#b42318}
+/* Three toggle buttons on Assets and Start-up Costs; only the chosen part is shown. */
+#capital-assets .asset-tabs{display:flex;gap:6px;margin:14px 0 4px;padding:4px;border:1px solid var(--pt-line);border-radius:12px;background:var(--pt-tile);overflow-x:auto}
+#capital-assets .asset-tabs button{flex:1 1 0;min-width:max-content;padding:9px 12px;border:0;border-radius:9px;background:transparent;color:var(--pt-muted);font-weight:800;font-size:13px;cursor:pointer}
+#capital-assets .asset-tabs button[aria-selected=true]{background:linear-gradient(120deg,#005529,#008119);color:#fff;box-shadow:0 2px 6px #063b2533}
+#capital-assets .asset-tab-panel[hidden]{display:none!important}
+#capital-assets .asset-tab-panel.startup-panel{margin-top:10px}
+#capital-assets:not([data-asset-tab=assets]) #add-asset{display:none!important}
+/* Start-up Costs tab and its buttons, for the Director only. */
+html:not([data-user-role=admin]) #capital-assets [data-asset-tab=startup],html:not([data-user-role=admin]) #add-startup-cost,html:not([data-user-role=admin]) #capital-assets [data-asset-panel=startup]{display:none!important}
+#capital-assets .startup-card-actions{display:flex;gap:8px;grid-column:1/-1;justify-content:flex-end}
+#capital-assets .startup-card-actions button{padding:7px 12px;border-radius:8px;border:1px solid #00642c;background:#fff;color:#00642c;font-weight:700;font-size:13px}
+#capital-assets .startup-card-actions .startup-delete{border-color:#d9a3a3;color:#b42318}

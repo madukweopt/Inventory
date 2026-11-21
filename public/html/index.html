@@ -6,6 +6,8 @@
         <title>Somad Agro-oil Processing Limited</title>
         <link rel="stylesheet" href="/css/navigation.css" />
         <link rel="stylesheet" href="/css/app.css" />
+        <link rel="stylesheet" href="/css/theme.css" />
+        <link rel="stylesheet" href="/css/dashboard.css" />
     </head>
     <body>
         <main class="page">
@@ -50,9 +52,15 @@
                         ></span>
                     </div>
                     <div class="prod-grid" id="production-grid"></div>
-                    <div class="yield-row">
-                        <span class="yield-label">Oil yield</span>
-                        <span class="yield-val" id="oil-yield">—</span>
+                    <div class="yield-pair">
+                        <div class="yield-row">
+                            <span class="yield-label">Oil yield</span>
+                            <span class="yield-val" id="oil-yield">—</span>
+                        </div>
+                        <div class="yield-row yield-loss">
+                            <span class="yield-label">Production loss</span>
+                            <span class="yield-val" id="production-loss">—</span>
+                        </div>
                     </div>
                 </div>
 
@@ -120,6 +128,8 @@
 
                 <div class="submenu-two">
                     <a href="/forms.html#inventory-data">Inventory Data </a>
+                    <a href="/forms.html#stock-history">Stock Change History</a>
+                    <a href="/forms.html#activity-log">Activity Log</a>
                     <a href="/forms.html#purchases-data">Purchases Data </a>
                     <a href="/forms.html#sales-data">Sales Data </a>
                     <a href="/forms.html#production-data">Production Data</a>
@@ -151,6 +161,22 @@
                     Suppliers
                 </button>
 
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="partners-button"
+                >
+                    Other Partners
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="assets-button"
+                >
+                    Assets and Start-up Costs
+                </button>
+
                 <p class="nav-label">System</p>
                 <button type="button" class="submenu-button">
                     Notification
@@ -165,6 +191,13 @@
                 >
                     Prices
                 </button>
+
+                <button type="button" class="submenu-button" id="weighing-tasks-button">
+                    <span>Pending Weighing</span>
+                    <span class="pending-weighing-badge" hidden>0</span>
+                </button>
+                <button type="button" class="submenu-button" id="consumable-usage-button" hidden>Daily Usage</button>
+                <button type="button" class="submenu-button" id="sops-button">SOPs</button>
 
                 <button
                     type="button"
@@ -194,7 +227,8 @@
             </div>
         </nav>
 
-		<script src="/js/debug-tools.js"></script>
+		<script src="/js/ui.js"></script>
+        <script src="/js/debug-tools.js"></script>
         <script src="/js/navigation.js"></script>
         <script src="/js/dashboard.js"></script>
     </body>

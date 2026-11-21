@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SOPs · SOMAD staff manual</title>
+<link rel="stylesheet" href="/css/navigation.css"><link rel="stylesheet" href="/css/app.css"><link rel="stylesheet" href="/css/theme.css"><link rel="stylesheet" href="/css/sops.css"></head>
+<body class="sops-body"><a class="sop-skip-link" href="#manual-title">Skip to manual</a><main class="page sops-page">
+<header class="sop-page-heading"><div><p class="sop-eyebrow">SOMAD STAFF MANUAL</p><h1>SOPs: daily work instructions</h1><p>Who does each job, how to use the app, and how to work safely.</p></div><div class="sop-actions"><a href="/sops.pdf"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/></svg></span><span>Download PDF</span></a><button id="print-sops" type="button"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8V3h12v5M6 17H3V9h18v8h-3M6 14h12v7H6z"/><path d="M17 11h.01"/></svg></span><span>Print manual</span></button><button id="edit-sops" type="button" hidden><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m15 4 5 5M4 20l5-1L21 7l-5-5L4 14z"/></svg></span><span>Edit SOP</span></button></div></header>
+<section id="sop-editor" class="sop-editor" hidden aria-labelledby="sop-editor-title">
+<div class="sop-editor-heading"><div><h2 id="sop-editor-title">Edit SOP</h2><p>Choose a section, then click its text to edit. Save changes when finished.</p></div><div class="sop-editor-actions"><button id="cancel-sop-edit" type="button">Cancel</button><button id="save-sop-edit" type="button">Save changes</button></div></div>
+<label class="sop-section-label" for="sop-edit-section">Section</label><select id="sop-edit-section"></select><div id="sop-edit-title-field"><label class="sop-section-label" for="sop-edit-title">Section title</label><input id="sop-edit-title" type="text" maxlength="180"></div>
+<div class="sop-editor-toolbar" role="toolbar" aria-label="Text formatting"><button type="button" data-command="bold" aria-label="Bold text"><strong>B</strong></button><button type="button" data-command="insertUnorderedList">Bullet list</button><button type="button" data-command="insertOrderedList">Numbered list</button><button type="button" data-block="p">Paragraph</button><button type="button" data-block="h3">Heading</button><button type="button" data-block="h4">Small heading</button><button type="button" data-command="undo">Undo</button><button type="button" id="preview-sop-edit">Preview</button></div>
+<p id="sop-edit-message" role="status"></p><h2 id="sop-edit-chapter"></h2><div id="sop-edit-content" class="sop-document" contenteditable="true" role="textbox" aria-label="Section text" aria-multiline="true" spellcheck="true"></div>
+</section>
+<div class="sop-layout"><aside class="sop-contents" aria-label="Table of contents"><details open id="sop-toc"><summary>Table of contents <span>App guide + 6 SOPs</span></summary><nav aria-label="Manual sections"><div class="sop-toc-group"><a class="sop-toc-main" href="#workflow">How to use the app</a><details><summary>Sections</summary><ul><li><a href="#workflow-words-and-button-names">Words and button names</a></li><li><a href="#workflow-who-records-the-weights">Who records the weights?</a></li><li><a href="#workflow-buying-and-receiving">Buying and receiving</a></li><li><a href="#workflow-recording-production">Recording production</a></li><li><a href="#workflow-selling-and-loading">Selling and loading</a></li><li><a href="#workflow-other-partners-and-capital-assets">Other partners and capital assets</a></li><li><a href="#workflow-sample-tests">Sample tests</a></li><li><a href="#workflow-wrong-entries-cancelled-jobs-and-closed-days">Wrong entries, cancelled jobs and closed days</a></li><li><a href="#workflow-work-that-needs-a-separate-log">Work that needs a separate log</a></li><li><a href="#workflow-check-the-records">Check the records</a></li></ul></details></div>
+<div class="sop-toc-group"><a class="sop-toc-main" href="#sop-01">SOP 01 · Buying and receiving kernels and supplies</a><details><summary>Sections</summary><ul><li><a href="#sop-01-1-what-this-sop-covers">1. What this SOP covers</a></li><li><a href="#sop-01-2-each-person-s-job">2. Each person’s job</a></li><li><a href="#sop-01-3-before-the-delivery-arrives">3. Before the delivery arrives</a></li><li><a href="#sop-01-4-receiving-palm-kernels">4. Receiving palm kernels</a></li><li><a href="#sop-01-5-receiving-other-supplies">5. Receiving other supplies</a></li><li><a href="#sop-01-6-records-bag-counts-and-mistakes">6. Records, bag counts and mistakes</a></li><li><a href="#sop-01-7-rules-everyone-must-follow">7. Rules everyone must follow</a></li></ul></details></div>
+<div class="sop-toc-group"><a class="sop-toc-main" href="#sop-02">SOP 02 · Production and product checks</a><details><summary>Sections</summary><ul><li><a href="#sop-02-1-what-this-sop-covers">1. What this SOP covers</a></li><li><a href="#sop-02-2-each-person-s-job">2. Each person’s job</a></li><li><a href="#sop-02-3-record-the-work-as-it-happens">3. Record the work as it happens</a></li><li><a href="#sop-02-4-production-steps">4. Production steps</a></li><li><a href="#sop-02-5-machine-settings-still-to-be-agreed">5. Machine settings still to be agreed</a></li><li><a href="#sop-02-6-rules-everyone-must-follow">6. Rules everyone must follow</a></li></ul></details></div>
+<div class="sop-toc-group"><a class="sop-toc-main" href="#sop-03">SOP 03 · Electricity, diesel and other supplies</a><details><summary>Sections</summary><ul><li><a href="#sop-03-1-what-this-sop-covers">1. What this SOP covers</a></li><li><a href="#sop-03-2-each-person-s-job">2. Each person’s job</a></li><li><a href="#sop-03-3-buy-and-receive-electricity-units">3. Buy and receive electricity units</a></li><li><a href="#sop-03-4-record-daily-electricity-use-and-power-failures">4. Record daily electricity use and power failures</a></li><li><a href="#sop-03-5-diesel-when-needed">5. Diesel, when needed</a></li><li><a href="#sop-03-6-give-out-lubricants-spare-parts-and-other-supplies">6. Give out lubricants, spare parts and other supplies</a></li><li><a href="#sop-03-7-rules-everyone-must-follow">7. Rules everyone must follow</a></li></ul></details></div>
+<div class="sop-toc-group"><a class="sop-toc-main" href="#sop-04">SOP 04 · Selling, weighing and loading products</a><details><summary>Sections</summary><ul><li><a href="#sop-04-1-what-this-sop-covers">1. What this SOP covers</a></li><li><a href="#sop-04-2-each-person-s-job">2. Each person’s job</a></li><li><a href="#sop-04-3-authorise-the-sale">3. Authorise the sale</a></li><li><a href="#sop-04-4-weigh-and-load">4. Weigh and load</a></li><li><a href="#sop-04-5-check-payment-before-release">5. Check payment before release</a></li><li><a href="#sop-04-6-invoices-receipts-and-other-records">6. Invoices, receipts and other records</a></li><li><a href="#sop-04-7-complaints-and-wrong-records">7. Complaints and wrong records</a></li><li><a href="#sop-04-8-rules-everyone-must-follow">8. Rules everyone must follow</a></li></ul></details></div>
+<div class="sop-toc-group"><a class="sop-toc-main" href="#sop-05">SOP 05 · Machine care and safety</a><details><summary>Sections</summary><ul><li><a href="#sop-05-1-what-this-sop-covers">1. What this SOP covers</a></li><li><a href="#sop-05-2-each-person-s-job">2. Each person’s job</a></li><li><a href="#sop-05-3-before-any-maintenance-job">3. Before any maintenance job</a></li><li><a href="#sop-05-4-safety-and-machine-care-steps">4. Safety and machine-care steps</a></li><li><a href="#sop-05-5-safety-rules-for-everyone">5. Safety rules for everyone</a></li></ul></details></div>
+<div class="sop-toc-group"><a class="sop-toc-main" href="#sop-06">SOP 06 · Cleaning and waste</a><details><summary>Sections</summary><ul><li><a href="#sop-06-1-what-this-sop-covers">1. What this SOP covers</a></li><li><a href="#sop-06-2-each-person-s-job">2. Each person’s job</a></li><li><a href="#sop-06-3-keep-the-factory-tidy-during-work">3. Keep the factory tidy during work</a></li><li><a href="#sop-06-4-clean-at-the-end-of-the-day">4. Clean at the end of the day</a></li><li><a href="#sop-06-5-keep-storage-areas-and-the-compound-clean">5. Keep storage areas and the compound clean</a></li><li><a href="#sop-06-6-separate-and-remove-waste-safely">6. Separate and remove waste safely</a></li><li><a href="#sop-06-7-rules-everyone-must-follow">7. Rules everyone must follow</a></li></ul></details></div></nav></details></aside>
+<article class="sop-document" aria-labelledby="manual-title"><h1 id="manual-title">SOMAD Agro-Oil Processing Limited</h1>
+<p>Staff work instructions · SOP 01–06</p>
+<p><strong>Updated:</strong> 16 November 2026. Plain-English edition.</p>
+<p>This manual explains who must do each job, how to record the work, and how to work safely. Read the steps for your job. If you do not understand a step, ask the Manager before you start. Ask the Director about buying, payment, delivery problems or record changes.</p>
+<p><strong>Director</strong> means the person who approves company decisions and uses the app’s director-level controls.</p>
+<p><strong>Manager</strong> means the Mill Manager.</p>
+<p><strong>Storekeeper</strong> means the person who checks deliveries, weighs materials and keeps stock records.</p>
+<p><strong>Operators</strong> means the workers who run the machines and do the lifting, unloading, loading and cleaning.</p><h3 id="guide-organisation-chart">Organisation chart</h3><ul><li><strong>Director</strong><ul><li><strong>Manager</strong><ul><li><strong>Production Operators</strong></li></ul></li><li><strong>Storekeeper</strong></li></ul></li></ul><p>The Manager and the Storekeeper report to the Director. The production Operators report to the Manager.</p>
+<h2 id="workflow">How to use the app</h2>
+<h3 id="workflow-words-and-button-names">Words and button names</h3>
+<div class="sop-table-wrap"><table><thead><tr><th scope="col">Word or button</th><th scope="col">Meaning</th></tr></thead><tbody><tr><td>Stock</td><td>Kernels, products and supplies kept by the company</td></tr><tr><td>Quantity</td><td>The amount weighed, measured or counted</td></tr><tr><td>Log</td><td>A notebook or other agreed record of the work</td></tr><tr><td>Scale ticket</td><td>The slip or reference number from weighing</td></tr><tr><td>Credit sale</td><td>A sale where the Director allows the customer to pay later</td></tr><tr><td>Percentage (%)</td><td>A number out of 100; 5% impurity means 5 g of impurities in every 100 g of sample</td></tr><tr><td>Authorise</td><td>Give permission for a job or transaction</td></tr><tr><td>Authorisation</td><td>The approved job request created in the app</td></tr><tr><td>Authorise Purchase</td><td>Send an approved purchase to the Storekeeper for receiving</td></tr><tr><td>Pending Weighing</td><td>The app page where the Storekeeper records approved work</td></tr><tr><td>Confirm Receipt</td><td>Save the amount accepted into stock</td></tr><tr><td>Issue Kernel</td><td>Record kernels given out for production</td></tr><tr><td>Receive Product</td><td>Record finished PKO, PKC or sludge received from production</td></tr><tr><td>Authorise Sale</td><td>Send an approved sale to the Storekeeper for weighing</td></tr><tr><td>Confirm Dispatch</td><td>Save the amount sent out to a customer</td></tr><tr><td>Finish Day</td><td>Close production after all its materials are processed and all products are recorded</td></tr><tr><td>Impurities</td><td>Shells, stones, dirt and other unwanted material in a sample</td></tr><tr><td>Contamination</td><td>Dirt, water or other unwanted material mixed into a product</td></tr><tr><td>PKO</td><td>Palm kernel oil</td></tr><tr><td>PKC</td><td>Palm kernel cake</td></tr><tr><td>Sludge</td><td>Material that settles out of oil or is collected during filtering</td></tr><tr><td>Downtime</td><td>Time when production has stopped</td></tr><tr><td>Yield</td><td>The amount of finished product made from the kernels used</td></tr></tbody></table></div>
+<p>The app button names are shown in bold in the steps below. Use those names to find the right button.</p>
+<h3 id="workflow-who-records-the-weights">Who records the weights?</h3>
+<ul><li>The Storekeeper weighs and records all deliveries, kernel issues, finished products and customer collections.</li><li>She also weighs samples, impurities, unused materials returned and any stock loss that can be measured.</li><li>Operators must lift and move materials. They put bags on the scale and take them off after the Storekeeper records the weight.</li><li>The Manager plans and supervises the work. The Manager does not enter another set of weights.</li><li>Do not change a measured weight to please a supplier, customer or another worker.</li></ul>
+<h3 id="workflow-buying-and-receiving">Buying and receiving</h3>
+<ol start="1"><li>The Director buys palm kernels. The Director may ask the Manager to buy them within agreed limits.</li><li>The Director or the Manager enters the approved purchase details, price and <strong>Quantity ordered</strong>. Select <strong>Authorise Purchase</strong>.</li><li>When the delivery enters the factory, the Storekeeper takes charge of receiving it.</li><li>She checks the delivery, weighs the kernels and carries out the sample test.</li><li>If it passes all checks and matches the agreed terms, she accepts the delivery herself.</li><li>If there is a problem, she keeps the delivery separate and contacts the Director. She explains the problem and why she does not want to accept it.</li><li>The Director decides whether to reject it, accept it, ask for more checks or order a price change.</li><li>Only after acceptance, the Storekeeper enters the accepted amount and the date it was accepted in <strong>Pending Weighing</strong>, then selects <strong>Confirm Receipt</strong>.</li></ol>
+<p>The purchase record and stock receipt are saved together. Do not enter the same delivery again in Inventory.</p>
+<h3 id="workflow-recording-production">Recording production</h3>
+<ol start="1"><li>The Manager or Director approves one production day in the app.</li><li>The Storekeeper uses <strong>Issue Kernel</strong> each time kernels are given out.</li><li>She uses <strong>Receive Product</strong> each time a finished product is weighed and received.</li><li>Select only one product for each receipt: PKO, PKC or Sludge.</li><li>Keep saving entries as work continues. Do not wait for all the oil from one kernel issue before recording the next issue.</li><li>The app adds the entries to one record for that production date. It updates stock each time an entry is saved.</li></ol>
+<h3 id="workflow-selling-and-loading">Selling and loading</h3>
+<ol start="1"><li>The Director saves the approved selling prices on <strong>Prices</strong>.</li><li>The Manager or Director selects the sale date, customer, product, the <strong>Quantity ordered</strong> and <strong>Payment weight</strong>: <strong>Factory weight</strong> or <strong>Customer’s agreed weight</strong>. Select the accompanying representative, then <strong>Authorise Sale</strong>. Only the Director can assign another approved staff member.</li><li>The Storekeeper weighs the actual amount going to the customer.</li><li>She enters it and the date it actually left the factory in <strong>Pending Weighing</strong>. The driver checks the amount, enters their name and signs on the device. Then she selects <strong>Confirm Dispatch</strong>.</li></ol>
+<p>Confirming dispatch saves the factory weight and deducts it from stock once. The app creates the <strong>Delivery Note</strong> with the driver’s signature already on it. Factory-weight sales get an invoice at dispatch. Customer-weight sales wait for the buyer’s signed weight, confirmed by the accompanying representative. You may attach up to six scale tickets or weighing photos, no larger than 6 MB each. These attachments are optional. A weight difference needs the Director’s approval before invoicing. Each job appears once in <strong>Pending Weighing</strong>, showing its next step. A factory-weight sale leaves <strong>Pending Weighing</strong> once dispatch is confirmed. A customer-weight sale stays there until the buyer’s weighing is confirmed and the invoice is made. Search or filter by job type, open the job to act, and use <strong>Load more</strong> for additional jobs. Do not record a second stock issue. Follow SOP 04 for release approval.</p>
+<h3 id="workflow-other-partners-and-capital-assets">Other partners and capital assets</h3>
+<ul><li>Record welders, fabricators, electricians and machine dealers under <strong>Other Partners</strong>. Add each job with its type, what was done and the agreed price.</li><li>Only the Director records payments to partners. The partner’s card shows what was agreed, what was paid and what is still owed. Balance Owed shows red while money is still owed and green once it is paid in full.</li><li>Fabrication, installation and equipment purchases are capital assets. They appear in <strong>Assets and Start-up Costs</strong> and do not reduce profit.</li><li>Repairs and servicing are running costs. Each payment is added to <strong>Expenses</strong> automatically. Do not enter it again.</li><li>The Director enters a machine or tank bought outright from a one-off seller directly in <strong>Assets and Start-up Costs</strong>.</li><li>Use <strong>Expenses</strong> only for normal running costs. For costs from before production, such as rent paid during installation, the Director opens <strong>Assets and Start-up Costs</strong>, selects the <strong>Start-up Costs</strong> tab, then <strong>+ Add Start-up Cost</strong>. Only the Director sees start-up costs. Enter the amount, the months it covers and how many of those months were before production. Those months show as start-up costs on the dashboard and in the total invested on the <strong>Summary</strong> tab. Select <strong>Edit</strong> on a start-up cost to change it, or <strong>Delete</strong> to remove it. For rent, insurance or a yearly licence paid in advance after production started, the Director opens <strong>Assets and Start-up Costs</strong>, selects the <strong>Prepaid Costs</strong> tab, then <strong>+ Add Prepaid Cost</strong>, and enters the months it covers. Do not use the normal Expenses form for these. The prepaid costs already added are listed on that tab. Select <strong>Edit</strong> to change the amount, date or months, or <strong>Delete</strong> to remove one. The dashboard counts an equal share each day, like salaries, and shows it as <strong>Rent and prepaid costs</strong>.</li></ul>
+<h3 id="workflow-sample-tests">Sample tests</h3>
+<p>The Storekeeper can enter the first kernel test while receiving the purchase. More tests can be added later on <strong>Data → Purchases Data → Kernel quality · Sample tests</strong>.</p>
+<p>Use grams for both the sample and the impurities. The app calculates the percentage. A sample result does not automatically reduce stock or change the supplier’s payment.</p>
+<h3 id="workflow-wrong-entries-cancelled-jobs-and-closed-days">Wrong entries, cancelled jobs and closed days</h3>
+<ul><li>Tell the Director if a saved weight or other record is wrong. Give the correct measurement and the reason for the change.</li><li>The Director uses the app’s correction buttons. Do not add a false purchase, sale or stock entry to hide a mistake.</li><li>The Manager can cancel only a job that the Manager created, before any quantity has been saved.</li><li>The Manager cannot cancel a job created by the Director or another user.</li><li>The Director can cancel any open job that is still allowed to be cancelled. A job with saved quantities cannot be undone by cancelling it.</li><li>After production entries have been saved, keep the daily record. Ask the Director to correct any mistakes.</li><li>The Storekeeper selects <strong>Finish Day</strong> only when all materials for that production have been processed and all products have been weighed and recorded. Leave it open if materials remain in the machines.</li><li>Only the Director can reopen a finished production day. The old entries stay in place.</li><li>Do not create another production record for a date that already has one.</li></ul>
+<h3 id="workflow-work-that-needs-a-separate-log">Work that needs a separate log</h3>
+<p>Some work still needs a separate log. Examples include the opening and closing meter readings, bag counts, returns, repairs, accidents and waste removal. Record daily electricity and other consumables used in <strong>Daily Usage</strong>. Keep the meter readings in the electricity log to support the amount entered.</p>
+<ol start="1"><li>The Storekeeper measures or counts the material.</li><li>Record the details in the company’s logbook or other agreed record.</li><li>Send the checked figures to the Director.</li><li>The Director enters any needed stock change in the app’s manual <strong>Inventory Report</strong> and selects the <strong>Reason for change</strong>: Spill, Disposal, Count difference, Return to store or Other. Then choose <strong>Remove from stock</strong> or <strong>Add to stock</strong> and enter only the difference in <strong>Quantity</strong>, not the counted total. Spills and disposals always remove stock; a return to store always adds it. The dashboard shows spills, disposals and other stock taken out this way as stock losses, not as products sold. Every manual stock change, and every edit or deletion of one, is kept in <strong>Data → Stock Change History</strong> with the values before and after, who made it and when. The history cannot be changed.</li></ol>
+<p>Only the Director uses the manual Inventory Report and stock correction controls. Keep records for items that have not yet been added to the app in the agreed logbook.</p>
+<p>Keep buying instructions, payment approvals, delivery exceptions and waste-removal approvals in the company’s agreed records. Saving a transaction in the app does not replace the Director’s permission.</p>
+<h3 id="workflow-check-the-records">Check the records</h3>
+<p>Use <strong>Data</strong> to review purchases, production, sales and stock movements. The Director uses <strong>Checks</strong> and the dashboard to look for mistakes. The Director can see every save, edit, delete and sign-in, including work done through <strong>Switch Account</strong>, in <strong>Data → Activity Log</strong>.</p>
+<p>Profit and production figures may still change while the day’s records are incomplete. Do not change weights just to make figures match.</p>
+<h2 id="sop-01">SOP 01 · Buying and receiving kernels and supplies</h2>
+<p><strong>SOP number:</strong> SOMAD-SOP-001</p>
+<p><strong>Buying palm kernels:</strong> Director, or Manager when the Director assigns the job.</p>
+<p><strong>Receiving, checking and weighing:</strong> Storekeeper.</p>
+<p><strong>Lifting, unloading and loading:</strong> Operators.</p>
+<h3 id="sop-01-1-what-this-sop-covers">1. What this SOP covers</h3>
+<p>This SOP covers palm kernels, diesel, lubricants, grease, machine oil, spare parts, belts, bearings, filter cloths, bags, cleaning materials and other factory supplies. Electricity is also covered in SOP 03.</p>
+<p>Buy the right material at the agreed price. Check what arrives. Record only what the company accepts.</p>
+<h3 id="sop-01-2-each-person-s-job">2. Each person’s job</h3>
+<h4 id="sop-01-2-1-director">2.1 Director</h4>
+<ul><li>Find suppliers and agree the quality, price, delivery date and payment terms for palm kernels.</li><li>The Director may give the Manager some buying tasks. Explain the allowed supplier, price and spending limits.</li><li>Keep the buying instructions and agreed terms in the company’s records.</li><li>Keep control of payment approval and decisions about problem deliveries.</li></ul>
+<h4 id="sop-01-2-2-manager">2.2 Manager</h4>
+<ul><li>Tell the Director what production needs before stock runs out.</li><li>Buy palm kernels only when the Director gives that task to the Manager.</li><li>Stay within the Director’s instructions. Ask before agreeing to changes outside those instructions.</li><li>Arrange deliveries and assign Operators for lifting and loading.</li><li>Give the Storekeeper the approved purchase details.</li><li>Do not decide acceptance of kernels that you sourced. Do not choose the sample or change the Storekeeper’s test result.</li><li>Do not enter a second delivery weight in the app.</li></ul>
+<h4 id="sop-01-2-3-storekeeper">2.3 Storekeeper</h4>
+<ul><li>Take charge of receiving as soon as kernels enter the factory.</li><li>Check the supplier, bags, weights, quality and purchase documents.</li><li>Select the sample and carry out the impurity test.</li><li>Accept the delivery yourself if it passes all checks and matches the agreed terms.</li><li>If you are not satisfied, keep it separate and contact the Director directly. Explain the problem and your reason for not accepting it.</li><li>Follow the Director’s decision before completing a problem delivery.</li><li>Do not negotiate prices or approve supplier payments.</li><li>Do not let the Manager or supplier pressure you to accept bad kernels or change a result.</li></ul>
+<h4 id="sop-01-2-4-operators">2.4 Operators</h4>
+<ul><li>Lift, unload, load and move the materials. These are your duties, not optional help.</li><li>Put bags on the scale. Remove them after the Storekeeper records the reading.</li><li>Carry samples and sort materials as the Storekeeper instructs.</li><li>Move accepted kernels into storage. Keep held or rejected kernels separate.</li><li>Follow the Storekeeper’s handling instructions during receiving.</li><li>Do not decide acceptance or record a different set of weights.</li></ul>
+<h3 id="sop-01-3-before-the-delivery-arrives">3. Before the delivery arrives</h3>
+<ol start="1"><li>The Storekeeper reports the stock available. The Manager reports what production needs.</li><li>The Director buys the kernels or gives the Manager clear buying instructions.</li><li>Compare supplier prices, quality, delivery dates and transport costs.</li><li>Agree who will pay for transport, loading and unloading.</li><li>The Director approves the terms and the supplier’s payment.</li><li>The Director or authorised Manager enters the date, supplier, material, approved price and <strong>Quantity ordered</strong> (the amount agreed with the supplier) in the Purchase form. Select <strong>Authorise Purchase</strong>. The Storekeeper sees the ordered quantity in <strong>Pending Weighing</strong>; if she records more than was ordered, the app asks her to confirm. While the purchase or a sale is still waiting, the Director or the Manager who authorised it can add or change the ordered quantity on its card.</li><li>Tell the Storekeeper when the delivery is expected.</li><li>Keep the supplier’s invoice, receipt and delivery documents.</li></ol>
+<p><strong>Authorise Purchase</strong> gives permission to receive the purchase. It does not mean that the goods have arrived or been accepted. It does not add stock. Stock is added on the date the Storekeeper enters at <strong>Confirm Receipt</strong>.</p>
+<h3 id="sop-01-4-receiving-palm-kernels">4. Receiving palm kernels</h3>
+<h4 id="sop-01-4-1-check-what-arrived">4.1 Check what arrived</h4>
+<ol start="1"><li>The Storekeeper takes charge when the delivery enters the factory.</li><li>Check the supplier’s name, material, number of bags and approved purchase details.</li><li>Check for wet bags, mould, water damage, dirt, stones and too many shells.</li><li>Direct the Operators to arrange the bags for weighing and sampling.</li><li>Write down any problem before accepting the delivery.</li></ol>
+<p>The Manager who found the supplier can give purchase information. The Manager cannot overrule the Storekeeper’s checks.</p>
+<h4 id="sop-01-4-2-weigh-every-bag">4.2 Weigh every bag</h4>
+<ol start="1"><li>Operators put each bag on the factory’s approved scale.</li><li>The Storekeeper checks and records each reading.</li><li>Subtract bag weight only if the Director has instructed this for the delivery. Do not subtract it automatically.</li><li>If the Director says to subtract bag weight, use the method the Director approved.</li><li>Record whether the final weight includes the bags. Follow any separate instruction about container weight.</li><li>Add the weights to get the total accepted amount.</li><li>If the instruction about bag weight is unclear, ask the Director before confirming the receipt.</li></ol>
+<p>The supplier can watch the weighing. Use the Storekeeper’s factory measurements, not the weight written on the supplier’s invoice or the amount originally ordered.</p>
+<h4 id="sop-01-4-3-take-and-sort-the-sample">4.3 Take and sort the sample</h4>
+<p>The Storekeeper selects the bags and controls the test.</p>
+<ol start="1"><li>Choose at least 10 bags or 10% of the bags delivered, whichever is more. Do not sample more than 30 bags. If fewer than 10 bags arrive, sample all of them.</li><li>Take small amounts from different parts of those bags.</li><li>Put them together to make about 10 kg. Mix them well.</li><li>Take about 2 kg from the mixed sample for the test.</li><li>Weigh that test sample. Record its actual weight; do not assume it is exactly 2 kg.</li><li>Separate the clean kernels from shells, stones, dirt and other unwanted material. Operators carry and sort the material as the Storekeeper instructs.</li><li>The Storekeeper weighs the unwanted material separately.</li></ol>
+<p>The Manager who sourced the delivery and the supplier must not choose the sample or decide the result.</p>
+<p>Examples of how many bags to sample:</p>
+<div class="sop-table-wrap"><table><thead><tr><th scope="col">Bags delivered</th><th scope="col">Bags to sample</th></tr></thead><tbody><tr><td>8</td><td>All 8 bags</td></tr><tr><td>100</td><td>10 bags</td></tr><tr><td>250</td><td>25 bags</td></tr><tr><td>500</td><td>30 bags, because 30 is the maximum</td></tr></tbody></table></div>
+<h4 id="sop-01-4-4-calculate-and-save-the-test">4.4 Calculate and save the test</h4>
+<p>Enter both weights in grams:</p>
+<ul><li>2 kg = 2,000 g.</li><li>0.16 kg = 160 g.</li></ul>
+<p><strong>Impurity % = impurity weight ÷ sample weight × 100.</strong></p>
+<p><strong>Clean kernel % = 100 − impurity %.</strong></p>
+<p>Example: a 2,000 g sample contains 160 g of impurities. The result is 160 ÷ 2,000 × 100 = <strong>8% impurity</strong>.</p>
+<p>To enter the first test while receiving:</p>
+<ol start="1"><li>Open the kernel purchase in <strong>Pending Weighing</strong>.</li><li>Tick <strong>Record a sample test with this receipt</strong>.</li><li>Enter <strong>Total sample weight (g)</strong> and <strong>Impurity weight (g)</strong>.</li><li>Read the result shown by the app.</li><li>Do not select <strong>Confirm Receipt</strong> if the delivery is still being checked or is on hold.</li><li>After acceptance, check the approved price and bag-weight instruction. Then confirm the receipt.</li></ol>
+<p>The receipt, purchase and first test save together. The app allows a receipt without a test, but workers must still carry out the company’s required quality checks before accepting kernels.</p>
+<p>To add another test later, open <strong>Data → Purchases Data → the kernel purchase → Kernel quality · Sample tests</strong>.</p>
+<p>The app combines tests by adding all the impurity weights and dividing by all the sample weights. It does not simply average the percentages.</p>
+<div class="sop-table-wrap"><table><thead><tr><th scope="col">Sample</th><th scope="col">Sample weight</th><th scope="col">Impurity weight</th></tr></thead><tbody><tr><td>First test</td><td>1,000 g</td><td>40 g</td></tr><tr><td>Second test</td><td>500 g</td><td>50 g</td></tr><tr><td>Total</td><td>1,500 g</td><td>90 g</td></tr></tbody></table></div>
+<p>Combined result: 90 ÷ 1,500 × 100 = <strong>6% impurity</strong>.</p>
+<p>The sample weight must be above zero. Impurity weight can be zero, but cannot be more than the sample weight. Both entries allow up to three numbers after the decimal point. For example, you can enter 12.345 g.</p>
+<p>A delivery with no test is not the same as a tested delivery with 0% impurities. Ask the Director to delete and replace a wrong test. A purchase with saved tests cannot be changed to a different material until the Director removes those tests.</p>
+<h4 id="sop-01-4-5-check-if-the-kernels-are-good-enough-to-accept">4.5 Check if the kernels are good enough to accept</h4>
+<p>The company’s impurity limit is <strong>10%</strong>. The kernels must also pass the checks for mould, wetness, water damage and other problems. A moisture meter is not required by this SOP at present.</p>
+<p>The Storekeeper must put the delivery on hold if:</p>
+<ul><li>Impurities are above 10%.</li><li>Kernels have serious mould, water damage or other contamination.</li><li>Any other delivery check fails.</li></ul>
+<p>Keep the delivery separate and contact the Director. The Director decides the next step. The app shows the percentage; it does not decide acceptance or change the price.</p>
+<p>Do not hide a bad test result. Do not subtract the sample impurity percentage from the whole delivery weight or supplier payment. Only the Director can approve a change to the agreed price or payment terms.</p>
+<h4 id="sop-01-4-6-accept-a-good-delivery-or-report-a-problem">4.6 Accept a good delivery or report a problem</h4>
+<p><strong>If everything is okay:</strong></p>
+<ol start="1"><li>The Storekeeper accepts the delivery herself. She does not have to wait for the Director to come to the factory.</li><li>Record the actual accepted amount, using the Director’s bag-weight instruction. In <strong>Date actually received</strong>, enter the day the delivery was accepted into stock. For a delivery that was on hold, use the day it was finally accepted.</li><li>Check the approved price and select <strong>Confirm Receipt</strong>.</li><li>Operators move the accepted kernels into storage.</li></ol>
+<p><strong>If something is wrong:</strong></p>
+<ol start="1"><li>Do not accept the delivery or select <strong>Confirm Receipt</strong>.</li><li>Keep it separate from accepted stock. Do not use it for production.</li><li>Contact the Director directly. Explain why you do not want to accept it.</li><li>Give the supplier’s name, purchase details, bag weights, sample weight, impurity weight and percentage.</li><li>Describe any wetness, mould, shortage, document problem or other concern. Send photos where possible.</li><li>Keep these details in the receiving log.</li><li>Wait for the Director’s decision. The Director may reject it, approve acceptance, ask for more checks or order a new price discussion.</li></ol>
+<p>The Manager who sourced the kernels and the supplier cannot overrule the Storekeeper while the Director’s decision is pending.</p>
+<p><strong>If the Director orders a price change:</strong></p>
+<ol start="1"><li>The Director agrees a new price or tells the Manager to negotiate one.</li><li>Keep the delivery on hold until the Director confirms the new terms.</li><li>Make sure the app authorisation has the approved price before confirming receipt.</li><li>If a new authorisation is needed, the Director or the Manager who created it cancels the old request, if allowed, and creates the correct one. Follow the cancellation rules in the app guide.</li><li>Write down the Director’s decision and the new terms.</li><li>Accept and confirm the delivery only as the Director has instructed.</li></ol>
+<p>Operators must lift and load rejected material for removal as instructed. A delivery entering the factory or being unloaded does not by itself mean that it has been accepted.</p>
+<h3 id="sop-01-5-receiving-other-supplies">5. Receiving other supplies</h3>
+<ol start="1"><li>Check the item, condition, amount and agreed specification.</li><li>Measure diesel in litres and electricity in kWh. Use the app’s stated unit for other items.</li><li>Report damaged, wrong or missing items before acceptance.</li><li>Record only the amount actually accepted.</li><li>Use <strong>Confirm Receipt</strong> for the authorised purchase. Machines, tanks and other equipment are not stock, so do not use <strong>Authorise Purchase</strong> for them. Record them in <strong>Assets and Start-up Costs</strong>, or under <strong>Other Partners</strong> when a partner made or supplied them.</li><li>Operators move accepted items into their proper storage areas.</li></ol>
+<p>The app adds the stock receipt automatically. Do not enter it again in Inventory. Keep a separate record for items that have not been set up in the app. Store diesel safely as explained in SOP 03 and SOP 05.</p>
+<h3 id="sop-01-6-records-bag-counts-and-mistakes">6. Records, bag counts and mistakes</h3>
+<p>Keep bag weights, delivery documents, the Director’s instructions and any problem-delivery decision in the receiving log.</p>
+<p>The app uses the Storekeeper’s accepted quantity and the approved unit price to calculate the purchase total. Enter the vehicle number and scale ticket when available.</p>
+<p>Record a separately charged operating cost in <strong>Expenses</strong> where needed. Do not record the same cost twice.</p>
+<p>Once a week, the Storekeeper must:</p>
+<ol start="1"><li>Count the bags still in storage.</li><li>Compare the count with delivery and production-issue records.</li><li>Keep bags from the same delivery together where possible.</li><li>Report missing bags, damaged bags or signs that bags have been opened.</li></ol>
+<p>Intact bags do not need to be weighed again just for the weekly count. Weigh the remaining contents of any open or partly used bag when it is returned to stock. Do not assume all bags weigh the same. The Director decides if other bags need to be weighed again.</p>
+<p>Bag counts check the number of bags. Stock weight comes from the measured receipts, issues and returns.</p>
+<p>Tell the Director about a wrong saved receipt. Do not cancel a completed purchase or add a false stock entry to cover it. Deleting a purchase also deletes its sample tests, so check before an approved deletion.</p>
+<h3 id="sop-01-7-rules-everyone-must-follow">7. Rules everyone must follow</h3>
+<ul><li>The Director is in charge of kernel buying and may give the Manager specific buying tasks.</li><li>The Storekeeper takes charge of kernels when they arrive. She accepts good deliveries and refers problem deliveries to the Director.</li><li>All recorded weights come from the Storekeeper.</li><li>Operators must do the lifting, unloading and loading.</li><li>Weigh every kernel bag. Subtract bag weight only on the Director’s instruction.</li><li>Follow the 10% impurity limit. The Director decides any exception.</li><li>Record each accepted delivery once.</li><li>Never falsify weights, sample results, prices or stock records.</li></ul>
+<p>Breaking these rules, hiding bad kernels or making false records may lead to action by the company. This may include losing your job.</p>
+<h2 id="sop-02">SOP 02 · Production and product checks</h2>
+<p><strong>SOP number:</strong> SOMAD-SOP-002</p>
+<p><strong>Checks and supervision:</strong> Manager.</p>
+<p><strong>All weights and stock entries:</strong> Storekeeper.</p>
+<p><strong>Machines, lifting and handling:</strong> Operators.</p>
+<p><strong>Major decisions and record changes:</strong> Director.</p>
+<h3 id="sop-02-1-what-this-sop-covers">1. What this SOP covers</h3>
+<p>This SOP explains how to prepare and process kernels, collect PKO and PKC, record sludge, check quality and close the work safely.</p>
+<h3 id="sop-02-2-each-person-s-job">2. Each person’s job</h3>
+<ul><li>The Manager plans the work, gives Operators their duties and checks machines and product quality.</li><li>The Manager records work hours, stoppages and problems. The Manager reviews the Storekeeper’s weights but does not enter a second set.</li><li>The Storekeeper weighs each kernel issue and each product received.</li><li>Operators lift and move materials, run their assigned machines, collect products and clean safely.</li><li>The Director approves major changes and repairs, checks differences and corrects app records when needed.</li></ul>
+<h3 id="sop-02-3-record-the-work-as-it-happens">3. Record the work as it happens</h3>
+<ol start="1"><li>The Manager or Director enters the production date, work hours and downtime. Authorise one production day.</li><li>Before kernels enter production, the Storekeeper weighs them and enters the amount in <strong>Kernel issued</strong> in <strong>Pending Weighing</strong>.</li><li>When finished PKO, PKC or sludge is ready, the Storekeeper weighs it and enters the amount in <strong>PKO received</strong>, <strong>PKC received</strong> or <strong>Sludge received</strong>.</li><li>Enter the kernel issued and the products received together, or one at a time, then select <strong>Save</strong>. Each quantity is saved as its own entry and added to stock straight away. If any of them cannot be saved, none are, and the quantities stay in the form to correct and save again. The form stays open with the date kept, so you can enter the next weighing.</li><li>Keep issuing kernels and receiving products as work continues.</li><li>Do not wait for all the products from one issue before recording another issue.</li><li>Do not try to match each product receipt to one particular kernel issue.</li><li>Keep scale tickets where available. Review entries in the production history and <strong>Data</strong> pages.</li></ol>
+<p>The app adds each entry to the same daily production record and updates stock. Do not enter another stock movement for the same work.</p>
+<h3 id="sop-02-4-production-steps">4. Production steps</h3>
+<h4 id="sop-02-4-1-plan-the-work">4.1 Plan the work</h4>
+<p>The Manager must check:</p>
+<ul><li>Electricity is available.</li><li>Machines are safe and ready.</li><li>Enough trained Operators are present.</li><li>The Storekeeper has enough kernels in stock.</li></ul>
+<p>Explain the day’s work to the Operators. A planned quantity is a target; do not record it as actual use. Never start a machine with a serious fault.</p>
+<h4 id="sop-02-4-2-collect-kernels-from-the-store">4.2 Collect kernels from the store</h4>
+<ol start="1"><li>The Manager asks the Storekeeper for kernels.</li><li>Operators bring the bags to the scale.</li><li>The Storekeeper checks stock, weighs the kernels and saves <strong>Issue Kernel</strong>.</li><li>Operators move the weighed kernels to production.</li><li>Repeat these steps whenever more kernels are needed.</li></ol>
+<p>No Operator may take kernels without the Storekeeper recording them. The Manager does not enter the weight again.</p>
+<h4 id="sop-02-4-3-prepare-kernels-for-crushing">4.3 Prepare kernels for crushing</h4>
+<p><strong>Manager:</strong> tells Operators which kernels to prepare and checks the work.</p>
+<p><strong>Operators:</strong> open bags and load kernels into the crusher’s feeding hopper.</p>
+<ol start="1"><li>Look for stones, metal, large shells and other unwanted material.</li><li>Remove unwanted material only where it is safe to do so.</li><li>Feed kernels at a steady rate.</li></ol>
+<p>Do not pour kernels onto a dirty floor. Do not overload the crusher or put hands inside it while it runs. Stop and safely isolate a blocked crusher before clearing it. Follow SOP 05, Section 4.5.</p>
+<h4 id="sop-02-4-4-crush-the-kernels">4.4 Crush the kernels</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Machine work:</strong> assigned Operator.</p>
+<p><strong>Crushed kernel size:</strong> still to be agreed after machine testing.</p>
+<p><strong>Feeding rate:</strong> still to be agreed after machine testing.</p>
+<ol start="1"><li>Check the crusher for damage, loose parts and blockage.</li><li>The Manager checks that it is ready before the Operator starts it.</li><li>Feed kernels steadily and watch the crushed kernels coming out.</li><li>The Manager checks the size often.</li><li>Stop if the pieces are too large or too fine.</li><li>Safely isolate the machine before changing a setting.</li><li>The Manager checks the result after the change.</li></ol>
+<p>Do not change settings without the Manager’s permission. The approved size will be added to this manual after testing.</p>
+<h4 id="sop-02-4-5-use-the-conveyors">4.5 Use the conveyors</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Machine work:</strong> assigned Operator.</p>
+<ol start="1"><li>Check that the conveyor is clear.</li><li>Check that the receiving hopper or machine is ready.</li><li>Start the conveyor and watch the kernels move.</li><li>Stop or reduce feeding if the receiving hopper is nearly full.</li><li>Stop a blocked conveyor and tell the Manager.</li><li>Safely isolate it before anyone removes the blockage.</li></ol>
+<h4 id="sop-02-4-6-load-the-roaster">4.6 Load the roaster</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Loading and machine work:</strong> Operators.</p>
+<p><strong>Rated capacity:</strong> 170 kg per batch.</p>
+<p><strong>Approved working load and loading time:</strong> still to be agreed after testing.</p>
+<ol start="1"><li>Check that the roaster is ready and the last batch has been removed.</li><li>Check that the feeding hopper is clear.</li><li>The Manager tells Operators how much to load.</li><li>Operators load it using the approved method.</li><li>Watch for spills and overfilling.</li><li>The Manager checks the loading. Any weight entered in a record must come from the Storekeeper.</li></ol>
+<p>Do not load more than the approved amount. Keep hands and tools out of the rotating drum. Keep the feeding hopper away from moving parts. Report unusual noise, shaking or spills immediately.</p>
+<h4 id="sop-02-4-7-roast-the-kernels">4.7 Roast the kernels</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Machine work:</strong> assigned Operator.</p>
+<p><strong>Temperature, roasting time and drum speed:</strong> still to be agreed after testing.</p>
+<ol start="1"><li>The Manager confirms the approved settings.</li><li>The Operator starts the roaster and watches the temperature and time.</li><li>The Manager checks the kernels during roasting.</li><li>Tell the Manager immediately if the temperature is too high or kernels start to burn.</li><li>Follow the Manager’s instructions to deal with the problem safely.</li><li>When ready, discharge the kernels into the receiving hopper.</li><li>The Manager checks that they are evenly roasted and not burnt before they go to the expeller.</li></ol>
+<p>Do not change approved settings without permission.</p>
+<h4 id="sop-02-4-8-feed-the-expeller-and-collect-oil">4.8 Feed the expeller and collect oil</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Machine work:</strong> assigned Operator.</p>
+<p><strong>Feeding rate:</strong> still to be agreed after testing.</p>
+<ol start="1"><li>Check the expeller for loose parts, damage and blockage.</li><li>The Manager checks that it is ready.</li><li>Start it using the approved method.</li><li>Operators move roasted kernels into its feeding hopper.</li><li>Feed kernels steadily.</li><li>Watch the oil and PKC coming out.</li><li>If it overloads, makes an unusual noise or runs badly, stop or reduce feeding and tell the Manager.</li><li>The Manager checks the problem before work continues.</li><li>Direct the oil into the settling tank. Collect PKC in its proper area.</li></ol>
+<p>The Manager must watch for low oil output, too much oil in the cake, repeated blockages, overheating and uneven feeding.</p>
+<p>Never put hands or tools inside the expeller while its moving parts can operate.</p>
+<h4 id="sop-02-4-9-collect-and-store-pkc">4.9 Collect and store PKC</h4>
+<ol start="1"><li>Operators collect the PKC and keep it away from dirt and water.</li><li>Allow hot PKC to cool safely before bagging or storage where needed.</li><li>Operators move it to the weighing area.</li><li>The Storekeeper weighs it and saves <strong>Receive Product → PKC</strong>.</li><li>The Manager checks its quality and reviews the saved receipt. The Manager does not enter another weight.</li><li>Operators move the PKC into storage.</li></ol>
+<p>The saved receipt adds the stock automatically. Do not enter it again in Inventory. Do not pile or pack very hot PKC in a way that could cause overheating or fire.</p>
+<h4 id="sop-02-4-10-collect-oil-and-let-it-settle">4.10 Collect oil and let it settle</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Machine work:</strong> assigned Operator.</p>
+<p><strong>Settling time and maximum tank level:</strong> still to be agreed after testing.</p>
+<ol start="1"><li>Check that the tank is clean and ready.</li><li>Check that the pipes are properly connected.</li><li>Watch the oil entering the tank. Do not let it overflow.</li><li>Leave the oil for the approved time so heavier dirt can settle.</li><li>Transfer the oil to the filter press. Avoid disturbing the sludge at the bottom.</li><li>The Manager decides when sludge must be removed and tells Operators when to clean the tank.</li></ol>
+<h4 id="sop-02-4-11-filter-the-oil">4.11 Filter the oil</h4>
+<p><strong>In charge:</strong> Manager.</p>
+<p><strong>Machine work:</strong> assigned Operator, with other Operators assigned as needed.</p>
+<p><strong>Working pressure:</strong> still to be agreed.</p>
+<p><strong>Maximum safe pressure:</strong> must be confirmed from the machine’s instructions.</p>
+<p><strong>Cloth cleaning interval:</strong> still to be agreed after testing.</p>
+<h5 id="sop-02-before-filtering">Before filtering</h5>
+<ol start="1"><li>Check the press, pipes, hoses and filter cloths.</li><li>Check that plates and cloths are fitted correctly.</li><li>Check that the clean-oil outlet leads to the correct tank.</li></ol>
+<h5 id="sop-02-while-filtering">While filtering</h5>
+<ol start="1"><li>Start filtering only when the Manager gives permission.</li><li>Start the oil pump.</li><li>Watch pressure, oil flow and leaks.</li><li>The Manager checks for visible dirt in the filtered oil.</li><li>Stop and tell the Manager if flow is too slow, pressure is too high or the oil is dirty.</li><li>The Manager decides whether cleaning or repair is needed.</li></ol>
+<h5 id="sop-02-clean-the-filter-cloths">Clean the filter cloths</h5>
+<ol start="1"><li>Stop the pump.</li><li>Safely isolate the pump and release all pressure in the press before opening it.</li><li>Operators open the press using the approved method.</li><li>Remove the dirt and filter cake. Clean the cloths.</li><li>The Manager checks cloths for tears, blockage and damage.</li><li>Replace damaged cloths.</li><li>Close and secure the press. The Manager checks it before filtering starts again.</li></ol>
+<p>During testing, the Manager checks how many filtering cycles the cloths can handle before cleaning. Use the cleaning interval agreed after testing. Clean earlier if flow is poor or the cloths are blocked.</p>
+<p>Never open the filter press while it is under pressure.</p>
+<h4 id="sop-02-4-12-move-finished-pko-into-storage">4.12 Move finished PKO into storage</h4>
+<ol start="1"><li>The Manager checks that the final storage tank is ready.</li><li>The Operator checks the pump, pipes and valves.</li><li>Transfer the filtered oil into the final tank.</li><li>The Manager watches for leaks, overflow and mixing with unfiltered oil.</li><li>The Storekeeper measures the finished oil and saves <strong>Receive Product → PKO</strong>.</li><li>The Manager checks the quality and reviews the receipt. No second weight is entered.</li></ol>
+<p>The app adds stock automatically. Do not enter the same receipt again.</p>
+<p>Count only filtered oil moved into the final storage tank as finished PKO. Oil still in the settling tank or filter press is not finished PKO.</p>
+<h4 id="sop-02-4-13-unused-kernels-wrong-entries-and-yield">4.13 Unused kernels, wrong entries and yield</h4>
+<p>Save issues and receipts during the day. Do not wait until a whole run is finished.</p>
+<p>If unused kernels are returned:</p>
+<ol start="1"><li>The Storekeeper weighs them and writes down the return.</li><li>Ask the Director to correct or reverse the original <strong>Issue Kernel</strong> entry.</li><li>If the date is closed, only the Director can reopen it.</li><li>Do not record returned kernels as PKO, PKC, sludge or a new purchase.</li></ol>
+<p>Only kernels that have not entered processing can be returned as unused kernels. Kernels still inside machines are not back in store.</p>
+<p><strong>PKO yield % = finished PKO weight ÷ kernels used × 100.</strong></p>
+<p>Use the same method for PKC. Use measured kernel issues after any approved return correction. Do not subtract a delivery sample’s impurity percentage from the official kernel weight.</p>
+<p>Example: 360 kg oil from 1,000 kg kernels gives <strong>36% oil yield</strong>, even if a delivery sample showed 10% impurities.</p>
+<p>Keep products from unfinished work under the original production authorisation. Enter the date each product was actually weighed and received. Yield uses all kernels and products under that original production date. It is marked <strong>Provisional</strong> while production is open and <strong>Final</strong> after <strong>Finish Day</strong>. Stock increases on the actual receipt date. Do not change weights to force a match.</p>
+<h4 id="sop-02-4-14-check-the-product-quality">4.14 Check the product quality</h4>
+<p>The Manager checks PKO for visible dirt, water, unusual smell and poor filtering.</p>
+<p>Check PKC for too much oil left in the cake, dirt, unusual smell or appearance, and too much heat or moisture in storage.</p>
+<p>Watch the saved product quantities, yield, machine stoppages, waste and losses. The full product standards must be agreed after production testing.</p>
+<h4 id="sop-02-4-15-power-failure-and-unfinished-work">4.15 Power failure and unfinished work</h4>
+<ol start="1"><li>Operators stop feeding kernels. Switch off and secure machines so they cannot restart suddenly when power returns.</li><li>The Manager checks which machines still contain material. Safely stop the roaster’s heat source.</li><li>Do not leave hot equipment in a dangerous state. Follow SOP 05 for power isolation, pressure, heat and moving parts.</li><li>Operators secure the materials and work area. The Manager records the stoppage and problems.</li><li>The Storekeeper saves all issues and finished products already measured. Do not hold back those records because other material is unfinished.</li><li>Do not guess the weight inside machines or count unfiltered oil as finished PKO.</li><li>Do not record unfinished material as kernels returned to store.</li><li>Leave the production authorisation open while any of its materials remain unfinished. Do not select <strong>Finish Day</strong> just because work has stopped for the day.</li></ol>
+<p>Select <strong>Finish Day</strong> only after all materials for that production have been processed and all products have been weighed and recorded. This closes its entries and makes its yield <strong>Final</strong>. The app records any kernels not recovered as weighed PKO, PKC or sludge as production loss. If you select <strong>Finish Day</strong> too early, kernels still in the machines are wrongly recorded as loss. If the Director reopens the day, the loss is cleared and worked out again at the next <strong>Finish Day</strong>. Production cards in <strong>Production Data</strong> and <strong>Pending Weighing</strong> show the production loss in kg. While the day is still open it is marked <strong>Provisional</strong> and includes kernels still in the machines. Do not change weights to reduce it.</p>
+<p>When work starts again:</p>
+<ol start="1"><li>The Manager checks that power is available and the machines are safe.</li><li>Operators continue the unfinished work safely.</li><li>Record only new kernels given out as new <strong>Issue Kernel</strong> entries. Do not issue the old kernels again.</li><li>Open the original production authorisation to record the remaining products. Enter the date they are actually weighed and received in <strong>Date actually issued or received</strong>.</li><li>Example: Monday’s kernels finish processing on Tuesday. Record the remaining oil under Monday’s production, with Tuesday as the actual receipt date. It adds to Monday’s production and yield, and to Tuesday’s stock. The entry also shows when it was submitted.</li><li>Finish and weigh all products from that production before selecting <strong>Finish Day</strong>. The Manager then authorises the next production day. Do not issue Monday’s kernels again.</li><li>If an old measurement was genuinely missed or wrong, tell the Director. Only the Director reopens that date to correct it.</li></ol>
+<p>The app uses unfinished material when estimating production cost. It is not available kernel stock and has no separate Storekeeper entry screen. Keep notes about the stoppage in the company’s log.</p>
+<h4 id="sop-02-4-16-close-the-day">4.16 Close the day</h4>
+<ol start="1"><li>The Manager tells Operators to stop new feeding.</li><li>Finish processing where it is safe to do so. Otherwise, secure unfinished material as explained above.</li><li>Shut down and isolate equipment where needed.</li><li>Operators clean the machines and work areas safely.</li><li>The Storekeeper saves all actual issues and receipts for the day.</li><li>Report unused returns, faults and stock differences.</li><li>The Storekeeper selects <strong>Finish Day</strong> only if all materials for that production are processed and all products are weighed and recorded. Otherwise leave it open for the next working day.</li></ol>
+<p>The Manager does not submit another quantity report. Only the Director can reopen the day.</p>
+<h3 id="sop-02-5-machine-settings-still-to-be-agreed">5. Machine settings still to be agreed</h3>
+<p>The following settings must be agreed during testing before normal production starts. Do not guess them. Once approved, follow them unless permission is given to change them.</p>
+<div class="sop-table-wrap"><table><thead><tr><th scope="col">Machine or process</th><th scope="col">Setting</th></tr></thead><tbody><tr><td>Crushed kernel size</td><td>Still to be agreed</td></tr><tr><td>Crusher feeding rate</td><td>Still to be agreed</td></tr><tr><td>Roaster working load</td><td>Still to be agreed</td></tr><tr><td>Roaster loading time</td><td>Still to be agreed</td></tr><tr><td>Roasting temperature</td><td>Still to be agreed</td></tr><tr><td>Roasting time</td><td>Still to be agreed</td></tr><tr><td>Total time for one roasting batch</td><td>Still to be agreed</td></tr><tr><td>Roaster drum speed</td><td>Still to be agreed</td></tr><tr><td>Expeller feeding rate</td><td>Still to be agreed</td></tr><tr><td>Expected PKO yield</td><td>Still to be agreed</td></tr><tr><td>Expected PKC yield</td><td>Still to be agreed</td></tr><tr><td>Oil settling time</td><td>Still to be agreed</td></tr><tr><td>Maximum settling tank level</td><td>Still to be agreed</td></tr><tr><td>Working filter pressure</td><td>Still to be agreed</td></tr><tr><td>Maximum safe filter pressure</td><td>Confirm from the machine’s instructions</td></tr><tr><td>Filter cloth cleaning interval</td><td>Still to be agreed</td></tr><tr><td>Finished PKO quality</td><td>Still to be agreed</td></tr><tr><td>Allowed oil left in PKC</td><td>Still to be agreed</td></tr></tbody></table></div>
+<h3 id="sop-02-6-rules-everyone-must-follow">6. Rules everyone must follow</h3>
+<ul><li>Run a machine only if you are trained and have permission.</li><li>Do not change settings without the Manager’s permission.</li><li>Keep hands and tools away from moving machinery.</li><li>Isolate a machine safely before removing a blockage or working inside it.</li><li>Never open a filter press under pressure.</li><li>Do not take kernels without the Storekeeper recording them.</li><li>Weigh finished products before recording them.</li><li>Secure unfinished work safely at closing or during a stoppage.</li><li>Do not hide faults, waste, losses or missing stock.</li><li>Only the Storekeeper provides the weights. The Manager does not enter another set.</li><li>Report serious accidents, breakdowns and unexplained losses to the Director.</li></ul>
+<p>Making false records, hiding losses, running machines without permission or ignoring safety rules may lead to action by the company. This may include losing your job.</p>
+<h2 id="sop-03">SOP 03 · Electricity, diesel and other supplies</h2>
+<p><strong>SOP number:</strong> SOMAD-SOP-003</p>
+<p><strong>Work planning:</strong> Manager.</p>
+<p><strong>Measurements and supply records:</strong> Storekeeper.</p>
+<p><strong>Assigned physical work:</strong> Operators.</p>
+<p><strong>Approval and review:</strong> Director.</p>
+<h3 id="sop-03-1-what-this-sop-covers">1. What this SOP covers</h3>
+<p>Use electricity, diesel and other supplies carefully. Keep enough available and record what is bought and used.</p>
+<p>NEPA is the main power source. The company does not currently have a generator. Generator instructions apply only when approved equipment is available.</p>
+<p>This SOP also covers lubricants, grease, spare parts, filter cloths, bags and cleaning materials. Follow SOP 01 when buying and receiving them.</p>
+<h3 id="sop-03-2-each-person-s-job">2. Each person’s job</h3>
+<ul><li>The Manager plans purchases, asks for approval, supervises use and records separately charged operating costs.</li><li>The Director remains in charge of kernel buying, even when the Manager arranges other supplies.</li><li>The Storekeeper checks electricity units added to the meter, takes meter readings and measures supplies received, given out and returned.</li><li>Operators use materials only for approved work, report waste and return unused supplies.</li><li>The Director approves purchases and corrections and checks unusual use.</li></ul>
+<p>The Manager does not enter a second set of measured quantities.</p>
+<h3 id="sop-03-3-buy-and-receive-electricity-units">3. Buy and receive electricity units</h3>
+<ol start="1"><li>Plan the purchase before prepaid units run out. Get the Director’s approval.</li><li>The Storekeeper records the meter balance before new units are added.</li><li>The Manager or Director creates an Electricity purchase authorisation with the date, supplier, approved price per unit and the kWh ordered.</li><li>Keep the payment receipt.</li><li>The Storekeeper checks the units actually added to the meter. Allow for electricity used between readings.</li><li>In <strong>Pending Weighing</strong>, enter the actual units added in kWh and select <strong>Confirm Receipt</strong>.</li><li>Keep the before and after meter readings in the electricity log. Report any difference that cannot be explained.</li></ol>
+<p>Do not record the same units added again as another stock receipt. Do not charge the same electricity purchase again in Expenses. If an expense description mentions diesel or electricity, the app shows a warning and asks you to confirm before saving.</p>
+<h3 id="sop-03-4-record-daily-electricity-use-and-power-failures">4. Record daily electricity use and power failures</h3>
+<p><strong>Electricity used = opening balance + units added − closing balance.</strong></p>
+<p>Example: 300 kWh + 200 kWh − 180 kWh = <strong>320 kWh used</strong>.</p>
+<p>The Storekeeper writes the opening reading, units added and closing reading in the electricity log, then calculates the amount used. Open <strong>Daily Usage</strong>, select the actual date of use, choose <strong>Electricity</strong>, enter the kWh used and select <strong>Save Daily Usage</strong>. The app reduces electricity stock and updates that day’s closing balance. Record each amount once. Do not ask the Director to enter the same usage again as a manual stock change. If none was used, do not enter a false usage amount.</p>
+<p>Switch off equipment when it is no longer needed. Report unusual use. Do not let poor planning cause prepaid units to run out during production.</p>
+<p>If power fails:</p>
+<ol start="1"><li>Stop and secure machines against sudden restart.</li><li>The Manager checks whether the problem is from NEPA or inside the factory.</li><li>A qualified electrician must check factory electrical faults. Workers must not attempt unsafe repairs.</li><li>Follow SOP 02, Section 4.15, for unfinished work, and SOP 05 for safe isolation.</li><li>The Manager checks safety before work starts again.</li></ol>
+<h3 id="sop-03-5-diesel-when-needed">5. Diesel, when needed</h3>
+<ol start="1"><li>Receive diesel through the authorised purchase and <strong>Confirm Receipt</strong> steps.</li><li>The Storekeeper measures it and keeps it in suitable labelled containers, away from heat and flames.</li><li>The Manager requests fuel for approved equipment.</li><li>The Storekeeper measures and records the amount given out.</li><li>Operators refuel the equipment safely.</li><li>Record operating hours if a generator is in use.</li><li>Check the remaining diesel and report leaks or shortages.</li></ol>
+<p><strong>Diesel used = opening amount + amount received − closing amount.</strong></p>
+<p>Include fuel still in equipment tanks. Moving fuel from a container to a tank does not mean it has all been used.</p>
+<p>Record diesel actually used in <strong>Daily Usage</strong>: select the date of use, choose <strong>Diesel</strong>, enter the litres used and select <strong>Save Daily Usage</strong>. Do not count a move into an equipment tank as consumption. For returns or stock changes that Daily Usage does not handle, keep the measured amount in the log and send it to the Director for the approved adjustment. Do not record the same usage twice or create another purchase or stock receipt.</p>
+<h3 id="sop-03-6-give-out-lubricants-spare-parts-and-other-supplies">6. Give out lubricants, spare parts and other supplies</h3>
+<ol start="1"><li>The Manager requests the correct item and explains what it is for.</li><li>The Storekeeper measures or counts it and records the amount given out.</li><li>Operators use it for the approved job, following the machine instructions and SOP 05.</li><li>Return unused supplies to the Storekeeper.</li><li>The Storekeeper records the return and checks what remains.</li><li>For consumables listed in the app, the Storekeeper records the amount actually used in <strong>Daily Usage</strong>, with the correct date and unit, then selects <strong>Save Daily Usage</strong>. Record each amount once. Send returns and other stock changes that this screen does not handle to the Director for the approved adjustment.</li></ol>
+<p>Keep items not set up in the app in the supplies log. Check balances often and plan purchases in time. No one may take supplies without the Storekeeper’s knowledge.</p>
+<h3 id="sop-03-7-rules-everyone-must-follow">7. Rules everyone must follow</h3>
+<ul><li>The Storekeeper checks and records all measured amounts.</li><li>Record electricity units bought and used.</li><li>Record supplies given out and returned.</li><li>Do not waste supplies or use them for private work without permission.</li><li>Report leaks, shortages and unusual use.</li><li>Do not count the same purchase or cost twice.</li></ul>
+<p>Theft, misuse, false meter readings and hiding shortages may lead to action by the company. This may include losing your job.</p>
+<h2 id="sop-04">SOP 04 · Selling, weighing and loading products</h2>
+<p><strong>SOP number:</strong> SOMAD-SOP-004</p>
+<p><strong>Sales arrangements and loading supervision:</strong> Manager.</p>
+<p><strong>All product weights:</strong> Storekeeper.</p>
+<p><strong>Lifting, loading and assigned pump work:</strong> Operators.</p>
+<p><strong>Prices, payment terms and permission to release goods:</strong> Director.</p>
+<h3 id="sop-04-1-what-this-sop-covers">1. What this SOP covers</h3>
+<p>This SOP covers sales of PKO, PKC and sludge. It applies when customers collect goods and when the company arranges delivery.</p>
+<p>Sell on approved terms, weigh the right amount, check payment and record the sale once.</p>
+<h3 id="sop-04-2-each-person-s-job">2. Each person’s job</h3>
+<ul><li>The Manager finds buyers, compares offers and asks the Director to approve the terms.</li><li>Agree who will pay for transport and loading. Keep contact with customers and look for new buyers.</li><li>The Manager arranges collection and supervises loading.</li><li>The Storekeeper checks available stock and weighs the actual amount leaving.</li><li>Operators prepare products, lift and move them for weighing, load them and run assigned pumps.</li><li>The Director approves prices, payment terms, credit sales and the release of goods.</li></ul>
+<p>The Storekeeper does not negotiate prices, approve sales or collect payments. The Manager does not record a second set of weights.</p>
+<h3 id="sop-04-3-authorise-the-sale">3. Authorise the sale</h3>
+<ol start="1"><li>The Director saves the approved price and its start date on <strong>Prices</strong>.</li><li>If a price is missing or wrong, ask the Director to correct it before authorising the sale.</li><li>The Manager or Director selects the sale date, customer and product, and enters the <strong>Quantity ordered</strong>: the amount the customer asked for. The Storekeeper sees it on the sale in <strong>Pending Weighing</strong>.</li><li>Check the price supplied by the app. Choose <strong>Factory weight</strong> or <strong>Customer’s agreed weight</strong> under <strong>Payment weight</strong>. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. The Director cannot be the accompanying representative. Do not enter a second price or dispatch weight in this form.</li><li>Select <strong>Authorise Sale</strong>.</li><li>Tell the Storekeeper about the collection and assign Operators to prepare the products and equipment.</li></ol>
+<p>The customer’s requested amount is a plan. The Storekeeper’s factory dispatch weight determines how much stock leaves the factory. If she enters more than was ordered, the app asks her to confirm before saving. The approved payment basis determines the invoice weight: factory weight or the buyer’s agreed weight. Authorising a sale does not prove payment or give permission to release the vehicle.</p>
+<h3 id="sop-04-4-weigh-and-load">4. Weigh and load</h3>
+<h4 id="sop-04-4-1-pko">4.1 PKO</h4>
+<ol start="1"><li>The Storekeeper checks available oil stock.</li><li>The Manager checks that the customer’s tank or container is suitable and ready.</li><li>The Operator checks the pump, valves and hoses.</li><li>The Storekeeper records the storage tank weight before loading.</li><li>The Manager tells the Operator to start pumping.</li><li>The Storekeeper watches the amount and tells the Operator when to stop.</li><li>After pumping stops and the reading settles, take the final measurement.</li><li>The Manager checks that the pump and valves are safely closed.</li></ol>
+<p><strong>PKO sent out = tank weight before loading − tank weight after loading.</strong></p>
+<p>Use the actual measured amount, even if it differs from the order. Report leaks and spills. Do not hide a spill in the customer’s quantity.</p>
+<h4 id="sop-04-4-2-pkc">4.2 PKC</h4>
+<ol start="1"><li>The Storekeeper checks available stock.</li><li>Operators bring the PKC to the weighing area.</li><li>The Storekeeper weighs it using the basis approved by the Director.</li><li>Subtract bag weight only when the Director instructs. Do not subtract it automatically.</li><li>Follow the agreed container-weight instruction. Record whether the final weight includes the bags.</li><li>Operators load the weighed quantity under the Manager’s supervision.</li><li>Do not load any extra PKC unless the Storekeeper weighs and records it.</li></ol>
+<h4 id="sop-04-4-3-sludge">4.3 Sludge</h4>
+<ol start="1"><li>Operators collect sludge in suitable containers, separate from PKO.</li><li>The Storekeeper weighs new sludge and saves <strong>Receive Product → Sludge</strong> under production.</li><li>Store it in the assigned area.</li><li>After a sludge sale is approved, the Storekeeper weighs the amount going to the customer.</li><li>Operators load it as instructed.</li><li>Record the dispatch under the sale authorisation.</li></ol>
+<p>Collecting sludge adds stock. Selling it removes stock. Do not enter both as receipts. Do not sell, give away or dispose of sludge without the Director’s permission.</p>
+<h3 id="sop-04-5-check-payment-before-release">5. Check payment before release</h3>
+<ol start="1"><li>The Director checks that the required payment was received or approves a credit sale.</li><li>A customer’s transfer screenshot or payment alert alone is not enough proof.</li><li>The Storekeeper checks the factory dispatch weight in <strong>Pending Weighing</strong>. For factory-weight sales, check the sale total. For customer-weight sales, the amount shown at dispatch is an estimate until the buyer’s weighing is confirmed.</li><li>The Manager checks that the correct product is loaded and gets the Director’s permission to release it.</li><li>For factory-weight sales, check the payment or approved credit before release. For customer-weight sales, the Director must approve release under the agreed terms while the final weight and invoice are pending.</li><li>The Storekeeper enters the actual factory quantity, the date the goods left in <strong>Date actually dispatched</strong>, the vehicle number and factory scale ticket where available, then shows the driver the quantity. The driver enters their name and signs on the device to acknowledge collection. Then select <strong>Confirm Dispatch</strong>. The app does not confirm a dispatch until the driver has signed. The sale and invoice use the dispatch date.</li><li>The Manager allows the vehicle to leave only under the Director’s approved terms. For customer-weight payment, the Manager or a representative approved by the Director accompanies the driver and witnesses the buyer’s weighing.</li></ol>
+<p>The app saves the dispatch and factory stock deduction together. Customer weighing does not deduct stock again or change the factory dispatch weight. The app does not check the Director’s release approval for you. Keep that approval in the company’s record.</p>
+<h3 id="sop-04-6-invoices-receipts-and-other-records">6. Invoices, receipts and other records</h3>
+<p>Open <strong>Delivery Note</strong> from the sale record or open the job in <strong>Pending Weighing</strong>. The accompanying representative opens the note on their device at the destination; the buyer does not need an app account or a delivery link. The buyer enters their name and measured weight and signs on the device. You may select several scale tickets or weighing photos together, up to six files of 6 MB each. Uploading evidence remains optional. The representative checks the details and any attached evidence, confirms that they witnessed the weighing and selects <strong>Confirm Buyer’s Weighing</strong>. For customer-weight sales, matching weights generate the invoice. If the buyer’s weight differs from the factory weight, the Director reviews the difference and any attached evidence and selects <strong>Approve Weight and Generate Invoice</strong>. Factory-weight invoices remain based on the factory weight. Use <strong>Print / Save PDF</strong> for the delivery note, and the sale’s <strong>Details</strong> buttons for the final invoice and statement.</p>
+<ul><li>An invoice shows what the customer owes.</li><li>A payment receipt shows a payment recorded as received.</li><li>A statement shows the sale, payments and remaining balance.</li></ul>
+<p>The Director or Manager records checked customer payments using the sale payment controls, then generates the receipt. The Storekeeper does not record payments. Do not mark a credit sale as fully paid before the money has actually been received.</p>
+<p>The app calculates the invoice from the approved price and the selected payment weight. Example: 10,000 kg dispatched and 9,850 kg agreed by the buyer means 10,000 kg leaves stock; a customer-weight invoice charges for 9,850 kg after the Director approves the difference. The dashboard shows the cost of the 150 kg difference as Delivery shortfall. Both weights, signatures and all attached evidence stay on the delivery note. In the Sales edit form, <strong>Factory quantity issued</strong> shows the amount dispatched from the factory, not the buyer’s weight used for invoicing. Customer weight is recorded separately on the delivery note. Do not enter another Manager dispatch report or a second stock issue. Customer-weight payments are recorded in the app only after the final invoice is issued.</p>
+<p>Record separately paid delivery services in <strong>Expenses</strong> where needed. Do not charge the same cost twice. The Storekeeper checks remaining stock and reports differences. The Director reviews records and <strong>Checks</strong>.</p>
+<h3 id="sop-04-7-complaints-and-wrong-records">7. Complaints and wrong records</h3>
+<ol start="1"><li>Stop dispatch if needed.</li><li>Keep the complaint details and any evidence.</li><li>The Storekeeper rechecks the measurement.</li><li>The Director decides whether to correct the record, allow more loading, refund money or take another action.</li><li>Use the Director’s correction controls. Do not change weights or add false stock entries to hide a shortage.</li></ol>
+<p>A sale total cannot be reduced below payments already recorded without resolving those payments first. Do not delete payment receipts just to remove a sale. If a payment was entered wrongly, tell the Director. The Director opens the sale, selects <strong>Reverse Payment</strong> and enters the reason. The receipt stays on record marked Reversed, and the amount is owed again. Then record the correct payment. A sale with any receipt, even a reversed one, cannot be deleted. The Director can still correct a sale after the driver has signed: use the correction buttons and enter the reason. The delivery note then shows what was changed, by whom and why. A sale the driver has signed for cannot be deleted, because the goods have left the factory. Keep the reason and approval for corrections in the company’s record; do not assume the app keeps every explanation for you.</p>
+<h3 id="sop-04-8-rules-everyone-must-follow">8. Rules everyone must follow</h3>
+<ul><li>Use approved prices and terms.</li><li>The Storekeeper weighs every dispatch and records it once.</li><li>Confirm payment or approved credit before release.</li><li>Get the Director’s permission before goods leave.</li><li>Do not give away or remove goods without permission.</li><li>Record the actual weight, not the requested weight.</li><li>Report shortages and mistakes honestly.</li></ul>
+<p>Unauthorised sales, secret commissions, false records and release without approval may lead to action by the company. This may include losing your job.</p>
+<h2 id="sop-05">SOP 05 · Machine care and safety</h2>
+<p><strong>SOP number:</strong> SOMAD-SOP-005</p>
+<p><strong>Checks and supervision:</strong> Manager.</p>
+<p><strong>Machines, lifting, handling and cleaning:</strong> Operators.</p>
+<p><strong>Spare parts and supply records:</strong> Storekeeper.</p>
+<p><strong>Major repairs and serious problems:</strong> Director.</p>
+<h3 id="sop-05-1-what-this-sop-covers">1. What this SOP covers</h3>
+<p>Keep machines in good condition and prevent injuries, fires and electrical accidents. This SOP applies to everyone in the factory.</p>
+<p>It covers the crusher, roaster, expeller, conveyors, filter press, pumps, electrical panel and other equipment.</p>
+<h3 id="sop-05-2-each-person-s-job">2. Each person’s job</h3>
+<h4 id="sop-05-2-1-manager">2.1 Manager</h4>
+<ul><li>Make sure machines are checked before use.</li><li>Plan servicing and assign trained workers to each job.</li><li>Assign cleaning, checking and lubrication duties.</li><li>Stop the use of unsafe machines.</li><li>Report breakdowns and serious risks to the Director.</li><li>Arrange approved repairs by qualified technicians.</li><li>Keep records of faults, servicing and repairs.</li></ul>
+<h4 id="sop-05-2-2-operators">2.2 Operators</h4>
+<ul><li>Check assigned machines before starting.</li><li>Follow the approved instructions.</li><li>Clean and lubricate only as trained and instructed.</li><li>Keep guards and safety devices in place.</li><li>Wear the required protection.</li><li>Report noise, shaking, overheating, leaks and damage.</li><li>Stop work when there is a serious danger.</li></ul>
+<h4 id="sop-05-2-3-storekeeper">2.3 Storekeeper</h4>
+<ul><li>Check and record parts, lubricants and maintenance supplies received.</li><li>Give them out only for approved work.</li><li>Measure or count amounts given out and returned.</li><li>Keep the supplies log and send checked figures to the Director for any manual app entry.</li><li>Watch remaining stock and report missing or damaged items.</li></ul>
+<p>The Storekeeper is not responsible for running or repairing factory machines. Do not enter another receipt for supplies already received through a purchase.</p>
+<h4 id="sop-05-2-4-director">2.4 Director</h4>
+<ul><li>Approve major repairs, replacements and required purchases.</li><li>Review serious breakdowns and safety incidents.</li><li>Make sure serious safety problems are dealt with before normal work continues.</li></ul>
+<h3 id="sop-05-3-before-any-maintenance-job">3. Before any maintenance job</h3>
+<p>Only a trained person with permission may do the work. Jobs needing special tools, electrical tests or machine dismantling must go to a qualified technician.</p>
+<p>Use the machine maker’s instructions. If they require checks or servicing more often than this manual, follow those instructions.</p>
+<h3 id="sop-05-4-safety-and-machine-care-steps">4. Safety and machine-care steps</h3>
+<h4 id="sop-05-4-1-check-machines-each-day">4.1 Check machines each day</h4>
+<ol start="1"><li>The Manager assigns the checks.</li><li>While machines are stopped, check for loose bolts, damage, leaks and visible blockages.</li><li>Check that guards and covers are fitted properly.</li><li>Check belts, conveyors and other visible moving parts for damage.</li><li>Check oil outlets, pipes and connections.</li><li>Report problems to the Manager.</li><li>The Manager checks each reported fault before allowing the machine to start.</li></ol>
+<p>Do not start a machine with a serious safety fault until the problem has been fixed.</p>
+<h4 id="sop-05-4-2-add-oil-and-grease-correctly">4.2 Add oil and grease correctly</h4>
+<ol start="1"><li>The Manager identifies the right lubricant, points to lubricate and timing for each machine.</li><li>Request the material from the Storekeeper.</li><li>The Storekeeper measures and records the amount given out.</li><li>The assigned Operator follows the machine’s instructions and safety steps.</li><li>The Manager checks the finished job.</li><li>Return unused material to the Storekeeper for recording.</li></ol>
+<p>Use the correct lubricant. Do not overfill oil chambers or use too much grease. Keep lubricants away from kernels, PKO and PKC.</p>
+<p>Do not lubricate exposed moving parts while a machine runs, unless the machine has a safe system approved by its maker for that job.</p>
+<h4 id="sop-05-4-3-regular-servicing">4.3 Regular servicing</h4>
+<p><strong>Every day:</strong></p>
+<ul><li>Check the machine before use.</li><li>Look for leaks, loose parts and unusual sounds.</li><li>Check lubricant levels where required.</li><li>Remove accessible dirt and material build-up after safe shutdown.</li></ul>
+<p><strong>Every week:</strong></p>
+<ul><li>Check belts, chains and conveyors for wear and wrong tension.</li><li>Check bolts, bearings and visible connections.</li><li>Check pumps, hoses and filter press parts for damage and leaks.</li><li>Check roaster supports, drive parts and other accessible parts.</li></ul>
+<p><strong>Every month:</strong></p>
+<ul><li>Review the machine’s condition and repeated faults.</li><li>Check servicing needs against actual hours worked.</li><li>Arrange checks that require a trained technician.</li><li>Use a qualified electrician for due checks of electrical connections and protection.</li></ul>
+<p>The machine maker’s servicing instructions take priority over these general times. Do not do work beyond your training.</p>
+<h4 id="sop-05-4-4-when-a-machine-breaks-down">4.4 When a machine breaks down</h4>
+<ol start="1"><li>The Operator stops it when safe to do so.</li><li>Tell the Manager immediately.</li><li>The Manager checks without exposing anyone to moving parts or live electricity.</li><li>Decide whether trained staff can safely fix it or a technician is needed.</li><li>Get the Director’s approval for the required repair.</li><li>Record the fault, time stopped, repair and time work started again. If an outside partner does the repair, record the job and agreed price under <strong>Other Partners</strong>. The Director records the payment.</li><li>Check the machine before returning it to normal use.</li></ol>
+<p>Operators must not attempt repairs they are not trained to do.</p>
+<h4 id="sop-05-4-5-safely-isolate-a-machine-before-cleaning-or-repair">4.5 Safely isolate a machine before cleaning or repair</h4>
+<p><strong>Isolate</strong> means disconnect the power and make sure the machine cannot start or release dangerous energy while someone works on it.</p>
+<p>Before clearing a blockage, removing a guard or working inside a machine:</p>
+<ol start="1"><li>The Manager tells the Operator to stop it.</li><li>An authorised person disconnects or isolates the correct power supply.</li><li>Follow the approved isolation and lockout procedure. Secure the equipment so no one can restart it by mistake.</li><li>Follow the approved procedure to deal with stored pressure and heat. Make sure parts that keep turning after shutdown are safe.</li><li>The authorised person checks that the machine cannot start.</li><li>Only then may cleaning or repair begin.</li><li>Before restart, the Manager checks that guards are back, tools are removed and workers are clear.</li></ol>
+<p>Pressing the normal Stop button is not enough when someone must work inside a machine.</p>
+<h4 id="sop-05-4-6-electrical-safety">4.6 Electrical safety</h4>
+<ol start="1"><li>Keep the electrical panel closed and protected from water, oil and dust.</li><li>Report damaged cables, loose sockets, burning smells, shocks and unusual electrical behaviour immediately.</li><li>Use normal machine controls only if you are authorised.</li><li>Only a qualified electrician may repair wiring or carry out electrical tests.</li><li>Stop using any machine suspected of having a dangerous electrical fault.</li><li>Keep it isolated until it has been checked and declared safe.</li></ol>
+<p>Never:</p>
+<ul><li>Touch electrical equipment with wet hands.</li><li>Wash motors or electrical panels with water.</li><li>Bypass circuit breakers, overload protection or other safety devices.</li><li>Keep resetting a tripping breaker without finding the cause.</li><li>Use damaged cables or exposed wires.</li></ul>
+<h4 id="sop-05-4-7-hot-equipment-and-the-roaster">4.7 Hot equipment and the roaster</h4>
+<p>The roaster, hot kernels and expeller parts can cause serious burns.</p>
+<ol start="1"><li>Check that the roaster is safe before heating.</li><li>Follow the approved temperature and other limits.</li><li>Keep hands, clothes and tools away from the rotating drum and hot surfaces.</li><li>Use heat-resistant gloves and suitable protection for handling hot material.</li><li>Report overheating, smoke, unusual smells or poor drum movement immediately.</li><li>The Manager stops heating and follows the approved emergency steps if it is unsafe.</li><li>Let hot equipment cool safely before cleaning or repair, unless an approved safe procedure allows otherwise.</li></ol>
+<p>Do not leave a loaded, dangerously hot roaster unattended after power fails.</p>
+<h4 id="sop-05-4-8-filter-press-and-pumps">4.8 Filter press and pumps</h4>
+<ol start="1"><li>Check hoses, connections and filter plates before starting.</li><li>Make sure the press is properly closed.</li><li>Watch pressure and leaks while the pump runs.</li><li>Stop the pump and tell the Manager if pressure is above the approved limit or a connection leaks dangerously.</li><li>Isolate the pump and release all pressure before opening the press.</li><li>Open and clean it only after it is safe.</li></ol>
+<p>Never open the press or disconnect a hose while the system is under pressure.</p>
+<h4 id="sop-05-4-9-prevent-and-respond-to-fire">4.9 Prevent and respond to fire</h4>
+<p>The factory must have suitable fire extinguishers and clear exits.</p>
+<p><strong>To prevent fire:</strong></p>
+<ul><li>Keep extinguishers accessible and have them checked as required.</li><li>Keep exits and walkways clear.</li><li>Do not smoke or use open flames in production, storage or fuel-handling areas.</li><li>Clean oil spills and remove waste that can burn.</li><li>Report overheating motors, burning smells, smoke and dangerous fuel leaks immediately.</li></ul>
+<p><strong>If fire starts:</strong></p>
+<ol start="1"><li>Raise the alarm immediately.</li><li>Switch off the factory’s main electricity supply only if it is safe to do so.</li><li>Everyone must leave through a safe exit.</li><li>Only trained workers may try to put out a small fire. Use the correct extinguisher, and only if it is safe and there is a clear escape route.</li><li>Contact emergency services immediately where needed.</li></ol>
+<p>Never use water on burning oil or an electrical fire. Do not risk your life to save equipment or products.</p>
+<h4 id="sop-05-4-10-protective-clothing-and-equipment">4.10 Protective clothing and equipment</h4>
+<p>PPE means the protective equipment worn for the job. The Manager must explain the required protection and show workers how to use it.</p>
+<div class="sop-table-wrap"><table><thead><tr><th scope="col">Work</th><th scope="col">Protection needed</th></tr></thead><tbody><tr><td>General factory work</td><td>Safety footwear and suitable work clothes</td></tr><tr><td>Dusty kernel handling</td><td>Suitable dust mask or respirator where the dust risk requires it</td></tr><tr><td>Handling hot material</td><td>Suitable heat-resistant gloves and other protection</td></tr><tr><td>Machine work</td><td>Eye and hearing protection where needed</td></tr><tr><td>Cleaning or using chemicals</td><td>Suitable gloves and eye protection</td></tr><tr><td>Heavy lifting and handling</td><td>Safety footwear and suitable handling equipment</td></tr></tbody></table></div>
+<p>Do not wear loose clothes, jewellery or gloves that can catch in exposed rotating parts.</p>
+<h4 id="sop-05-4-11-accidents-and-injuries">4.11 Accidents and injuries</h4>
+<ol start="1"><li>Raise the alarm and tell the Manager immediately.</li><li>Stop dangerous machinery if it is safe to do so.</li><li>Call emergency medical help for serious injuries.</li><li>The Manager tells the Director immediately.</li><li>Record what happened, when it happened, who was involved and what action was taken.</li><li>Do not use the affected machine or area again until it is safe.</li></ol>
+<h4 id="sop-05-4-12-keep-maintenance-records">4.12 Keep maintenance records</h4>
+<p>The Manager records the machine, date, work done and person who did the work. Keep details of servicing, repairs, faults and stoppages. Report major repairs and repeated faults to the Director.</p>
+<p>The Storekeeper keeps a log of parts and supplies given out and returned. For consumables listed in the app, also record the amount actually used in <strong>Daily Usage</strong>, with the correct date and unit. Do not record the same usage again as a manual stock change. Send returns and other adjustments that Daily Usage does not handle to the Director. Keep items not listed in the app in the supplies log.</p>
+<p>Give replaced parts that may be reused, returned or sold to the Storekeeper for recording. Get approval before throwing them away.</p>
+<h3 id="sop-05-5-safety-rules-for-everyone">5. Safety rules for everyone</h3>
+<ul><li>Use machines only if trained and authorised.</li><li>Never put hands or tools into moving machinery.</li><li>Never remove guards while a machine is running.</li><li>Isolate equipment safely before clearing a blockage or working inside it.</li><li>Never open a filter press under pressure.</li><li>Do not do electrical repairs unless qualified and authorised.</li><li>Never bypass safety devices.</li><li>Do not use a machine with a serious fault.</li><li>Report faults and dangerous conditions immediately.</li><li>Wear the required protection.</li><li>Keep exits and walkways clear.</li><li>Do not smoke or use open flames inside the mill.</li><li>Report every accident and dangerous incident.</li><li>Do not make unauthorised repairs or machine changes.</li></ul>
+<p>Ignoring safety rules, hiding faults or doing dangerous work may lead to action by the company. This may include losing your job.</p>
+<h2 id="sop-06">SOP 06 · Cleaning and waste</h2>
+<p><strong>SOP number:</strong> SOMAD-SOP-006</p>
+<p><strong>Checks and supervision:</strong> Manager.</p>
+<p><strong>Cleaning and physical handling:</strong> Operators.</p>
+<p><strong>Storage and stock records:</strong> Storekeeper.</p>
+<p><strong>Permission to remove or sell company material:</strong> Director.</p>
+<h3 id="sop-06-1-what-this-sop-covers">1. What this SOP covers</h3>
+<p>Keep the factory clean, tidy and safe. Keep dirt and waste away from kernels, PKO and PKC. Prevent spills, blocked paths and unnecessary loss.</p>
+<p>Clean the whole factory at the end of every working day. There is no routine morning cleaning because the previous day’s cleaning should already be complete. Deal with spills or dangers immediately whenever they happen.</p>
+<h3 id="sop-06-2-each-person-s-job">2. Each person’s job</h3>
+<h4 id="sop-06-2-1-manager">2.1 Manager</h4>
+<ul><li>Give Operators their cleaning jobs.</li><li>Check that the factory stays tidy during work.</li><li>Supervise full cleaning at closing time.</li><li>Keep useful materials separate from waste.</li><li>Report serious spills, contamination and unsafe conditions.</li><li>Inspect all areas before workers leave.</li><li>Arrange approved waste removal.</li></ul>
+<h4 id="sop-06-2-2-operators">2.2 Operators</h4>
+<ul><li>Keep machines, work areas, paths and loading areas tidy.</li><li>Put tools and materials in the right places.</li><li>Clean machines and factory areas at the end of work.</li><li>Separate waste into the correct containers.</li><li>Carry out assigned cleaning work.</li></ul>
+<p>Cleaning is part of every Operator’s job.</p>
+<h4 id="sop-06-2-3-storekeeper">2.3 Storekeeper</h4>
+<ul><li>Receive and give out cleaning supplies. Keep the records.</li><li>Keep storage areas arranged properly.</li><li>Help tidy storage areas during busy production so Operators can focus on running machines.</li><li>Weigh and record useful material recovered from production, including sludge for sale.</li><li>Check quantities of company material removed from stock.</li><li>Report missing material or removal without permission directly to the Director.</li></ul>
+<p>Operators remain responsible for cleaning the storage areas. The Storekeeper helps with tidying and arranging them when needed.</p>
+<h4 id="sop-06-2-4-director">2.4 Director</h4>
+<p>Approve the sale, removal or disposal of company material where required.</p>
+<h3 id="sop-06-3-keep-the-factory-tidy-during-work">3. Keep the factory tidy during work</h3>
+<ol start="1"><li>Keep tools, bags and other items in their assigned places.</li><li>Collect spilled kernels promptly with clean tools.</li><li>Report and clean oil spills safely.</li><li>Remove empty bags, shells and waste from machine areas.</li><li>Keep paths and access to machines clear.</li><li>The Storekeeper helps arrange bags and materials in storage during busy periods.</li><li>The Manager checks the work areas and asks workers to correct problems.</li></ol>
+<p>Full sweeping and machine cleaning take place at closing. Spills, blocked paths and other dangers must be dealt with immediately.</p>
+<p>Do not clean inside or near exposed moving parts while a machine runs.</p>
+<h3 id="sop-06-4-clean-at-the-end-of-the-day">4. Clean at the end of the day</h3>
+<ol start="1"><li>The Manager checks that production and other factory work have ended or have been safely secured.</li><li>Operators shut down machines and make them safe for cleaning. Follow SOP 05.</li><li>The Manager gives each Operator a cleaning job.</li><li>Sweep floors and collect loose kernels, shells, dust and other waste.</li><li>Clean the crusher, conveyors, roaster area, expeller area and filter press area as instructed.</li><li>Clean oil stains and slippery places.</li><li>Clean the weighing and loading areas.</li><li>Clean and arrange storage areas.</li><li>Put tools, bags and equipment in their proper places.</li><li>Put rubbish in the correct containers.</li><li>Return cleaning tools and supplies to their places.</li><li>The Manager checks the whole factory.</li><li>Clean again before leaving if the Manager says an area is still dirty.</li></ol>
+<p>Do not leave at normal closing time without finishing your assigned cleaning, unless the Manager excuses you.</p>
+<h3 id="sop-06-5-keep-storage-areas-and-the-compound-clean">5. Keep storage areas and the compound clean</h3>
+<h4 id="sop-06-5-1-kernel-storage">5.1 Kernel storage</h4>
+<ul><li>Keep bags off wet floors, using suitable pallets or raised supports.</li><li>Protect kernels from rain, dirt and moisture.</li><li>Keep the area free of standing water and pests.</li><li>Stack bags safely without blocking access.</li><li>Keep empty bags and supplies arranged properly.</li></ul>
+<h4 id="sop-06-5-2-pko-storage">5.2 PKO storage</h4>
+<ul><li>Keep the outside of the tank clean.</li><li>Clean oil spills promptly.</li><li>Keep covers, outlets and valves secure.</li><li>Keep dirt and water out of the tank.</li></ul>
+<h4 id="sop-06-5-3-pkc-storage">5.3 PKC storage</h4>
+<ul><li>Keep PKC away from rain and standing water.</li><li>Keep it off dirty floors.</li><li>Collect spilled cake and keep the area tidy.</li><li>Report mould, unusual heat or contamination.</li></ul>
+<h4 id="sop-06-5-4-compound-and-staff-facilities">5.4 Compound and staff facilities</h4>
+<ul><li>Keep the entrance, loading area and paths tidy.</li><li>Remove rubbish during the final daily cleaning.</li><li>Keep drains clear and prevent standing water near machines or electrical equipment.</li><li>Keep toilets and handwashing areas clean.</li><li>Cover waste containers where needed to keep pests away.</li></ul>
+<h3 id="sop-06-6-separate-and-remove-waste-safely">6. Separate and remove waste safely</h3>
+<h4 id="sop-06-6-1-keep-each-type-of-waste-separate">6.1 Keep each type of waste separate</h4>
+<div class="sop-table-wrap"><table><thead><tr><th scope="col">Material</th><th scope="col">What to do</th></tr></thead><tbody><tr><td>Kernel shells and unwanted material</td><td>Collect separately for approved reuse or removal</td></tr><tr><td>Spilled kernels</td><td>Keep separate until the Manager checks if they can be reused</td></tr><tr><td>Spilled oil</td><td>Clean it safely; do not mix dirty oil with finished PKO</td></tr><tr><td>Sludge</td><td>Store separately from PKO and ordinary waste</td></tr><tr><td>Filter press residue</td><td>Put in the assigned containers</td></tr><tr><td>Damaged bags and packaging</td><td>Put in the proper waste area</td></tr><tr><td>Used filter cloths</td><td>Collect separately after replacement</td></tr><tr><td>Used lubricants and oily material</td><td>Store in suitable labelled containers</td></tr><tr><td>General rubbish</td><td>Put in the correct waste containers</td></tr></tbody></table></div>
+<h4 id="sop-06-6-2-clean-an-oil-spill">6.2 Clean an oil spill</h4>
+<ol start="1"><li>Stop the leak or transfer if it is safe to do so.</li><li>Tell the Manager.</li><li>Keep workers away from the slippery area.</li><li>Use suitable absorbent material or the approved cleaning method.</li><li>Put dirty cleaning material in the correct waste container.</li><li>Clean and dry the floor before normal work continues.</li><li>The Manager records large or important spills. The Storekeeper checks any stock loss that can be measured.</li></ol>
+<p>Never mix oil collected from a dirty floor with finished PKO.</p>
+<h4 id="sop-06-6-3-collect-sludge-and-filter-press-residue">6.3 Collect sludge and filter press residue</h4>
+<ol start="1"><li>Operators collect it from the tank and press when instructed.</li><li>Use suitable containers. Keep it away from finished PKO.</li><li>The Storekeeper weighs sludge for sale and saves <strong>Receive Product → Sludge</strong> under the open production day.</li><li>Do not enter the same receipt again in Inventory.</li><li>The Manager checks that containers are stored in the right place.</li><li>Do not sell, remove or throw away sludge without the Director’s permission.</li><li>Follow SOP 04 when selling and loading sludge.</li></ol>
+<h4 id="sop-06-6-4-remove-waste">6.4 Remove waste</h4>
+<ol start="1"><li>The Manager identifies the waste to remove.</li><li>The Storekeeper checks if any material is company stock or has value.</li><li>Get the Director’s approval where required.</li><li>Operators must lift and load the waste safely as instructed.</li><li>Take waste to the approved collection or disposal point.</li><li>The Storekeeper measures and records company stock removed.</li></ol>
+<p>If the material is sold, use <strong>Authorise Sale → Pending Weighing → Confirm Dispatch</strong>. For disposal or another stock change with no Storekeeper screen, send the checked quantity to the Director for the approved adjustment. Do not enter a sale as well as a disposal for the same removal.</p>
+<p>No one may take company waste, sludge, damaged parts or other material for private use without permission.</p>
+<h3 id="sop-06-7-rules-everyone-must-follow">7. Rules everyone must follow</h3>
+<ul><li>Clean the whole factory at the end of each working day.</li><li>Every Operator must finish the assigned cleaning work.</li><li>Keep work areas tidy during production.</li><li>The Storekeeper helps keep storage areas tidy when needed.</li><li>Deal with spills and blocked paths immediately.</li><li>Never clean inside moving machinery.</li><li>Do not pour oil, grease or used lubricants into drains.</li><li>Keep dirty materials away from kernels, PKO and PKC.</li><li>Keep sludge for sale separate from ordinary waste.</li><li>Get permission before removing or selling company waste.</li><li>The Manager checks the factory before closing.</li></ul>
+<p>Refusing assigned cleaning, leaving areas dirty, contaminating products, creating danger or taking material without permission may lead to action by the company. This may include losing your job.</p>
+<p class="sop-end"><a href="#sop-toc">Back to contents</a> · Revised 16 November 2026</p></article></div></main>
+<nav class="main-menu">
+            <button type="button" class="menu-btn">☰ Menu</button>
+
+            <div class="submenuAndBtn">
+                <div class="nav-brand">
+                    <img src="/images/logo.png" alt="" />
+                    <div>
+                        <strong>SOMAD</strong
+                        ><span>AGRO-OIL PROCESSING LIMITED</span
+                        ><small>Staff Portal</small>
+                    </div>
+                    <button
+                        type="button"
+                        class="nav-close"
+                        aria-label="Close menu"
+                    >
+                        ×
+                    </button>
+                </div>
+                <p class="nav-label">Main</p>
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="dashboard-btn"
+                >
+                    Dashboard
+                </button>
+
+                <button type="button" class="submenu-button first">
+                    Forms
+                </button>
+
+                <div class="submenu-one">
+                    <a href="/forms.html#inventory-form">Inventory Report </a>
+                    <a href="/forms.html#purchases-form">Purchases Report </a>
+                    <a href="/forms.html#sales-form"> Sales Report </a>
+                    <a href="/forms.html#production-form">Production Report</a>
+                    <a href="/forms.html#expenses-form">Expenses Report</a>
+                </div>
+
+                <button type="button" class="submenu-button second">
+                    Data
+                </button>
+
+                <div class="submenu-two">
+                    <a href="/forms.html#inventory-data">Inventory Data </a>
+                    <a href="/forms.html#stock-history">Stock Change History</a>
+                    <a href="/forms.html#activity-log">Activity Log</a>
+                    <a href="/forms.html#purchases-data">Purchases Data </a>
+                    <a href="/forms.html#sales-data">Sales Data </a>
+                    <a href="/forms.html#production-data">Production Data</a>
+                    <a href="/forms.html#expenses-data">Expenses Data</a>
+                </div>
+
+                <p class="nav-label">Business</p>
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="customers-button"
+                >
+                    Customers
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="employees-button"
+                >
+                    Employees
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="suppliers-button"
+                >
+                    Suppliers
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="partners-button"
+                >
+                    Other Partners
+                </button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="assets-button"
+                >
+                    Assets and Start-up Costs
+                </button>
+
+                <p class="nav-label">System</p>
+                <button type="button" class="submenu-button">
+                    Notification
+                </button>
+
+                <button type="button" class="submenu-button">Settings</button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="prices-button"
+                >
+                    Prices
+                </button>
+
+                <button type="button" class="submenu-button" id="weighing-tasks-button">
+                    <span>Pending Weighing</span>
+                    <span class="pending-weighing-badge" hidden>0</span>
+                </button>
+                <button type="button" class="submenu-button" id="consumable-usage-button" hidden>Daily Usage</button>
+                <button type="button" class="submenu-button active" id="sops-button" aria-current="page">SOPs</button>
+
+                <button
+                    type="button"
+                    class="submenu-button"
+                    id="company-details-button"
+                >
+                    Company details
+                </button>
+				<button
+					type="button"
+					class="submenu-button"
+					id="manage-users-button"
+					hidden
+				>
+					Create User
+				</button>
+                <div class="nav-account">
+                    <span class="nav-avatar">●</span
+                    ><span
+                        ><small>Logged in as</small
+                        ><strong class="login-role"></strong></span
+                    ><b>⌄</b>
+                </div>
+                <button type="button" class="nav-logout">
+                    ↪ <span>Logout</span>
+                </button>
+            </div>
+        </nav>
+<script src="/js/ui.js"></script><script src="/js/navigation.js"></script><script src="/js/sops.js"></script></body></html>

@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Somad Agro-oil Processing Limited</title>
         <link rel="stylesheet" href="/css/landing.css" />
+        <link rel="stylesheet" href="/css/theme.css" />
     </head>
     <body>
         <main class="portal">
@@ -15,17 +16,18 @@
             />
             <h1 class="portal-name">Somad Agro-oil Processing Limited</h1>
             <p class="portal-subtitle">Staff Portal</p>
-            <form id="login-form">
-                <input type="text" id="login-username" placeholder="Username" />
-                <input
+            <form id="login-form" method="post" action="/api/login">
+                <label for="login-username">Username</label><input type="text" id="login-username" name="username" placeholder="Enter your username" autocomplete="username" autocapitalize="none" spellcheck="false" required />
+                <label for="login-password">Password</label><input
                     type="password"
-                    id="login-password"
-                    placeholder="Password"
+                    id="login-password" name="password"
+                    placeholder="Enter your password" autocomplete="current-password" required
                 />
                 <button type="submit">Login</button>
             </form>
         </main>
-		<script src="/js/debug-tools.js"></script>
+		<script src="/js/ui.js"></script>
+        <script src="/js/debug-tools.js"></script>
         <script src="/js/login.js"></script>
     </body>
 </html>
