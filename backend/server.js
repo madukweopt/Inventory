@@ -14,6 +14,35 @@ const PORT=process.env.PORT||3000;
 const isProduction=process.env.NODE_ENV==='production';
 const debugToolsEnabled=process.env.ENABLE_DEBUG_TOOLS==='true';
 
+// Security headers on every response. Pages may only load scripts, styles, fonts and data from this server
+// (images may also be drawn signatures and photo previews), other sites may not show the app inside a frame,
+// and browsers must not guess file types. The mobile debugging console, when switched on, loads from a CDN and
+// needs inline styles and eval, so those are allowed only then.
+const contentSecurityPolicy=[
+	"default-src 'self'",
+	"script-src 'self'"+(debugToolsEnabled?" https://cdn.jsdelivr.net 'unsafe-eval'":''),
+	"style-src 'self'"+(debugToolsEnabled?" 'unsafe-inline'":''),
+	"img-src 'self' data: blob:",
+	"font-src 'self'",
+	"connect-src 'self'",
+	"object-src 'none'",
+	"base-uri 'self'",
+	"form-action 'self'",
+	"frame-ancestors 'none'"
+].join('; ');
+app.disable('x-powered-by');
+app.use(function(req,res,next) {
+	res.set({
+		'Content-Security-Policy': contentSecurityPolicy,
+		'X-Frame-Options': 'DENY',
+		'X-Content-Type-Options': 'nosniff',
+		'Referrer-Policy': 'same-origin',
+		'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+	});
+	if(isProduction) res.set('Strict-Transport-Security','max-age=15552000');
+	next();
+});
+
 const { Pool,Client }=require("pg");
 const { parse: parseConnectionString }=require("pg-connection-string");
 const dns=require("dns");

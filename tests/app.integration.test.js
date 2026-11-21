@@ -90,6 +90,16 @@ test.after(async function() {
 	}
 });
 
+test('every response carries the security headers',async function() {
+    const page=await request(app).get('/login.html').expect(200);
+    assert.match(page.headers['content-security-policy'],/default-src 'self'/);
+    assert.match(page.headers['content-security-policy'],/frame-ancestors 'none'/);
+    assert.equal(page.headers['x-frame-options'],'DENY');
+    assert.equal(page.headers['x-content-type-options'],'nosniff');
+    assert.equal(page.headers['x-powered-by'],undefined);
+    assert.equal((await request(app).get('/api/items').expect(401)).headers['x-frame-options'],'DENY');
+});
+
 test('authentication protects private pages and APIs',async function() {
 	await request(app).get('/login.html').expect(200);
     const recordFont=await request(app).get('/fonts/Roboto-Variable.ttf').expect(200);
