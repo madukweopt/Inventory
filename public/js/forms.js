@@ -4212,13 +4212,15 @@ function openSalaryChangeDialog(employee) {
 	const dialog=document.createElement('dialog');
 	dialog.classList.add('employee-finance-dialog');
 	dialog.innerHTML=`<form>
-		<h2>Change ${employee.name}'s Salary</h2>
+		<h2 class="salary-dialog-title"></h2>
 		<label>New monthly salary<input name="new_salary" type="number" min="0.01" step="0.01" required></label>
 		<label>Effective date<input name="effective_date" type="date" required></label>
 		<label>Reason<textarea name="reason" required></textarea></label>
 		<p class="finance-dialog-message"></p>
 		<div><button type="button" class="finance-cancel">Cancel</button><button type="submit">Save Salary</button></div>
 	</form>`;
+	// The name is set as text, so characters such as < or & in a name show as typed and never run as page code.
+	dialog.querySelector('.salary-dialog-title').textContent='Change '+employee.name+'’s Salary';
 	document.body.appendChild(dialog);
 	dialog.querySelector('[name="new_salary"]').value=employee.salary||'';
 	dialog.querySelector('[name="effective_date"]').value=new Date().toISOString().slice(0,10);
