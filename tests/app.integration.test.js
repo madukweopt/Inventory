@@ -946,6 +946,48 @@ test('Concurrent dispatches cannot share stock; failed sales remain pending with
     assert.equal(Number(balance.balance),40);
 });
 
+// Quantities entered together are saved in one request, all or none; one quantity on its own still saves.
+test('Production quantities sent together are saved all or none, and one quantity can be saved alone',async function(){
+    const day='2034-03-01';await completedPurchase(day);
+    const request=(await manager.post('/api/production').send({production_date:day,production_hours:'08:00',down_time:'00:00'}).expect(201)).body;
+    const url='/api/weighing-requests/'+request.request_id+'/complete';
+    const entry=(type,field,quantity,key=crypto.randomUUID())=>({entry_type:type,submission_key:key,kernel_used:0,pko_produced:0,pkc_produced:0,sludge_produced:0,[field]:quantity,...(type==='Receive'?{received_product:field}:{})});
+    const batches=async()=>Number((await applicationPool.query('SELECT count(*) FROM production_batches WHERE request_id=$1',[request.request_id])).rows[0].count);
+    const totals=async()=>(await applicationPool.query('SELECT kernel_used,pko_produced,pkc_produced FROM weighing_requests WHERE request_id=$1',[request.request_id])).rows[0];
+    const pkoStock=async()=>Number((await applicationPool.query("SELECT COALESCE(SUM(received-issued),0) AS n FROM stock_counts WHERE item_id=$1 AND source_type='Production' AND source_id=$2",[ids.PKO,request.request_id])).rows[0].n);
+
+    // One quantity on its own, in the new list form and in the original single form.
+    await storekeeper.patch(url).send({movement_date:day,entries:[entry('Receive','pko_produced',4)]}).expect(200);
+    await storekeeper.patch(url).send({movement_date:day,...entry('Receive','pkc_produced',6)}).expect(200);
+    assert.equal(await batches(),2);
+
+    // Three together: three separate entries, one request.
+    const together=[entry('Issue','kernel_used',20),entry('Receive','pko_produced',5),entry('Receive','pkc_produced',7)];
+    const saved=(await storekeeper.patch(url).send({movement_date:day,scale_ticket:'T-9',entries:together}).expect(200)).body;
+    assert.equal(saved.saved,3);assert.match(saved.message,/3 production entries saved/);
+    assert.equal(await batches(),5);
+    let now=await totals();assert.equal(Number(now.kernel_used),20);assert.equal(Number(now.pko_produced),9);assert.equal(Number(now.pkc_produced),13);
+    assert.equal(await pkoStock(),9);
+
+    // The same request again (a retry after a lost connection) changes nothing.
+    const retry=(await storekeeper.patch(url).send({movement_date:day,scale_ticket:'T-9',entries:together}).expect(200)).body;
+    assert.equal(retry.saved,0);assert.equal(await batches(),5);
+
+    // One invalid quantity: nothing from that request is saved.
+    await storekeeper.patch(url).send({movement_date:day,entries:[entry('Receive','pko_produced',3),entry('Receive','pkc_produced',-1)]}).expect(400);
+    // A kernel issue larger than the stock: the product sent with it is not saved either.
+    const available=Number((await applicationPool.query('SELECT COALESCE(SUM(received-issued),0) AS balance FROM stock_counts WHERE item_id=$1',[ids['P Kernel']])).rows[0].balance);
+    await storekeeper.patch(url).send({movement_date:day,entries:[entry('Receive','pko_produced',3),entry('Issue','kernel_used',available+1)]}).expect(409);
+    assert.equal(await batches(),5);assert.equal(await pkoStock(),9);
+    now=await totals();assert.equal(Number(now.pko_produced),9);
+
+    // Reusing one key with a different quantity is refused, and two entries may not share a key.
+    await storekeeper.patch(url).send({movement_date:day,scale_ticket:'T-9',entries:[{...together[1],pko_produced:50}]}).expect(409);
+    const shared=crypto.randomUUID();
+    await storekeeper.patch(url).send({movement_date:day,entries:[entry('Receive','pko_produced',1,shared),entry('Receive','pkc_produced',1,shared)]}).expect(400);
+    assert.equal(await batches(),5);
+});
+
 test('Production can be authorised in advance but a kernel issue cannot exceed stock',async function(){
     const request=(await manager.post('/api/production').send({production_date:'2060-02-01',production_hours:'00:30',down_time:'00:50'}).expect(201)).body;
     const available=Number((await applicationPool.query('SELECT COALESCE(SUM(received-issued),0) AS balance FROM stock_counts WHERE item_id=$1',[ids['P Kernel']])).rows[0].balance);

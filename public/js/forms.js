@@ -1407,7 +1407,8 @@ async function refreshProductionCard(card,requestId) {
     card.replaceWith(fresh);
 }
 
-// Saves each filled production quantity as its own entry: kernel issued first, then each product received.
+// Saves the filled production quantities in one request: each becomes its own entry (kernel issued, each product
+// received), and the server saves all of them or none. One quantity on its own is saved the same way.
 // Every quantity keeps its own submission key until it is saved, so retrying after a lost connection is safe.
 async function saveProductionEntries(form,submit) {
     const status=form.querySelector('.production-entry-status');
@@ -1417,33 +1418,37 @@ async function saveProductionEntries(form,submit) {
         submit.disabled=false;return;
     }
     form.entryKeys=form.entryKeys||{};
-    const saved=[];let failure='';
-    status.textContent='Saving…';
-    for(const field of filled) {
+    const entries=filled.map(field=>{
         form.entryKeys[field.name]=form.entryKeys[field.name]||crypto.randomUUID();
-        const body={entry_type:field.type,submission_key:form.entryKeys[field.name],movement_date:form.elements.movement_date.value,
-            scale_ticket:form.elements.scale_ticket.value,kernel_used:'0',pko_produced:'0',pkc_produced:'0',sludge_produced:'0'};
-        body[field.name]=field.input.value;
-        if(field.type==='Receive') body.received_product=field.name;
-        try {
-            const response=await fetch('/api/weighing-requests/'+form.dataset.requestId+'/complete',{
-                method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-            const result=await response.json();
-            if(!response.ok) { failure=field.label+' was not saved: '+(result.err||'please try again.');break; }
-            saved.push(field.label+' '+formatNumber(field.input.value)+' kg');
-            field.input.value='';delete form.entryKeys[field.name];
-        } catch(error) {
-            failure=field.label+' could not be confirmed. Select Save again to retry it safely.';break;
+        const entry={entry_type:field.type,submission_key:form.entryKeys[field.name],kernel_used:'0',pko_produced:'0',pkc_produced:'0',sludge_produced:'0'};
+        entry[field.name]=field.input.value;
+        if(field.type==='Receive') entry.received_product=field.name;
+        return entry;
+    });
+    const body={movement_date:form.elements.movement_date.value,scale_ticket:form.elements.scale_ticket.value,entries};
+    status.textContent='Saving…';status.classList.remove('error');
+    let message,saved=false;
+    try {
+        const response=await fetch('/api/weighing-requests/'+form.dataset.requestId+'/complete',{
+            method:'PATCH',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+        const result=await response.json();
+        if(response.ok) {
+            saved=true;
+            message='Saved and added to stock: '+filled.map(field=>field.label+' '+formatNumber(field.input.value)+' kg').join(', ')+'.';
+            for(const field of filled) { field.input.value='';delete form.entryKeys[field.name]; }
+            form.elements.scale_ticket.value='';
+        } else {
+            message=(filled.length>1?'Nothing was saved: ':'Not saved: ')+(result.err||'please try again.');
         }
+    } catch(error) {
+        message='The save could not be confirmed. Select Save again to retry it safely.';
     }
-    if(!failure) form.elements.scale_ticket.value='';
     form.querySelectorAll('input[type="number"]').forEach(input=>input.dispatchEvent(new Event('input')));
-    const message=(saved.length?'Saved and added to stock: '+saved.join(', ')+'.':'')+(failure?(saved.length?' ':'')+failure:'');
-    if(saved.length) {
+    if(saved) {
         try { await refreshProductionCard(form.closest('.weighing-task-card'),form.dataset.requestId); } catch(error) { console.error(error); }
         if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
     }
-    status.textContent=message;status.classList.toggle('error',Boolean(failure));
+    status.textContent=message;status.classList.toggle('error',!saved);
     appNotify(message);
     submit.disabled=false;
     const next=PRODUCTION_ENTRY_FIELDS.map(([name])=>form.elements[name]).find(input=>input.value!=='')||form.elements.kernel_used;

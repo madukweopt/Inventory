@@ -412,7 +412,7 @@ This SOP explains how to prepare and process kernels, collect PKO and PKC, recor
 1. The Manager or Director enters the production date, work hours and downtime. Authorise one production day.
 2. Before kernels enter production, the Storekeeper weighs them and enters the amount in **Kernel issued** in **Pending Weighing**.
 3. When finished PKO, PKC or sludge is ready, the Storekeeper weighs it and enters the amount in **PKO received**, **PKC received** or **Sludge received**.
-4. Enter the kernel issued and the products received together, or one at a time, then select **Save**. Each quantity is saved as its own entry and added to stock straight away. The form stays open with the date kept, so you can enter the next weighing.
+4. Enter the kernel issued and the products received together, or one at a time, then select **Save**. Each quantity is saved as its own entry and added to stock straight away. If any of them cannot be saved, none are, and the quantities stay in the form to correct and save again. The form stays open with the date kept, so you can enter the next weighing.
 5. Keep issuing kernels and receiving products as work continues.
 6. Do not wait for all the products from one issue before recording another issue.
 7. Do not try to match each product receipt to one particular kernel issue.

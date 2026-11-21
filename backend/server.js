@@ -1762,6 +1762,86 @@ app.patch('/api/weighing-requests/:id/reopen',requireRole(['admin']),async funct
 });
 
 // Purchases and sales complete once; production submissions add batches to an open day.
+// Saves one production entry (a kernel issue or one product received) inside the caller's transaction.
+// Returns { saved:false } when the same entry was already saved by an earlier attempt with the same key,
+// and refuses a key reused with different quantities, date or ticket.
+async function saveProductionEntry(client,request,entry,movementDate,scaleTicket,userId) {
+	const requestId=request.request_id;
+	if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entry.submission_key||'')) {
+		throw Object.assign(new Error('A valid batch submission key is required'),{ status:400 });
+	}
+	const previous=await client.query('SELECT * FROM production_batches WHERE submission_key=$1',[entry.submission_key]);
+	if(previous.rows.length) {
+		const batch=previous.rows[0];
+		if(batch.request_id!==requestId) throw Object.assign(new Error('Batch key belongs to another authorisation'),{ status:409 });
+		if(batch.voided) throw Object.assign(new Error('This batch has been reversed. Start a new batch.'),{status:409});
+		if(dateText(batch.movement_date||request.request_date)!==movementDate||['kernel_used','pko_produced','pkc_produced','sludge_produced'].some(key =>
+			readInventoryQuantity(entry[key])!==Number(batch[key]))||scaleTicket!==batch.scale_ticket) {
+			throw Object.assign(new Error('This batch was already saved with different quantities or ticket. Refresh before recording another batch.'),{ status:409 });
+		}
+		return { saved:false };
+	}
+	if(entry.entry_type) {
+		const kernel=readInventoryQuantity(entry.kernel_used);
+		const products=['pko_produced','pkc_produced','sludge_produced'].map(key=>readInventoryQuantity(entry[key]));
+		if(!['Issue','Receive'].includes(entry.entry_type)||
+			(entry.entry_type==='Issue'&&(!(kernel>0)||products.some(value=>value!==0)))||
+			(entry.entry_type==='Receive'&&(kernel!==0||products.filter(value=>value>0).length!==1||
+				(entry.received_product&&(!['pko_produced','pkc_produced','sludge_produced'].includes(entry.received_product)||
+				 !(readInventoryQuantity(entry[entry.received_product])>0)))))) {
+			throw Object.assign(new Error('Record a kernel issue or receive exactly one selected product per entry'),{status:400});
+		}
+	}
+	const quantities={
+		kernel_used: readInventoryQuantity(entry.kernel_used),
+		pko_produced: readInventoryQuantity(entry.pko_produced),
+		pkc_produced: readInventoryQuantity(entry.pkc_produced),
+		sludge_produced: readInventoryQuantity(entry.sludge_produced)
+	};
+	if(Object.values(quantities).some(value => value===null||value<0)||
+		!Object.values(quantities).some(value => value>0)) {
+		throw Object.assign(new Error('Enter at least one positive batch quantity, using no more than two decimal places'),{ status:400 });
+	}
+	await client.query(`INSERT INTO production_batches
+		(request_id,submission_key,kernel_used,pko_produced,pkc_produced,sludge_produced,scale_ticket,recorded_by,movement_date)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date)`,[requestId,entry.submission_key,
+		quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,scaleTicket,userId,movementDate]);
+	const production=await client.query(`INSERT INTO production
+		(production_date,kernel_used,pko_produced,pkc_produced,sludge_produced,production_hours,down_time)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (production_date) DO UPDATE SET
+		kernel_used=production.kernel_used+EXCLUDED.kernel_used,
+		pko_produced=production.pko_produced+EXCLUDED.pko_produced,
+		pkc_produced=production.pkc_produced+EXCLUDED.pkc_produced,
+		sludge_produced=production.sludge_produced+EXCLUDED.sludge_produced
+		RETURNING production_id`,
+	[request.request_date,quantities.kernel_used,quantities.pko_produced,
+		quantities.pkc_produced,quantities.sludge_produced,request.production_hours,request.down_time]);
+	const itemRows=await client.query(`SELECT item_id,LOWER(name) AS name FROM items
+		WHERE LOWER(name) IN ('p kernel','pko','pkc','sludge')`);
+	const ids=Object.fromEntries(itemRows.rows.map(item => [item.name,item.item_id]));
+	if(!ids['p kernel']||!ids.pko||!ids.pkc||!ids.sludge) throw new Error('Production inventory items are incomplete');
+	const movements=[
+		[ids['p kernel'],0,quantities.kernel_used,'Kernel Issued'],
+		[ids.pko,quantities.pko_produced,0,'PKO Received'],
+		[ids.pkc,quantities.pkc_produced,0,'PKC Received'],
+		[ids.sludge,quantities.sludge_produced,0,'Sludge Received']
+	];
+	for(const movement of movements) {
+		await client.query(`INSERT INTO stock_counts
+			(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
+			VALUES ($1,$2,$3,$4,'Production',$5,$6,$7)
+			ON CONFLICT (source_type,source_id,source_part) WHERE source_id IS NOT NULL
+			DO UPDATE SET received=stock_counts.received+EXCLUDED.received,
+			issued=stock_counts.issued+EXCLUDED.issued,recorded_by=EXCLUDED.recorded_by`,
+		[movementDate,movement[0],movement[1],movement[2],requestId,movementPart(movement[3],movementDate,request.request_date),userId]);
+	}
+	await client.query(`UPDATE weighing_requests SET kernel_used=COALESCE(kernel_used,0)+$1,pko_produced=COALESCE(pko_produced,0)+$2,
+		pkc_produced=COALESCE(pkc_produced,0)+$3,sludge_produced=COALESCE(sludge_produced,0)+$4 WHERE request_id=$5`,
+	[quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,requestId]);
+	return { saved:true,productionId:production.rows[0].production_id };
+}
+
 app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeeper']),async function(req,res) {
 	const requestId=Number(req.params.id);
 	if(!Number.isInteger(requestId)||requestId<1) return res.status(400).json({ err: 'Invalid request' });
@@ -1788,41 +1868,13 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
             throw Object.assign(new Error(request.request_type==='Production'?'Enter a valid issue or receipt date on or after the production date.':
                 'Enter a valid date actually '+(request.request_type==='Purchase'?'received':'dispatched')+', on or after the authorisation date.'),{status:400});
         }
-        if(request.request_type==='Production') {
-            if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(req.body.submission_key||'')) {
-                throw Object.assign(new Error('A valid batch submission key is required'),{ status:400 });
-            }
-            const previous=await client.query('SELECT * FROM production_batches WHERE submission_key=$1',[req.body.submission_key]);
-            if(previous.rows.length) {
-                if(previous.rows[0].request_id!==requestId) throw Object.assign(new Error('Batch key belongs to another authorisation'),{ status:409 });
-                const batch=previous.rows[0];
-                if(batch.voided) throw Object.assign(new Error('This batch has been reversed. Start a new batch.'),{status:409});
-                if(dateText(batch.movement_date||request.request_date)!==movementDate||['kernel_used','pko_produced','pkc_produced','sludge_produced'].some(key =>
-                    readInventoryQuantity(req.body[key])!==Number(batch[key]))||
-                    (String(req.body.scale_ticket||'').trim()||null)!==batch.scale_ticket) {
-                    throw Object.assign(new Error('This batch was already saved with different quantities or ticket. Refresh before recording another batch.'),{ status:409 });
-                }
-                await client.query('COMMIT');
-                return res.json({ message:'Batch already saved',record_id:request.completed_record_id });
-            }
-        }
-        if(request.request_type==='Production'&&req.body.entry_type) {
-            const kernel=readInventoryQuantity(req.body.kernel_used);
-            const products=['pko_produced','pkc_produced','sludge_produced'].map(key=>readInventoryQuantity(req.body[key]));
-            if(!['Issue','Receive'].includes(req.body.entry_type)||
-                (req.body.entry_type==='Issue'&&(!(kernel>0)||products.some(value=>value!==0)))||
-                (req.body.entry_type==='Receive'&&(kernel!==0||products.filter(value=>value>0).length!==1||
-                    (req.body.received_product&&(!['pko_produced','pkc_produced','sludge_produced'].includes(req.body.received_product)||
-                     !(readInventoryQuantity(req.body[req.body.received_product])>0)))))) {
-                throw Object.assign(new Error('Record a kernel issue or receive exactly one selected product per entry'),{status:400});
-            }
-        }
         if(req.body.kernel_test!==undefined&&request.request_type!=='Purchase') {
             throw Object.assign(new Error('Kernel sample tests can only accompany a kernel purchase receipt.'),{status:400});
         }
 		const scaleTicket=String(req.body.scale_ticket||'').trim()||null;
 		const vehicleNumber=String(req.body.vehicle_number||'').trim()||null;
 		let completedRecordId;
+		let productionEntriesSaved=0;
 		if(request.request_type==='Purchase') {
 			const quantity=readInventoryQuantity(req.body.quantity);
 			if(quantity===null||quantity<=0) throw Object.assign(new Error('Enter the received quantity using no more than two decimal places'),{ status:400 });
@@ -1864,54 +1916,25 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 			[movementDate,request.item_id,quantity,requestId,req.session.user_id]);
 			await client.query(`UPDATE weighing_requests SET quantity=$1 WHERE request_id=$2`,[quantity,requestId]);
 		} else {
-			const quantities={
-				kernel_used: readInventoryQuantity(req.body.kernel_used),
-				pko_produced: readInventoryQuantity(req.body.pko_produced),
-				pkc_produced: readInventoryQuantity(req.body.pkc_produced),
-				sludge_produced: readInventoryQuantity(req.body.sludge_produced)
-			};
-            if(Object.values(quantities).some(value => value===null||value<0)||
-                !Object.values(quantities).some(value => value>0)) {
-                throw Object.assign(new Error('Enter at least one positive batch quantity, using no more than two decimal places'),{ status:400 });
-            }
-            await client.query(`INSERT INTO production_batches
-                (request_id,submission_key,kernel_used,pko_produced,pkc_produced,sludge_produced,scale_ticket,recorded_by,movement_date)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::date)`,[requestId,req.body.submission_key,
-                quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,scaleTicket,req.session.user_id,movementDate]);
-			const production=await client.query(`INSERT INTO production
-				(production_date,kernel_used,pko_produced,pkc_produced,sludge_produced,production_hours,down_time)
-				VALUES ($1,$2,$3,$4,$5,$6,$7)
-                ON CONFLICT (production_date) DO UPDATE SET
-                kernel_used=production.kernel_used+EXCLUDED.kernel_used,
-                pko_produced=production.pko_produced+EXCLUDED.pko_produced,
-                pkc_produced=production.pkc_produced+EXCLUDED.pkc_produced,
-                sludge_produced=production.sludge_produced+EXCLUDED.sludge_produced
-                RETURNING production_id`,
-			[request.request_date,quantities.kernel_used,quantities.pko_produced,
-				quantities.pkc_produced,quantities.sludge_produced,request.production_hours,request.down_time]);
-			completedRecordId=production.rows[0].production_id;
-			const itemRows=await client.query(`SELECT item_id,LOWER(name) AS name FROM items
-				WHERE LOWER(name) IN ('p kernel','pko','pkc','sludge')`);
-			const ids=Object.fromEntries(itemRows.rows.map(item => [item.name,item.item_id]));
-			if(!ids['p kernel']||!ids.pko||!ids.pkc||!ids.sludge) throw new Error('Production inventory items are incomplete');
-			const movements=[
-				[ids['p kernel'],0,quantities.kernel_used,'Kernel Issued'],
-				[ids.pko,quantities.pko_produced,0,'PKO Received'],
-				[ids.pkc,quantities.pkc_produced,0,'PKC Received'],
-				[ids.sludge,quantities.sludge_produced,0,'Sludge Received']
-			];
-			for(const movement of movements) {
-				await client.query(`INSERT INTO stock_counts
-					(count_date,item_id,received,issued,source_type,source_id,source_part,recorded_by)
-					VALUES ($1,$2,$3,$4,'Production',$5,$6,$7)
-                    ON CONFLICT (source_type,source_id,source_part) WHERE source_id IS NOT NULL
-                    DO UPDATE SET received=stock_counts.received+EXCLUDED.received,
-                    issued=stock_counts.issued+EXCLUDED.issued,recorded_by=EXCLUDED.recorded_by`,
-				[movementDate,movement[0],movement[1],movement[2],requestId,movementPart(movement[3],movementDate,request.request_date),req.session.user_id]);
+			// Several quantities sent together (entries) are saved in this one transaction: all of them or none.
+			// A single quantity, sent on its own as before, is a list of one.
+			const entries=Array.isArray(req.body.entries)?req.body.entries:[req.body];
+			if(entries.length<1||entries.length>4||entries.some(entry=>!entry||typeof entry!=='object')) {
+				throw Object.assign(new Error('Send between one and four production entries'),{status:400});
 			}
-			await client.query(`UPDATE weighing_requests SET kernel_used=COALESCE(kernel_used,0)+$1,pko_produced=COALESCE(pko_produced,0)+$2,
-				pkc_produced=COALESCE(pkc_produced,0)+$3,sludge_produced=COALESCE(sludge_produced,0)+$4 WHERE request_id=$5`,
-			[quantities.kernel_used,quantities.pko_produced,quantities.pkc_produced,quantities.sludge_produced,requestId]);
+			const keys=entries.map(entry=>String(entry.submission_key||'').toLowerCase());
+			if(new Set(keys).size!==keys.length) throw Object.assign(new Error('Each production entry needs its own submission key'),{status:400});
+			let saved=0;
+			for(const entry of entries) {
+				const result=await saveProductionEntry(client,request,entry,movementDate,scaleTicket,req.session.user_id);
+				if(result.saved) { saved++;completedRecordId=result.productionId; }
+			}
+			// Every entry was already saved by an earlier attempt (a retry after a lost connection): nothing changes.
+			if(!saved) {
+				await client.query('COMMIT');
+				return res.json({ message:entries.length>1?'These entries were already saved':'Batch already saved',record_id:request.completed_record_id,saved:0 });
+			}
+			productionEntriesSaved=saved;
 		}
 		await client.query(`UPDATE weighing_requests SET status=CASE WHEN request_type='Production' THEN 'Awaiting Storekeeper' ELSE 'Completed' END,completed_by=$1,
 			completed_record_id=$2,scale_ticket=$3,vehicle_number=$4,completed_at=CURRENT_TIMESTAMP
@@ -1919,7 +1942,7 @@ app.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storekeepe
 		[req.session.user_id,completedRecordId,scaleTicket,vehicleNumber,requestId]);
         await protectStock(client,before);
 		await client.query('COMMIT');
-		return res.json({ message: request.request_type==='Production'?'Production entry saved; daily totals and stock updated':request.request_type+' completed successfully',record_id: completedRecordId });
+		return res.json({ message: request.request_type==='Production'?(productionEntriesSaved>1?productionEntriesSaved+' production entries saved; daily totals and stock updated':'Production entry saved; daily totals and stock updated'):request.request_type+' completed successfully',record_id: completedRecordId,saved:productionEntriesSaved||undefined });
 	} catch(error) {
 		await client.query('ROLLBACK');
 		console.error(error);
