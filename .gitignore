@@ -5,3 +5,5 @@ public/images/employees/*
 !public/images/employees/.gitkeep
 public/images/company/*
 !public/images/company/.gitkeep
+# Exported records for the live database (password hashes and business data): never commit
+carry-over/
