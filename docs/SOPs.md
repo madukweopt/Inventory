@@ -91,7 +91,7 @@ The purchase record and stock receipt are saved together. Do not enter the same 
 3. The Storekeeper weighs the actual amount going to the customer.
 4. She enters it and the date it actually left the factory in **Pending Weighing**. The driver checks the amount, enters their name and signs on the device. Then she selects **Confirm Dispatch**.
 
-Confirming dispatch saves the factory weight and deducts it from stock once. The app creates the **Delivery Note** with the driver’s signature already on it. Factory-weight sales get an invoice at dispatch. Customer-weight sales wait for the buyer’s signed weight, confirmed by the accompanying representative. You may attach up to six scale tickets or weighing photos, no larger than 6 MB each. These attachments are optional. A weight difference needs the Director’s approval before invoicing. Each job appears once in **Pending Weighing**, showing its next step. Search or filter by job type, open the job to act, and use **Load more** for additional jobs. Do not record a second stock issue. Follow SOP 04 for release approval.
+Confirming dispatch saves the factory weight and deducts it from stock once. The app creates the **Delivery Note** with the driver’s signature already on it. Factory-weight sales get an invoice at dispatch. Customer-weight sales wait for the buyer’s signed weight, confirmed by the accompanying representative. You may attach up to six scale tickets or weighing photos, no larger than 6 MB each. These attachments are optional. A weight difference needs the Director’s approval before invoicing. Each job appears once in **Pending Weighing**, showing its next step. A factory-weight sale leaves **Pending Weighing** once dispatch is confirmed. A customer-weight sale stays there until the buyer’s weighing is confirmed and the invoice is made. Search or filter by job type, open the job to act, and use **Load more** for additional jobs. Do not record a second stock issue. Follow SOP 04 for release approval.
 
 ### Other partners and capital assets
 
@@ -865,7 +865,7 @@ The Storekeeper does not negotiate prices, approve sales or collect payments. Th
 1. The Director saves the approved price and its start date on **Prices**.
 2. If a price is missing or wrong, ask the Director to correct it before authorising the sale.
 3. The Manager or Director selects the sale date, customer and product, and enters the **Quantity ordered**: the amount the customer asked for. The Storekeeper sees it on the sale in **Pending Weighing**.
-4. Check the price supplied by the app. Choose **Factory weight** or **Customer’s agreed weight** under **Payment weight**. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. Do not enter a second price or dispatch weight in this form.
+4. Check the price supplied by the app. Choose **Factory weight** or **Customer’s agreed weight** under **Payment weight**. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. The Director cannot be the accompanying representative. Do not enter a second price or dispatch weight in this form.
 5. Select **Authorise Sale**.
 6. Tell the Storekeeper about the collection and assign Operators to prepare the products and equipment.
 

@@ -1039,6 +1039,14 @@ test('Digital delivery notes separate customer invoice weight from factory stock
     const authorise=async(basis,representative=ids.managerUser,agent=manager)=> (await agent.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:basis,representative_id:representative}).expect(201)).body;
     await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Invalid'}).expect(400);
     await manager.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Customer',representative_id:ids.storekeeperUser}).expect(403);
+    // The Director is never the accompanying representative, even when authorising the sale themselves.
+    await admin.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Factory',representative_id:ids.adminUser}).expect(400);
+    await admin.post('/api/sales').send({ordered_quantity:1000,sales_date:'2090-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Factory'}).expect(400);
+    assert.ok(!(await admin.get('/api/delivery-representatives').expect(200)).body.some(row=>row.role==='admin'));
+    // A factory-weight sale is invoiced at dispatch and leaves Pending Weighing once the driver has signed.
+    const dispatchedFactory=await authorise('Factory');
+    const factorySale=(await storekeeper.patch('/api/weighing-requests/'+dispatchedFactory.request_id+'/complete').send({quantity:10,vehicle_number:'TEST-F',driver_name:'Driver',driver_signature:signature}).expect(200)).body.record_id;
+    for(const agent of [admin,manager,storekeeper])assert.ok(!(await agent.get('/api/delivery-notes/pending').expect(200)).body.some(row=>row.sales_id===factorySale));
     const req=await authorise('Customer');
     const dispatch='/api/weighing-requests/'+req.request_id+'/complete';
     await storekeeper.patch(dispatch).send({quantity:1000,vehicle_number:'TEST-123',scale_ticket:'FACTORY-1'}).expect(400);

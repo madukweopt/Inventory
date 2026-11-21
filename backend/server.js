@@ -1393,7 +1393,9 @@ app.post("/api/sales",requireRole(['admin','manager']),async function(req,res) {
         if(!['Factory','Customer'].includes(basis))return res.status(400).json({err:'Choose factory weight or customer weight.'});
         const representative=Number(sales.representative_id||req.session.user_id);
         if(!Number.isInteger(representative)||(req.session.role!=='admin'&&representative!==req.session.user_id))return res.status(403).json({err:'Only the Director can assign another accompanying representative.'});
-        if(!(await pool.query('SELECT 1 FROM users WHERE user_id=$1',[representative])).rowCount)return res.status(400).json({err:'Choose a delivery representative.'});
+        // The Director approves releases and weight differences, so they are never the accompanying representative.
+        const representativeRole=(await pool.query('SELECT role FROM users WHERE user_id=$1',[representative])).rows[0]?.role;
+        if(!representativeRole||representativeRole==='admin')return res.status(400).json({err:'Choose a staff member other than the Director as the accompanying representative.'});
 		const inserted=await authorise(pool,'Sale',sales,req.session.user_id,
 			`INSERT INTO weighing_requests
 			(request_type,request_date,customer_id,item_id,unit_price,created_by,billing_basis,representative_id,ordered_quantity)

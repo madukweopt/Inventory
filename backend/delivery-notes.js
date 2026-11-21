@@ -33,7 +33,7 @@ function registerDeliveryNotes(app,pool,requireRole){
     };
     const assigned=(req,row)=>{if(req.session.role!=='admin'&&row.representative_id!==req.session.user_id)throw fail(403,'Only the assigned representative or Director can confirm this delivery.');};
     app.get('/api/delivery-representatives',requireRole(['admin','manager']),async(req,res)=>{
-        try{const rows=(await pool.query('SELECT user_id,username,role FROM users WHERE $1::text=\'admin\' OR user_id=$2 ORDER BY username',[req.session.role,req.session.user_id])).rows;res.json(rows);}catch(e){res.status(500).json({err:'Could not load delivery representatives.'});}
+        try{const rows=(await pool.query('SELECT user_id,username,role FROM users WHERE role<>\'admin\' AND ($1::text=\'admin\' OR user_id=$2) ORDER BY username',[req.session.role,req.session.user_id])).rows;res.json(rows);}catch(e){res.status(500).json({err:'Could not load delivery representatives.'});}
     });
     app.get('/api/delivery-notes/pending',requireRole(roles),async(req,res)=>{
         try{res.json((await pool.query(`SELECT s.sales_id,s.billing_basis,s.invoice_number,c.name AS customer,i.name AS item,
@@ -43,7 +43,8 @@ function registerDeliveryNotes(app,pool,requireRole){
                 WHEN d.buyer_signature IS NULL THEN 'Awaiting buyer weight and signature'
                 ELSE 'Awaiting Director approval' END AS delivery_status
             FROM delivery_notes d JOIN sales s USING(sales_id) JOIN customers c USING(customer_id) JOIN items i USING(item_id)
-            WHERE (d.driver_signature IS NULL OR d.buyer_signature IS NULL OR s.invoice_number IS NULL)
+            -- A factory-weight sale is invoiced at dispatch, so once the driver has signed it is no longer pending.
+            WHERE (d.driver_signature IS NULL OR (s.billing_basis='Customer' AND (d.buyer_signature IS NULL OR s.invoice_number IS NULL)))
             AND ($1::text='admin' OR d.representative_id=$2 OR ($1='storekeeper' AND d.driver_signature IS NULL))
             ORDER BY s.sales_date,s.sales_id`,[req.session.role,req.session.user_id])).rows);}catch(e){res.status(500).json({err:'Could not load pending deliveries.'});}
     });
