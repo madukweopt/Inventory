@@ -2167,3 +2167,9 @@ body:has(.portal) {
 .status-message.pending-work-count.is-clear,.status-message.pending-work-count.is-clear[data-message-type] {background:linear-gradient(100deg,#e2f4de,#eff9ed)!important;border-color:#cfe6c9;color:#205f28!important;}
 .status-message.pending-work-count.is-clear:before {content:'✓';background:#16a34a;color:#fff;}
 @media(max-width:420px){.pending-work-tools {grid-template-columns:minmax(0,1fr);}.pending-work-job>summary {padding:12px;gap:8px;}}
+/* The large ✕ that cancels a report form, at the card's top right. */
+.card.has-cancel-x {position:relative;}
+.card.has-cancel-x>h2 {padding:0 56px;}
+.card>.form-cancel-x {position:absolute;top:14px;right:14px;z-index:2;display:grid;place-items:center;width:48px;height:48px;min-height:0;margin:0;padding:0;border:1px solid #d8ddd9;border-radius:50%;background:#fff;color:#2e3a33;font-size:26px;font-weight:700;line-height:1;cursor:pointer;box-shadow:0 2px 6px rgba(0,0,0,.08);}
+.card>.form-cancel-x:hover,.card>.form-cancel-x:focus-visible {background:#fdecea;border-color:#e7b8b2;color:#a32b20;}
+@media(max-width:600px){.card>.form-cancel-x {top:10px;right:10px;width:44px;height:44px;font-size:24px;}.card.has-cancel-x>h2 {padding:0 50px;}}

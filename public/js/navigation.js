@@ -143,6 +143,11 @@ function openFormsMenu() {
 	}
 }
 window.openFormsMenu=openFormsMenu;
+// A cancelled edit reopens the forms page with ?menu=forms so the menu shows on a clean page.
+if(new URLSearchParams(location.search).get('menu')==='forms') {
+	history.replaceState(null,'',location.pathname);
+	openFormsMenu();
+}
 
 const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
 // Processes each entry in the collection.

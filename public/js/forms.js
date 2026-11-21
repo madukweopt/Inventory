@@ -1472,6 +1472,31 @@ async function completeWeighingTask(event) {
 
 if(refreshWeighingTasksBtn) refreshWeighingTasksBtn.addEventListener('click',loadWeighingTasks);
 
+// Each report form has a large ✕ at its top right. Cancel discards what was typed (and any saved record being
+// edited), closes the form and opens the navigation panel with the Forms list expanded.
+function cancelReportForm(form) {
+    for(const key of ['editRecord','editKind','checksReturnUrl']) sessionStorage.removeItem(key);
+    if(new URLSearchParams(location.search).get('mode')==='edit') {
+        // An edit changes several fields on the form, so the page is reopened clean and then shows the menu.
+        location.replace('/forms.html?menu=forms');
+        return;
+    }
+    form.reset();
+    form.closest('.card').classList.remove('show');
+    history.replaceState(null,'',location.pathname);
+    if(window.openFormsMenu) window.openFormsMenu();
+}
+[inventoryForm,purchaseForm,salesForm,productionForm,expensesForm].forEach(form=>{
+    const card=form&&form.closest('.card');
+    if(!card) return;
+    const close=document.createElement('button');
+    close.type='button';close.className='form-cancel-x';
+    close.setAttribute('aria-label','Cancel and close this form');close.title='Cancel';
+    close.textContent='✕';
+    close.addEventListener('click',event=>{event.stopPropagation();cancelReportForm(form);});
+    card.classList.add('has-cancel-x');card.prepend(close);
+});
+
 // Validates the submitted expenses data and sends it to the server for saving.
 async function saveExpenses(event) {
 	event.preventDefault();
