@@ -107,3 +107,11 @@
 @media(max-width:420px){#delivery-note .delivery-field.delivery-field-wide{grid-template-columns:32px minmax(0,1fr)}}
 #delivery-note .delivery-note-toolbar h1{font-size:clamp(1.3rem,5.6vw,2.1rem);white-space:nowrap}
 #delivery-note .delivery-note-toolbar a{font-size:.95rem}
+/* The large ✕ at the top right that closes the note (same look as the forms' cancel button). */
+#delivery-note{position:relative}
+#delivery-note>.delivery-close-x{position:absolute;top:14px;right:14px;z-index:2;display:grid;place-items:center;width:48px;height:48px;border:1px solid #d8ddd9;border-radius:50%;background:#fff;color:#2e3a33;font-size:26px;font-weight:700;line-height:1;text-decoration:none;box-shadow:0 2px 6px rgba(0,0,0,.08);-webkit-tap-highlight-color:transparent;transition:transform .08s ease,background-color .15s ease}
+#delivery-note>.delivery-close-x:hover,#delivery-note>.delivery-close-x:focus-visible{background:#fdecea;border-color:#e7b8b2;color:#a32b20}
+#delivery-note>.delivery-close-x:active{transform:scale(.94);background:#f9d9d5}
+#delivery-note .delivery-note-toolbar{padding-right:56px}
+@media(max-width:600px){#delivery-note>.delivery-close-x{top:10px;right:10px;width:44px;height:44px;font-size:24px}#delivery-note .delivery-note-toolbar{padding-right:50px}}
+@media print{#delivery-note>.delivery-close-x{display:none!important}}

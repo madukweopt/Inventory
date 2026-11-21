@@ -59,6 +59,8 @@
         trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/>',
         back:'<path d="m15 18-6-6 6-6"/>',
         confirm:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+        // The large close/cancel cross on forms, Data pages and the delivery note.
+        close:'<path d="M6 6l12 12M18 6 6 18"/>',
         // Sale and payment document icons.
         coins:'<ellipse cx="14" cy="6" rx="7" ry="3"/><path d="M7 6v4c0 1.7 3.1 3 7 3s7-1.3 7-3V6M7 10v4c0 1.7 3.1 3 7 3s7-1.3 7-3v-4"/><ellipse cx="9" cy="14" rx="6" ry="2.6"/><path d="M3 14v3.5C3 19 5.7 20 9 20s6-1 6-2.5V14"/>',
         card:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>',

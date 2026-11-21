@@ -1047,6 +1047,9 @@ test('Digital delivery notes separate customer invoice weight from factory stock
     const dispatchedFactory=await authorise('Factory');
     const factorySale=(await storekeeper.patch('/api/weighing-requests/'+dispatchedFactory.request_id+'/complete').send({quantity:10,vehicle_number:'TEST-F',driver_name:'Driver',driver_signature:signature}).expect(200)).body.record_id;
     for(const agent of [admin,manager,storekeeper])assert.ok(!(await agent.get('/api/delivery-notes/pending').expect(200)).body.some(row=>row.sales_id===factorySale));
+    // There is no buyer weighing on a factory-weight sale, so the note offers none and the server refuses one.
+    assert.equal((await manager.get('/api/delivery-notes/'+factorySale).expect(200)).body.can_confirm,false);
+    await manager.post('/api/delivery-notes/'+factorySale+'/buyer').field('buyer_name','Buyer').field('buyer_weight','10').field('signature',signature).field('representative_confirmed','true').expect(409);
     const req=await authorise('Customer');
     const dispatch='/api/weighing-requests/'+req.request_id+'/complete';
     await storekeeper.patch(dispatch).send({quantity:1000,vehicle_number:'TEST-123',scale_ticket:'FACTORY-1'}).expect(400);
@@ -1100,7 +1103,7 @@ test('Digital delivery notes separate customer invoice weight from factory stock
     // Factory-weight invoices remain based on dispatch even when the buyer weighs differently.
     const factory=await authorise('Factory');const fid=(await storekeeper.patch('/api/weighing-requests/'+factory.request_id+'/complete').send({quantity:500,vehicle_number:'FAC-1',...driver}).expect(200)).body.record_id;
     assert.equal(Number((await manager.get('/api/sales/'+fid+'/invoice').expect(200)).body.sale.quantity),500);
-    await manager.post('/api/delivery-notes/'+fid+'/buyer').field('buyer_name','Buyer').field('buyer_weight','490').field('signature',signature).field('representative_confirmed','true').attach('evidence',png,{filename:'scale.png',contentType:'image/png'}).expect(200);
+    await manager.post('/api/delivery-notes/'+fid+'/buyer').field('buyer_name','Buyer').field('buyer_weight','490').field('signature',signature).field('representative_confirmed','true').attach('evidence',png,{filename:'scale.png',contentType:'image/png'}).expect(409);// factory-weight sales have no buyer weighing
     assert.equal(Number((await manager.get('/api/sales/'+fid+'/invoice').expect(200)).body.sale.quantity),500);
     const delegated=await authorise('Customer',ids.storekeeperUser,admin);assert.equal(delegated.representative_id,ids.storekeeperUser);
     assert.equal((await manager.get('/api/delivery-representatives').expect(200)).body.length,1);

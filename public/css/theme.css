@@ -2176,3 +2176,6 @@ body:has(.portal) {
 /* Data pages: keep their headings clear of the ✕. */
 .card.has-cancel-x .ref-page-heading {padding-right:56px;}
 @media(max-width:600px){.card.has-cancel-x .ref-page-heading {padding-right:50px;}}
+/* The cross inside the round close/cancel buttons. */
+.form-cancel-x .ui-icon,.delivery-close-x .ui-icon{width:24px;height:24px;flex:0 0 24px}
+.form-cancel-x .ui-icon svg,.delivery-close-x .ui-icon svg{width:24px;height:24px;stroke:currentColor;stroke-width:2.6}

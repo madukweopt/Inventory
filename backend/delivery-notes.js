@@ -77,7 +77,7 @@ function registerDeliveryNotes(app,pool,requireRole){
             const company=(await pool.query('SELECT * FROM company_details WHERE company_id=1')).rows[0]||{};
             if(row.invoice_snapshot){row.customer=row.invoice_snapshot.customer;row.item=row.invoice_snapshot.item;}
             res.json({note:row,company:row.invoice_snapshot?.company||company,
-                can_confirm:req.session.role==='admin'||row.representative_id===req.session.user_id,
+                can_confirm:row.billing_basis==='Customer'&&(req.session.role==='admin'||row.representative_id===req.session.user_id),
                 can_sign_driver:['admin','storekeeper'].includes(req.session.role),can_approve:req.session.role==='admin'});
         }catch(e){res.status(500).json({err:'Could not load delivery note.'});}
     });
@@ -96,7 +96,10 @@ function registerDeliveryNotes(app,pool,requireRole){
         upload(req,res,error=>{
             if(error)return res.status(400).json({err:'Attach up to six weighing photos or PDF tickets, no larger than 6 MB each.'});
             return transact(req,res,async(client,row)=>{
-                assigned(req,row);if(!row.driver_signature)throw fail(409,'The driver must sign collection before the buyer confirms delivery.');
+                assigned(req,row);
+                // Factory-weight sales are invoiced on the factory weight at dispatch; there is no buyer weighing.
+                if(row.billing_basis!=='Customer')throw fail(409,'This sale is paid by factory weight, so no buyer weighing is needed.');
+                if(!row.driver_signature)throw fail(409,'The driver must sign collection before the buyer confirms delivery.');
                 if(row.buyer_signature)throw fail(409,'The buyer’s signed weighing is already saved. Refresh the delivery note.');
                 if(req.body.representative_confirmed!=='true')throw fail(400,'The accompanying representative must confirm the witnessed weighing.');
                 const amount=weight(req.body.buyer_weight),files=req.files||[];

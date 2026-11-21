@@ -1,7 +1,17 @@
 (function(){
     const el=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};
     const message=text=>{document.getElementById('delivery-note-message').textContent=text;};
-    window.openDeliveryNote=id=>{const url=new URL(location.href);url.search='';url.searchParams.set('saleId',id);url.hash='delivery-note';history.pushState({},'',url);displaySelectedForm();};
+    // from='sale' when opened from Sale and Payments, so the note's back link returns there.
+    window.openDeliveryNote=(id,from)=>{const url=new URL(location.href);url.search='';url.searchParams.set('saleId',id);if(from)url.searchParams.set('from',from);url.hash='delivery-note';history.pushState({},'',url);displaySelectedForm();};
+    // The large ✕ at the top right closes the note and returns to Sale and Payments or the Sales list.
+    function setDeliveryBackLink(id){
+        const link=document.querySelector('#delivery-note .delivery-close-x');if(!link)return;
+        const fromSale=new URLSearchParams(location.search).get('from')==='sale';
+        if(!link.querySelector('.ui-icon'))link.appendChild(AppUI.icon('close'));
+        link.setAttribute('aria-label',fromSale?'Close and go back to Sale and Payments':'Close and go back to Sales');
+        link.href=fromSale?'/forms.html?saleId='+encodeURIComponent(id)+'#sale-document':'/forms.html#sales-data';
+        link.onclick=fromSale?event=>{event.preventDefault();history.pushState({},'',link.href);displaySelectedForm();}:null;
+    }
     function signaturePad(form,label){
         const box=el('div',undefined,'delivery-signature-pad');const title=el('label',label);const canvas=el('canvas');canvas.width=660;canvas.height=200;canvas.setAttribute('aria-label',label);canvas.setAttribute('role','img');
         const ctx=canvas.getContext('2d');ctx.lineWidth=3;ctx.lineCap='round';ctx.strokeStyle='#142b22';let drawing=false,marked=false;
@@ -22,6 +32,7 @@
     async function post(url,body,multipart=false){const response=await fetch(url,{method:'POST',...multipart?{body}:{headers:{'content-type':'application/json'},body:JSON.stringify(body)}});const data=await response.json();if(!response.ok)throw Error(data.err||'Could not save delivery note.');return data;}
     window.loadDeliveryNote=async()=>{
         const page=document.getElementById('delivery-note');if(!page)return;const id=new URLSearchParams(location.search).get('saleId');if(!id){message('Select a delivery note from Pending Weighing or Sales.');return;}
+        setDeliveryBackLink(id);
         message('Loading delivery note…');const doc=document.getElementById('delivery-note-document'),controls=document.getElementById('delivery-note-controls');doc.replaceChildren();controls.replaceChildren();
         try{
             const response=await fetch('/api/delivery-notes/'+encodeURIComponent(id));const data=await response.json();if(!response.ok)throw Error(data.err);const n=data.note;
@@ -31,12 +42,16 @@
             for(const [iconName,value]of [['pin',data.company.business_address],['phone',data.company.phone_number],['mail',data.company.email]])if(value){const item=el('span',value);item.prepend(AppUI.icon(iconName));contact.appendChild(item);}
             if(contact.children.length)doc.appendChild(contact);
             const grid=el('dl',undefined,'delivery-note-grid');
-            const entries=[['Dispatch date',formatDate(n.sales_date)],['Customer',n.customer],['Product',n.item],['Factory weight',formatNumber(n.factory_weight)+' kg'],['Vehicle number',n.vehicle_number||'Not recorded'],['Factory scale ticket',n.scale_ticket||'Not recorded'],['Payment weight',n.billing_basis==='Customer'?'Customer’s agreed weight':'Factory weight'],['Accompanying representative',n.representative||'Director to assign'],['Buyer’s weight',n.buyer_weight?formatNumber(n.buyer_weight)+' kg':'Awaiting weighing'],['Weight difference',n.buyer_weight?formatNumber(Number(n.factory_weight)-Number(n.buyer_weight))+' kg (factory minus buyer)':'Awaiting weighing']];
+            const entries=[['Dispatch date',formatDate(n.sales_date)],['Customer',n.customer],['Product',n.item],['Factory weight',formatNumber(n.factory_weight)+' kg'],['Vehicle number',n.vehicle_number||'Not recorded'],['Factory scale ticket',n.scale_ticket||'Not recorded'],['Payment weight',n.billing_basis==='Customer'?'Customer’s agreed weight':'Factory weight'],['Accompanying representative',n.representative||'Director to assign']];
+            // A factory-weight sale is paid on the factory weight, so the buyer's weighing only appears for customer-weight sales
+            // (or an older factory-weight note where a buyer weight was already saved).
+            const buyerWeighing=n.billing_basis==='Customer'||Boolean(n.buyer_signature);
+            if(buyerWeighing)entries.push(['Buyer’s weight',n.buyer_weight?formatNumber(n.buyer_weight)+' kg':'Awaiting weighing'],['Weight difference',n.buyer_weight?formatNumber(Number(n.factory_weight)-Number(n.buyer_weight))+' kg (factory minus buyer)':'Awaiting weighing']);
             const entryIcons={'Dispatch date':'calendar','Customer':'user','Product':'box','Factory weight':'scale','Vehicle number':'truck','Factory scale ticket':'ticket','Payment weight':'scale','Accompanying representative':'people','Buyer’s weight':'people','Weight difference':'warning'};
             for(const [label,value]of entries){const pair=el('div');pair.append(AppUI.icon(entryIcons[label]||'info'),el('dt',label),el('dd',value));grid.appendChild(pair);}doc.appendChild(grid);
             const signatures=el('div',undefined,'delivery-signatures');
             function signed(title,name,signature,time){const section=el('section',undefined,'delivery-signed');const head=el('h3',title);head.prepend(AppUI.icon('pen'));section.append(head,el('p',name||'Not yet signed',name?undefined:'delivery-unsigned'));if(signature){const image=el('img');image.src=signature;image.alt=title;section.append(el('small',new Date(time).toLocaleString()),image);}signatures.appendChild(section);}
-            signed('Driver’s collection signature',n.driver_name,n.driver_signature,n.driver_signed_at);signed('Buyer’s weighing signature',n.buyer_name,n.buyer_signature,n.confirmed_at);doc.appendChild(signatures);
+            signed('Driver’s collection signature',n.driver_name,n.driver_signature,n.driver_signed_at);if(buyerWeighing)signed('Buyer’s weighing signature',n.buyer_name,n.buyer_signature,n.confirmed_at);doc.appendChild(signatures);
             if(n.confirmed_at)doc.appendChild(el('p','Weighing witnessed and confirmed by '+(n.confirmed_by_name||n.representative||'the approved representative')+' · '+new Date(n.confirmed_at).toLocaleString()));
             if(n.approved_at)doc.appendChild(el('p','Weight difference approved by the Director'+(n.approved_by_name?' ('+n.approved_by_name+')':'')+' · '+new Date(n.approved_at).toLocaleString()));
             // Director corrections after signing are listed so the change from what the driver signed is visible.
@@ -62,7 +77,7 @@
             message(n.invoice_number?'Invoice '+n.invoice_number+' is available.':pendingApproval?'Buyer weighing saved. Awaiting Director approval of the weight difference.':'Invoice will be issued after the buyer’s weighing is confirmed.');
             if(n.invoice_number){const invoice=el('button','Open Invoice','delivery-secondary');invoice.prepend(AppUI.icon('document'));invoice.type='button';invoice.onclick=()=>openSaleDocument({sales_id:n.sales_id,invoice_number:n.invoice_number});controls.appendChild(invoice);}
             if(!n.driver_signature&&data.can_sign_driver){const form=el('form',undefined,'delivery-form');form.appendChild(heading('Driver acknowledges collection','pen'));const driver=input(form,'Driver’s full name','text','driver_name','user');const sign=signaturePad(form,'Driver signs here');submit(form,'Save Driver Signature',()=>post('/api/delivery-notes/'+id+'/driver',{driver_name:driver.value,signature:sign()}));controls.appendChild(form);}
-            if(n.driver_signature&&!n.buyer_signature&&data.can_confirm){const form=el('form',undefined,'delivery-form');form.append(heading('Buyer’s weighing at destination','scale'),el('p','Hand the device to the buyer to enter their name and weight, optionally attach a scale ticket or photo, and sign. The accompanying representative then confirms the details.'));
+            if(n.billing_basis==='Customer'&&n.driver_signature&&!n.buyer_signature&&data.can_confirm){const form=el('form',undefined,'delivery-form');form.append(heading('Buyer’s weighing at destination','scale'),el('p','Hand the device to the buyer to enter their name and weight, optionally attach a scale ticket or photo, and sign. The accompanying representative then confirms the details.'));
                 input(form,'Buyer’s full name','text','buyer_name','user');input(form,'Buyer’s measured weight (kg)','number','buyer_weight','scale');const file=input(form,'Scale tickets or weighing photos (optional, up to 6 files, 6 MB each)','file','evidence','image');file.required=false;file.multiple=true;file.accept='image/png,image/jpeg,image/webp,application/pdf';const sign=signaturePad(form,'Buyer signs here');
                 const label=el('label',undefined,'delivery-confirmation');const check=el('input');check.type='checkbox';check.name='representative_confirmed';check.value='true';check.required=true;label.append(check,document.createTextNode('I accompanied this delivery, witnessed the weighing and checked the buyer’s details and any attached evidence.'));form.appendChild(label);
                 submit(form,'Confirm Buyer’s Weighing',()=>{if(file.files.length>6)throw Error('Choose no more than 6 weighing files.');if([...file.files].some(row=>row.size>6*1024*1024))throw Error('Each weighing file must be no larger than 6 MB.');const body=new FormData(form);body.set('signature',sign());return post('/api/delivery-notes/'+id+'/buyer',body,true);});controls.appendChild(form);
@@ -72,9 +87,10 @@
     };
     (async()=>{const user=await window.currentUserPromise;if(!user)return;const select=document.getElementById('sales-representative');if(['admin','manager'].includes(user.role)&&select){try{const response=await fetch('/api/delivery-representatives');if(!response.ok)throw Error();const users=await response.json();select.replaceChildren();for(const row of users)select.add(new Option(row.username+' ('+(row.role==='admin'?'Director':row.role)+')',row.user_id,row.username===user.username,row.username===user.username));select.value=String(users.find(row=>row.username===user.username)?.user_id||users[0]?.user_id||'');if(!users.length)select.replaceChildren(new Option('No staff available to accompany',''));}catch(e){select.replaceChildren(new Option('Could not load representatives',''));}}
         document.getElementById('print-delivery-note')?.addEventListener('click',()=>window.print());
-        // Toolbar icons: truck beside the title, a back arrow and a printer.
+        const closeX=document.querySelector('#delivery-note .delivery-close-x');if(closeX&&!closeX.querySelector('.ui-icon'))closeX.appendChild(AppUI.icon('close'));
+        // Toolbar icons: truck beside the title and a printer.
         const toolbar=document.querySelector('.delivery-note-toolbar');
-        if(toolbar&&!toolbar.dataset.decorated){toolbar.dataset.decorated='true';toolbar.querySelector('h1')?.prepend(AppUI.icon('truck'));toolbar.querySelector('a')?.prepend(AppUI.icon('back'));document.getElementById('print-delivery-note')?.prepend(AppUI.icon('printer'));}
+        if(toolbar&&!toolbar.dataset.decorated){toolbar.dataset.decorated='true';toolbar.querySelector('h1')?.prepend(AppUI.icon('truck'));document.getElementById('print-delivery-note')?.prepend(AppUI.icon('printer'));}
         if(location.hash==='#delivery-note')window.loadDeliveryNote();
     })();
 })();

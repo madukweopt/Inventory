@@ -1492,7 +1492,7 @@ function cancelReportForm(form) {
     const close=document.createElement('button');
     close.type='button';close.className='form-cancel-x';
     close.setAttribute('aria-label','Cancel and close this form');close.title='Cancel';
-    close.textContent='✕';
+    close.replaceChildren(AppUI.icon('close'));
     close.addEventListener('click',event=>{event.stopPropagation();cancelReportForm(form);});
     card.classList.add('has-cancel-x');card.prepend(close);
 });
@@ -1503,7 +1503,7 @@ function cancelReportForm(form) {
     const close=document.createElement('button');
     close.type='button';close.className='form-cancel-x';
     close.setAttribute('aria-label','Close this page');close.title='Close';
-    close.textContent='✕';
+    close.replaceChildren(AppUI.icon('close'));
     close.addEventListener('click',event=>{
         event.stopPropagation();
         card.classList.remove('show');
@@ -2138,7 +2138,7 @@ async function loadSaleDocument() {
     if(data.sale.has_delivery_note){
         let noteButton=page.querySelector('.open-delivery-note');
         if(!noteButton){noteButton=document.createElement('button');noteButton.type='button';noteButton.className='open-delivery-note';noteButton.textContent='Delivery Note';withDocumentIcon(noteButton,'truck');page.querySelector('.sale-document-actions').insertBefore(noteButton,page.querySelector('#print-sale-document'));}
-        noteButton.onclick=()=>window.openDeliveryNote(data.sale.sales_id);
+        noteButton.onclick=()=>window.openDeliveryNote(data.sale.sales_id,'sale');
     }
 }
 
