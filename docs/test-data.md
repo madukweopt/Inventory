@@ -1,6 +1,6 @@
 # Current test dataset
 
-`backend/seed.js` rebuilds the application data for **1 June 2026 through 17 November 2026**, inclusively. The fixtures are deterministic and follow the current application's record relationships. Existing login accounts and their password hashes are preserved; old business records and sessions are cleared.
+`backend/seed.js` rebuilds the application data for **1 June 2026 through 17 November 2026**, inclusively. The fixtures are deterministic and follow the current application's record relationships. Existing login accounts and their password hashes are preserved; old business records, sessions and the Activity Log are cleared (the backup taken first keeps the Activity Log).
 
 ## Reset completed and verified
 

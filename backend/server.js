@@ -144,6 +144,8 @@ app.use(session({
 	}
 }));
 
+// Every successful save, edit or delete is written to the Activity Log (Data → Activity Log, Director only).
+require('./activity-log').registerActivityLog(app,pool,requireRole);
 
 const publicDirectory=path.join(__dirname,"..","public");
 const htmlDirectory=path.join(publicDirectory,"html");

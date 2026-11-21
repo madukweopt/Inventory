@@ -13,6 +13,7 @@
         <link rel="stylesheet" href="/css/delivery-notes.css" />
         <link rel="stylesheet" href="/css/sale-documents.css" />
         <link rel="stylesheet" href="/css/partners.css" />
+        <link rel="stylesheet" href="/css/activity-log.css" />
     </head>
     <body>
         <nav class="main-menu">
@@ -62,6 +63,7 @@
                 <div class="submenu-two">
                     <a href="/forms.html#inventory-data">Inventory Data </a>
                     <a href="/forms.html#stock-history">Stock Change History</a>
+                    <a href="/forms.html#activity-log">Activity Log</a>
                     <a href="/forms.html#purchases-data">Purchases Data </a>
                     <a href="/forms.html#sales-data">Sales Data </a>
                     <a href="/forms.html#production-data">Production Data</a>
@@ -659,6 +661,19 @@
 					<div class="sale-payment-list"></div>
 				</section>
 			</section>
+
+            <section class="card" id="activity-log">
+                <h2>Activity Log</h2>
+                <p class="form-description">Every save, edit and delete made in the app, and every sign-in: who really did it, which account was in use, and when. Nothing here can be changed.</p>
+                <div class="activity-log-filters">
+                    <label>Person<select id="activity-log-person"><option value="">Everyone</option></select></label>
+                    <label>Record type<select id="activity-log-type"><option value="">All types</option></select></label>
+                    <label>From<input type="date" id="activity-log-from"></label>
+                    <label>To<input type="date" id="activity-log-to"></label>
+                </div>
+                <div id="activity-log-list" class="activity-log-list" aria-live="polite"></div>
+                <button type="button" id="activity-log-more" hidden>Load more</button>
+            </section>
 
             <section class="card" id="stock-history">
                 <h2>Stock Change History</h2>
@@ -1419,6 +1434,7 @@
         <script src="/js/delivery-notes.js"></script>
         <script src="/js/partners.js"></script>
         <script src="/js/stock-history.js"></script>
+        <script src="/js/activity-log.js"></script>
         <script src="/js/data-pages.js"></script>
         <script src="/js/date-filters.js"></script>
     </body>

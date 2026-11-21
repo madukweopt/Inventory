@@ -108,6 +108,33 @@ test('the failed sign-in counter forgets expired entries and stays bounded',func
     } finally { failedLogins.clear();for(const [key,value] of saved) failedLogins.set(key,value); }
 });
 
+// Every successful write and sign-in is logged with the person who really did it and the account in use.
+test('the activity log records who really acted, including under Switch Account, and is Director only',async function() {
+    const director=request.agent(app);
+    await login(director,'admin_test','AdminPass123');
+    await director.post('/api/switch-account').send({user_id:ids.managerUser}).expect(200);
+    const customer=(await director.post('/api/customers').send({name:'Activity Log Customer',phone:'08033333333',address:'Log Street',email:'log@example.com',note:'Activity log test'}).expect(201)).body;
+    await director.post('/api/customers').send({name:'Missing details'}).expect(400);
+    await director.post('/api/return-to-admin').expect(200);
+    // Entries are written just after each reply is sent.
+    await new Promise(resolve=>setTimeout(resolve,300));
+    const log=(await director.get('/api/activity-log').expect(200)).body;
+    const added=log.rows.find(row=>row.action==='Added a customer'&&row.record_id===String(customer.customer_id));
+    assert.ok(added,'the customer added under Switch Account is logged');
+    assert.equal(added.user_id,ids.adminUser);assert.equal(added.acting_user_id,ids.managerUser);assert.equal(added.record_type,'Customer');
+    assert.ok(log.rows.some(row=>row.action==='Switched to another account'&&row.user_id===ids.adminUser));
+    assert.ok(log.rows.some(row=>row.action==='Returned to own account'&&row.acting_user_id===ids.managerUser));
+    assert.ok(log.rows.some(row=>row.action==='Signed in'&&row.user_id===ids.adminUser));
+    assert.equal(log.rows.filter(row=>row.record_type==='Customer'&&row.record_id===null).length,0,'a refused save is not logged');
+    assert.ok(log.people.some(row=>row.user_id===ids.adminUser));assert.ok(log.types.includes('Customer'));
+    const filtered=(await director.get('/api/activity-log?type=Customer&user='+ids.adminUser).expect(200)).body.rows;
+    assert.ok(filtered.length>0&&filtered.every(row=>row.record_type==='Customer'&&row.user_id===ids.adminUser));
+    for(const [username,password] of [['manager_test','ManagerPass123'],['storekeeper_test','StorePass123']]) {
+        const staff=request.agent(app);await login(staff,username,password);
+        await staff.get('/api/activity-log').expect(403);
+    }
+});
+
 test('every response carries the security headers',async function() {
     const page=await request(app).get('/login.html').expect(200);
     assert.match(page.headers['content-security-policy'],/default-src 'self'/);

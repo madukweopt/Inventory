@@ -69,7 +69,7 @@ function applyRoleVisibility(user) {
 	hide('a[href$="#inventory-form"]',role!=='admin');
     hide('#consumable-usage-button',!['admin','storekeeper'].includes(role));
 	hide('a[href$="#inventory-data"]',role==='manager');
-	hide('a[href$="#stock-history"]',role!=='admin');
+	hide('a[href$="#stock-history"], a[href$="#activity-log"]',role!=='admin');
 	hide('a[href$="#purchases-form"], a[href$="#sales-form"], a[href$="#production-form"], a[href$="#expenses-form"]',role==='storekeeper');
 	hide('.first',role==='storekeeper');
 	hide('#employees-button',role==='storekeeper');

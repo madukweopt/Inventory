@@ -106,6 +106,7 @@ function applyFormPermissions(user) {
     hideCard('#consumable-usage-form',!['admin','storekeeper'].includes(role));
 	hideCard('#inventory-data',role==='manager');
 	hideCard('#stock-history',role!=='admin');
+	hideCard('#activity-log',role!=='admin');
 	hideCard('#purchases-form',role==='storekeeper');
 	hideCard('#sales-form',role==='storekeeper');
 	hideCard('#production-form',role==='storekeeper');
@@ -176,6 +177,8 @@ async function displaySelectedForm() {
 		loadSalesData();
 	} else if(formId==="#stock-history") {
 		if(window.loadStockHistory) window.loadStockHistory();
+	} else if(formId==="#activity-log") {
+		if(window.loadActivityLog) window.loadActivityLog();
 	} else if(formId==="#inventory-data") {
 		loadInventoryData();
 	} else if(formId==="#purchases-data") {
@@ -1519,7 +1522,7 @@ function cancelReportForm(form) {
     card.classList.add('has-cancel-x');card.prepend(close);
 });
 // The Data pages get the same ✕: it closes the page and opens the navigation panel with the Data list expanded.
-['inventory-data','stock-history','purchases-data','sales-data','production-data','expenses-data'].forEach(id=>{
+['inventory-data','stock-history','activity-log','purchases-data','sales-data','production-data','expenses-data'].forEach(id=>{
     const card=document.getElementById(id);
     if(!card) return;
     const close=document.createElement('button');

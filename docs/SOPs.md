@@ -135,7 +135,7 @@ Keep buying instructions, payment approvals, delivery exceptions and waste-remov
 
 ### Check the records
 
-Use **Data** to review purchases, production, sales and stock movements. The Director uses **Checks** and the dashboard to look for mistakes.
+Use **Data** to review purchases, production, sales and stock movements. The Director uses **Checks** and the dashboard to look for mistakes. The Director can see every save, edit, delete and sign-in, including work done through **Switch Account**, in **Data → Activity Log**.
 
 Profit and production figures may still change while the day’s records are incomplete. Do not change weights just to make figures match.
 

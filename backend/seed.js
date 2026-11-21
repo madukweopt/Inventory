@@ -10,7 +10,7 @@ const fs=require('fs');
 const path=require('path');
 const {spawn}=require('child_process');
 const {calculateContinuousCosts}=require('./continuous-costing');
-const TABLES=['stock_change_history','partner_payments','capital_assets','partner_jobs','service_partners','sale_corrections','delivery_note_evidence','delivery_notes','daily_consumable_checks','sop_revisions','kernel_impurity_tests','sale_payments','production_batches','stock_counts','weighing_requests','sales','production','purchases',
+const TABLES=['activity_log','stock_change_history','partner_payments','capital_assets','partner_jobs','service_partners','sale_corrections','delivery_note_evidence','delivery_notes','daily_consumable_checks','sop_revisions','kernel_impurity_tests','sale_payments','production_batches','stock_counts','weighing_requests','sales','production','purchases',
     'product_prices','payroll','salary_history','employment_period_changes','employees','expenses','company_details','customers','suppliers','items','session','users'];
 const DEFAULT_START='2026-06-01',DEFAULT_END='2026-11-17';
 // A tiny valid PNG used for test signatures and weighing evidence.
@@ -416,7 +416,7 @@ async function restoreApplicationData(pool,filename){
     try{
         await client.query('BEGIN');await client.query("SET LOCAL idle_in_transaction_session_timeout='60s'");await client.query('SELECT pg_advisory_xact_lock(91001)');await client.query('SELECT pg_advisory_xact_lock(91002)');
         await client.query('TRUNCATE TABLE '+TABLES.map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
-        for(const table of ['users','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','service_partners','partner_jobs','capital_assets','partner_payments','stock_change_history','session']){
+        for(const table of ['users','activity_log','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','service_partners','partner_jobs','capital_assets','partner_payments','stock_change_history','session']){
             const rows=payload.tables[table];
             if(rows.length)await client.query(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_recordset(NULL::"${table}",$1::jsonb)`,['['+rows.join(',')+']']);
         }
