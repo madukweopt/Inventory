@@ -1498,18 +1498,11 @@ async function completeWeighingTask(event) {
 if(refreshWeighingTasksBtn) refreshWeighingTasksBtn.addEventListener('click',loadWeighingTasks);
 
 // Each report form has a large ✕ at its top right. Cancel discards what was typed (and any saved record being
-// edited), closes the form and opens the navigation panel with the Forms list expanded.
+// edited) and returns to the page that was open before the form, with the Forms list open in the menu.
 function cancelReportForm(form) {
     for(const key of ['editRecord','editKind','checksReturnUrl']) sessionStorage.removeItem(key);
-    if(new URLSearchParams(location.search).get('mode')==='edit') {
-        // An edit changes several fields on the form, so the page is reopened clean and then shows the menu.
-        location.replace('/forms.html?menu=forms');
-        return;
-    }
-    form.reset();
-    form.closest('.card').classList.remove('show');
-    history.replaceState(null,'',location.pathname);
-    if(window.openFormsMenu) window.openFormsMenu();
+    if(new URLSearchParams(location.search).get('mode')!=='edit') form.reset();
+    window.closeToPreviousPage('forms');
 }
 [inventoryForm,purchaseForm,salesForm,productionForm,expensesForm].forEach(form=>{
     const card=form&&form.closest('.card');
@@ -1521,7 +1514,7 @@ function cancelReportForm(form) {
     close.addEventListener('click',event=>{event.stopPropagation();cancelReportForm(form);});
     card.classList.add('has-cancel-x');card.prepend(close);
 });
-// The Data pages get the same ✕: it closes the page and opens the navigation panel with the Data list expanded.
+// The Data pages get the same ✕: it returns to the page that was open before, with the Data list open in the menu.
 ['inventory-data','stock-history','activity-log','purchases-data','sales-data','production-data','expenses-data'].forEach(id=>{
     const card=document.getElementById(id);
     if(!card) return;
@@ -1531,9 +1524,7 @@ function cancelReportForm(form) {
     close.replaceChildren(AppUI.icon('close'));
     close.addEventListener('click',event=>{
         event.stopPropagation();
-        card.classList.remove('show');
-        history.replaceState(null,'',location.pathname);
-        if(window.openDataMenu) window.openDataMenu();
+        window.closeToPreviousPage('data');
     });
     card.classList.add('has-cancel-x');card.prepend(close);
 });

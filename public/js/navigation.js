@@ -139,6 +139,10 @@ function openNavSection(section) {
 	if(!submenuAndBtn) return;
 	submenuAndBtn.classList.add('show');
 	const [button,list]=section==='data'?[secondBtn,submenuTwo]:[firstBtn,submenuOne];
+	// Only the list asked for is open.
+	const [otherButton,otherList]=section==='data'?[firstBtn,submenuOne]:[secondBtn,submenuTwo];
+	if(otherButton) otherButton.classList.remove('show');
+	if(otherList) otherList.classList.remove('show');
 	if(button&&!button.hidden&&list) {
 		button.classList.add('show');
 		list.classList.add('show');
@@ -147,6 +151,46 @@ function openNavSection(section) {
 function openFormsMenu() { openNavSection('forms'); }
 window.openFormsMenu=openFormsMenu;
 window.openDataMenu=function() { openNavSection('data'); };
+
+// The app pages visited in this tab, so closing a form or Data page can return to the page that was open before it.
+const pageTrailKey='pageTrail';
+const currentPageAddress=()=>location.pathname+location.search+location.hash;
+function readPageTrail() { try { return JSON.parse(sessionStorage.getItem(pageTrailKey)||'[]'); } catch(error) { return []; } }
+function rememberPage() {
+	const trail=readPageTrail();
+	if(trail[trail.length-1]===currentPageAddress()) return;
+	trail.push(currentPageAddress());
+	try { sessionStorage.setItem(pageTrailKey,JSON.stringify(trail.slice(-30))); } catch(error) {}
+}
+// Opens the menu section asked for by the ✕ on the page just closed.
+function openRequestedNavSection() {
+	try {
+		const request=JSON.parse(sessionStorage.getItem('openNavSection')||'null');
+		if(!request) return;
+		sessionStorage.removeItem('openNavSection');
+		if(Date.now()-request.at<15000) openNavSection(request.section);
+	} catch(error) {}
+}
+// Closes the current form or Data page: goes back to the previous page in the app (or the dashboard when there
+// is none), then opens the navigation panel there with the Forms or Data list expanded.
+function closeToPreviousPage(section) {
+	const trail=readPageTrail();
+	while(trail.length&&trail[trail.length-1]===currentPageAddress()) trail.pop();
+	try {
+		sessionStorage.setItem(pageTrailKey,JSON.stringify(trail));
+		sessionStorage.setItem('openNavSection',JSON.stringify({ section,at:Date.now() }));
+	} catch(error) {}
+	if(trail.length&&history.length>1) history.back();
+	else location.href='/index.html';
+}
+window.closeToPreviousPage=closeToPreviousPage;
+rememberPage();
+openRequestedNavSection();
+// Going back within the forms page changes only the address; the page shown is updated by forms.js.
+window.addEventListener('hashchange',() => { rememberPage();openRequestedNavSection(); });
+window.addEventListener('popstate',() => { rememberPage();openRequestedNavSection(); });
+// Going back to another page can restore it from the browser's back-forward cache without running scripts again.
+window.addEventListener('pageshow',event => { if(event.persisted) { rememberPage();openRequestedNavSection(); } });
 // A cancelled edit reopens the forms page with ?menu=forms so the menu shows on a clean page.
 if(new URLSearchParams(location.search).get('menu')==='forms') {
 	history.replaceState(null,'',location.pathname);
