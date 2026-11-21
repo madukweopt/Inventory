@@ -645,6 +645,18 @@ async function loadForms() {
 loadForms();
 
 // Validates the submitted sale data and sends it to the server for saving.
+// Blocks a form's submit button while it saves, so a double tap cannot send it twice. Returns false if already saving.
+function startSaving(form) {
+    if(form.dataset.saving==='true') return false;
+    form.dataset.saving='true';
+    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+    return true;
+}
+function finishSaving(form) {
+    form.dataset.saving='false';
+    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=false;
+}
+
 function authorisationKey(type,payload) {
     const slot='authorisation:'+type+':'+JSON.stringify(payload);
     let key=sessionStorage.getItem(slot);
@@ -762,6 +774,10 @@ async function saveInventory(event) {
 		...stockChangeValues(),
 		adjustment_reason: stockReason.value
 	};
+	if(!startSaving(inventoryForm)) return;
+	// The same entry retried after a lost connection keeps its key, so it is saved only once.
+	const retry=authorisationKey('Stock',inventoryItems);
+	inventoryItems.submission_key=retry.key;
 	try {
 		const response=await fetch("/api/stock_counts",{
 			method: "POST",
@@ -778,12 +794,15 @@ async function saveInventory(event) {
 		}
 		const savedStock=await response.json();
 		console.log("saved:",savedStock);
+		sessionStorage.removeItem(retry.slot);
 		appNotify("Stock submited successfully");
 		inventoryForm.reset();
 		if(window.openFormsMenu) window.openFormsMenu();
 	} catch(err) {
 		console.error(err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
+	} finally {
+		finishSaving(inventoryForm);
 	}
 }
 if(inventoryForm) {
@@ -798,6 +817,7 @@ async function saveProduction(event) {
 		production_hours: productionHours.value,
 		down_time: downTime.value
 	};
+	if(!startSaving(productionForm)) return;
 	try {
 		const response=await fetch("/api/production",{
 			method: "POST",
@@ -824,6 +844,8 @@ async function saveProduction(event) {
 	} catch(err) {
 		console.error(err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
+	} finally {
+		finishSaving(productionForm);
 	}
 }
 if(productionForm) {
@@ -1522,6 +1544,9 @@ async function saveExpenses(event) {
 		description: expenseDescription.value,
 		amount_spent: expenseAmount.value
 	};
+	if(!startSaving(expensesForm)) return;
+	const retry=authorisationKey('Expense',expense);
+	expense.submission_key=retry.key;
 	try {
 		const response=await fetch("/api/expenses",{
 			method: "POST",
@@ -1541,6 +1566,7 @@ async function saveExpenses(event) {
 			return;
 		}
 		const savedExpense=await response.json();
+		sessionStorage.removeItem(retry.slot);
 		appNotify("Expense submitted successfully");
 		expensesForm.reset();
 		if(window.openFormsMenu) window.openFormsMenu();
@@ -1548,6 +1574,8 @@ async function saveExpenses(event) {
 	} catch(err) {
 		console.error(err);
 		appNotify("Could not confirm the result. Retry the same entry to check it safely.");
+	} finally {
+		finishSaving(expensesForm);
 	}
 }
 // Diesel and electricity are bought as stock and costed into production, so warn before they are entered as an expense.
@@ -2008,18 +2036,32 @@ function openSalePaymentDialog() {
 	dialog.querySelector('.finance-cancel').addEventListener('click',function() { dialog.close();dialog.remove(); });
 	dialog.querySelector('form').addEventListener('submit',async function(event) {
 		event.preventDefault();
-		const response=await fetch('/api/sales/'+currentSaleDocumentData.sale.sales_id+'/payments',{
-			method: 'POST',headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget)))
-		});
-		const result=await response.json();
-		if(!response.ok) {
-			dialog.querySelector('.finance-dialog-message').textContent=result.err;
-			return;
+		const form=event.currentTarget;
+		if(!startSaving(form)) return;
+		const saleId=currentSaleDocumentData.sale.sales_id;
+		const payment=Object.fromEntries(new FormData(form));
+		// A double tap or a retry of the same payment keeps its key, so the payment is recorded only once.
+		const retry=authorisationKey('Payment:'+saleId,payment);
+		payment.submission_key=retry.key;
+		try {
+			const response=await fetch('/api/sales/'+saleId+'/payments',{
+				method: 'POST',headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payment)
+			});
+			const result=await response.json();
+			if(!response.ok) {
+				dialog.querySelector('.finance-dialog-message').textContent=result.err;
+				return;
+			}
+			sessionStorage.removeItem(retry.slot);
+			dialog.close();dialog.remove();
+			await loadSaleDocument();
+			document.querySelector('.sale-document-message').textContent='Payment saved. Receipt '+result.receipt_number+' is now available.';
+		} catch(error) {
+			dialog.querySelector('.finance-dialog-message').textContent='Could not confirm the payment. Select Save Payment again to check it safely.';
+		} finally {
+			finishSaving(form);
 		}
-		dialog.close();dialog.remove();
-		await loadSaleDocument();
-		document.querySelector('.sale-document-message').textContent='Payment saved. Receipt '+result.receipt_number+' is now available.';
 	});
 	dialog.showModal();
 }

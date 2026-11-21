@@ -1171,6 +1171,8 @@ app.post('/api/sales/:id/payments',requireRole(['admin','manager']),async functi
 	if(!payment.payment_date||!payment.payment_method||amount===null||amount<=0) {
 		return res.status(400).json({ err: 'Enter a valid payment date, amount and method' });
 	}
+	let submissionKey;
+	try { submissionKey=readSubmissionKey(payment.submission_key); } catch(error) { return res.status(400).json({ err: error.message }); }
 	const client=await pool.connect();
 	try {
 		await client.query('BEGIN');
@@ -1182,6 +1184,17 @@ app.post('/api/sales/:id/payments',requireRole(['admin','manager']),async functi
 			return res.status(404).json({ err: 'Sale not found' });
 		}
 		const sale=saleResult.rows[0];
+		// The same payment sent again (double tap or retry) returns the payment already saved.
+		if(submissionKey) {
+			const prior=(await client.query('SELECT * FROM sale_payments WHERE submission_key=$1',[submissionKey])).rows[0];
+			if(prior) {
+				await client.query('ROLLBACK');
+				if(String(prior.sales_id)!==String(sale.sales_id)||Number(prior.amount)!==amount) {
+					return res.status(409).json({ err: 'This payment was already saved with different details. Refresh before recording another payment.' });
+				}
+				return res.status(200).json(prior);
+			}
+		}
         if(!sale.invoice_number){await client.query('ROLLBACK');return res.status(409).json({err:'Finalise the customer weight invoice before recording payment.'});}
         sale.amount_paid=(await client.query('SELECT COALESCE(SUM(amount),0) AS amount_paid FROM sale_payments WHERE sales_id=$1 AND reversed_at IS NULL',[req.params.id])).rows[0].amount_paid;
 		if((await client.query('SELECT $1::numeric > $2::numeric-$3::numeric AS excessive',[amount,sale.total,sale.amount_paid])).rows[0].excessive) {
@@ -1189,10 +1202,10 @@ app.post('/api/sales/:id/payments',requireRole(['admin','manager']),async functi
 			return res.status(400).json({ err: 'Payment cannot be greater than the remaining amount' });
 		}
 		const inserted=await client.query(`INSERT INTO sale_payments
-			(sales_id,payment_date,amount,payment_method,reference_number,note,recorded_by)
-			VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING payment_id`,[
+			(sales_id,payment_date,amount,payment_method,reference_number,note,recorded_by,submission_key)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING payment_id`,[
 			req.params.id,payment.payment_date,amount,payment.payment_method,
-			payment.reference_number||null,payment.note||null,req.session.user_id
+			payment.reference_number||null,payment.note||null,req.session.user_id,submissionKey
 		]);
 		const paymentId=inserted.rows[0].payment_id;
 		const receiptNumber='RCT-'+String(payment.payment_date).slice(0,4)+'-'+String(paymentId).padStart(6,'0');
@@ -1473,12 +1486,26 @@ app.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
 		return res.status(400).json({
 			error: "Could not submit stock"
 		});
-	}    const client=await pool.connect();
+	}
+	let submissionKey;
+	try { submissionKey=readSubmissionKey(stockInventory.submission_key); } catch(error) { return res.status(400).json({ err: error.message }); }
+    const client=await pool.connect();
     try {
         await client.query('BEGIN');await lockStock(client);
+        // The same stock change sent again (double tap or retry) returns the change already saved.
+        if(submissionKey) {
+            const prior=(await client.query('SELECT * FROM stock_counts WHERE submission_key=$1',[submissionKey])).rows[0];
+            if(prior) {
+                await client.query('ROLLBACK');
+                if(String(prior.item_id)!==String(stockInventory.item_id)||Number(prior.received)!==receivedQuantity||Number(prior.issued)!==issuedQuantity) {
+                    return res.status(409).json({ err: 'This stock change was already saved with different details. Refresh before recording another.' });
+                }
+                return res.status(200).json(prior);
+            }
+        }
         const before=await stockFloor(client);
-        const result=await client.query('INSERT INTO stock_counts(count_date,item_id,received,issued,recorded_by,adjustment_reason) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-            [stockInventory.count_date,stockInventory.item_id,receivedQuantity,issuedQuantity,req.session.user_id,reason]);
+        const result=await client.query('INSERT INTO stock_counts(count_date,item_id,received,issued,recorded_by,adjustment_reason,submission_key) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
+            [stockInventory.count_date,stockInventory.item_id,receivedQuantity,issuedQuantity,req.session.user_id,reason,submissionKey]);
         await protectStock(client,before);
         await recordStockHistory(client,result.rows[0].count_id,'Created',null,result.rows[0],req.session.user_id);
         await client.query('COMMIT');return res.status(201).json(result.rows[0]);
@@ -1540,6 +1567,16 @@ app.post('/api/consumable-usage',requireRole(['admin','storekeeper']),async func
 });
 
 // Accepts a non-negative inventory quantity with no more than two decimal places.
+// Reads the optional one-time key sent with a payment, stock change or expense. Returns null when none is sent;
+// an entry sent again with the same key is saved only once. A malformed key is refused.
+function readSubmissionKey(value) {
+	if(value===undefined||value===null||value==='') return null;
+	if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value))) {
+		throw Object.assign(new Error('Invalid submission key. Refresh the page and try again.'),{status:400});
+	}
+	return String(value).toLowerCase();
+}
+
 function readInventoryQuantity(value) {
 	const quantityText=String(value??'').trim();
 	if(!/^\d+(?:\.\d{1,2})?$/.test(quantityText)) {
@@ -1873,7 +1910,7 @@ function expenseSpreading(expense) {
 	return { spread: spread,startup: startup };
 }
 
-app.post("/api/expenses",requireRole(['admin','manager']),function(req,res) {
+app.post("/api/expenses",requireRole(['admin','manager']),async function(req,res) {
 	const expense=req.body;
 	if(!validExpense(expense)) {
 		return res.status(400).json({
@@ -1885,27 +1922,40 @@ app.post("/api/expenses",requireRole(['admin','manager']),function(req,res) {
 	if(req.session.role!=='admin'&&((spreading.spread??1)>1||(spreading.startup??0)>0)) {
 		return res.status(403).json({ err: "Only the Director can add prepaid or start-up costs" });
 	}
-	pool.query(
-		"INSERT INTO expenses(expense_date, category, description, amount_spent, spread_months, startup_months) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-		[
-			expense.expense_date,
-			expense.category,
-			expense.description,
-			expense.amount_spent,
-			expenseSpreading(expense).spread??1,
-			Math.min(expenseSpreading(expense).startup??0,expenseSpreading(expense).spread??1)
-		],
-		// Handles the result of the preceding database query.
-		function(err,result) {
-			if(err) {
-				console.log(err);
-				return res.status(500).json({
-					err: "Could not submit expense. Internal server error"
-				});
-			}
-			res.status(201).json(result.rows[0]);
-		}
-	);
+	let submissionKey;
+	try { submissionKey=readSubmissionKey(expense.submission_key); } catch(error) { return res.status(400).json({ err: error.message }); }
+	// The same expense sent again (double tap or retry) returns the expense already saved.
+	const returnSaved=async function() {
+		const prior=(await pool.query('SELECT * FROM expenses WHERE submission_key=$1',[submissionKey])).rows[0];
+		if(!prior) return false;
+		if(Number(prior.amount_spent)!==Number(expense.amount_spent)||prior.description!==expense.description) {
+			res.status(409).json({ err: 'This expense was already saved with different details. Refresh before recording another.' });
+		} else res.status(200).json(prior);
+		return true;
+	};
+	try {
+		if(submissionKey&&await returnSaved()) return;
+		const result=await pool.query(
+			"INSERT INTO expenses(expense_date, category, description, amount_spent, spread_months, startup_months, submission_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
+			[
+				expense.expense_date,
+				expense.category,
+				expense.description,
+				expense.amount_spent,
+				spreading.spread??1,
+				Math.min(spreading.startup??0,spreading.spread??1),
+				submissionKey
+			]
+		);
+		return res.status(201).json(result.rows[0]);
+	} catch(err) {
+		// Two copies sent at the same moment: the second hits the unique key and returns the first.
+		if(err.code==='23505'&&submissionKey&&await returnSaved()) return;
+		console.log(err);
+		return res.status(500).json({
+			err: "Could not submit expense. Internal server error"
+		});
+	}
 });
 
 // Calculates weighted inventory and production costs from transaction history.

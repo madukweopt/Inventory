@@ -1109,6 +1109,38 @@ test('Digital delivery notes separate customer invoice weight from factory stock
     assert.equal((await manager.get('/api/delivery-representatives').expect(200)).body.length,1);
 });
 
+// A double tap or a retry after a lost connection sends the same one-time key; the entry is saved only once.
+test('Payments, stock changes and expenses with the same submission key are saved once',async function(){
+    const item=(await applicationPool.query("INSERT INTO items(name,item_type) VALUES('Submission key product','product') RETURNING item_id")).rows[0].item_id;
+    const stockKey=crypto.randomUUID();
+    const stock={count_date:'2091-01-01',item_id:item,received:100,issued:0,submission_key:stockKey};
+    const first=(await admin.post('/api/stock_counts').send(stock).expect(201)).body;
+    const again=(await admin.post('/api/stock_counts').send(stock).expect(200)).body;
+    assert.equal(again.count_id,first.count_id);
+    await admin.post('/api/stock_counts').send({...stock,received:99}).expect(409);
+    await admin.post('/api/stock_counts').send({...stock,submission_key:'not-a-key'}).expect(400);
+    assert.equal(Number((await applicationPool.query('SELECT count(*) FROM stock_counts WHERE item_id=$1',[item])).rows[0].count),1);
+
+    await admin.post('/api/prices').send({item_id:item,unit_price:50,effective_date:'2091-01-01'}).expect(201);
+    const request=(await manager.post('/api/sales').send({ordered_quantity:10,sales_date:'2091-01-02',customer_id:ids.customer,item_id:item,billing_basis:'Factory',representative_id:ids.managerUser}).expect(201)).body;
+    const saleId=(await storekeeper.patch('/api/weighing-requests/'+request.request_id+'/complete').send({quantity:10,vehicle_number:'KEY-1',...driver}).expect(200)).body.record_id;
+    const paymentKey=crypto.randomUUID();
+    const payment={payment_date:'2091-01-02',amount:100,payment_method:'Cash',submission_key:paymentKey};
+    const paid=(await manager.post('/api/sales/'+saleId+'/payments').send(payment).expect(201)).body;
+    const repeated=(await manager.post('/api/sales/'+saleId+'/payments').send(payment).expect(200)).body;
+    assert.equal(repeated.payment_id,paid.payment_id);assert.equal(repeated.receipt_number,paid.receipt_number);
+    await manager.post('/api/sales/'+saleId+'/payments').send({...payment,amount:150}).expect(409);
+    assert.equal(Number((await applicationPool.query('SELECT count(*) FROM sale_payments WHERE sales_id=$1',[saleId])).rows[0].count),1);
+
+    const expenseKey=crypto.randomUUID();
+    const expense={expense_date:'2091-01-03',category:'Expenses',description:'Submission key test',amount_spent:75,submission_key:expenseKey};
+    const spent=(await manager.post('/api/expenses').send(expense).expect(201)).body;
+    const spentAgain=(await manager.post('/api/expenses').send(expense).expect(200)).body;
+    assert.equal(spentAgain.expense_id,spent.expense_id);
+    await manager.post('/api/expenses').send({...expense,amount_spent:80}).expect(409);
+    assert.equal(Number((await applicationPool.query('SELECT count(*) FROM expenses WHERE submission_key=$1',[expenseKey])).rows[0].count),1);
+});
+
 test('Receipts and dispatches are dated on the day the goods actually arrive or leave',async function(){
     const purchase=await manager.post('/api/purchases').send({ordered_quantity:1000,purchase_date:'2092-01-01',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201);
     const url='/api/weighing-requests/'+purchase.body.request_id+'/complete';
