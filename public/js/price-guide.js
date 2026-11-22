@@ -1,5 +1,6 @@
-// Price Guide (Director only): for each product, the full cost per kg of the stock held and the price and profit
-// at 15%, 20% and 30% above cost, with the current price for comparison. Figures come from /api/price-guide.
+// Price Guide (Director only): for each product, the full cost per tonne of the stock held and the price and profit
+// at 15%, 20% and 30% profit margin (profit as a share of the selling price), with the current price for comparison.
+// Figures come from /api/price-guide.
 // The normal number of production days per month is remembered on this device.
 (function(){
     const box=document.getElementById('price-guide-products');
@@ -11,41 +12,41 @@
     try{const saved=localStorage.getItem(storageKey);if(saved)daysInput.value=saved;}catch(error){}
     const naira=value=>'₦'+Number(value||0).toLocaleString('en-NG',{minimumFractionDigits:2,maximumFractionDigits:2});
     const whole=value=>'₦'+Math.round(Number(value)||0).toLocaleString('en-NG');
-    const kg=value=>Number(value||0).toLocaleString('en-NG',{maximumFractionDigits:2})+' kg';
+    const tonnes=value=>Number(value||0).toLocaleString('en-NG',{maximumFractionDigits:3})+' tonnes';
     const el=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
     const monthName=month=>new Date(month+'-01T00:00:00').toLocaleDateString('en-GB',{month:'long',year:'numeric'});
     let loading=0;
 
-    function costLine(label,value,className){const row=el('div',undefined,'price-guide-cost-row'+(className?' '+className:''));row.append(el('span',label),el('strong',naira(value)+' /kg'));return row;}
+    function costLine(label,value,className){const row=el('div',undefined,'price-guide-cost-row'+(className?' '+className:''));row.append(el('span',label),el('strong',whole(value)+' /tonne'));return row;}
 
     function productCard(product){
         const card=el('article',undefined,'price-guide-card');
         const head=el('header',undefined,'price-guide-card-head');
-        head.append(el('h3',product.name),el('span','In stock: '+kg(product.stock_quantity),'price-guide-stock'));
+        head.append(el('h3',product.name),el('span','In stock: '+tonnes(product.stock_tonnes),'price-guide-stock'));
         const costs=el('div',undefined,'price-guide-costs');
-        costs.append(costLine('Production cost (kernel, diesel, electricity, losses)',product.production_cost_per_kg),
-            costLine('Running costs (salaries, rent, expenses of its production days)',product.running_cost_per_kg),
-            costLine('Full cost = break-even price',product.full_cost_per_kg,'is-total'));
+        costs.append(costLine('Production cost (kernel, diesel, electricity, losses)',product.production_cost_per_tonne),
+            costLine('Running costs (salaries, rent, expenses of its production days)',product.running_cost_per_tonne),
+            costLine('Full cost = break-even price',product.full_cost_per_tonne,'is-total'));
         const table=el('table',undefined,'price-guide-table');
-        const headRow=el('tr');for(const label of ['Margin','Price /kg','Profit /kg','Profit on stock'])headRow.appendChild(el('th',label));
+        const headRow=el('tr');for(const label of ['Profit margin','Price /tonne','Profit /tonne','Profit on stock'])headRow.appendChild(el('th',label));
         const thead=el('thead');thead.appendChild(headRow);
         const body=el('tbody');
         for(const option of product.margins){
             const row=el('tr');
-            row.append(el('td','+'+option.margin+'%'),el('td',naira(option.price_per_kg)),el('td',naira(option.profit_per_kg)),el('td',whole(option.profit_on_stock)));
+            row.append(el('td',option.margin+'%'),el('td',whole(option.price_per_tonne)),el('td',whole(option.profit_per_tonne)),el('td',whole(option.profit_on_stock)));
             body.appendChild(row);
         }
-        table.append(thead,body,el('caption','Margins are added on top of the full cost: +20% means full cost × 1.20.'));
+        table.append(thead,body,el('caption','Profit margin is profit as a share of the selling price: at 20%, ₦20 of every ₦100 of sales is profit (price = full cost ÷ 0.80).'));
         const tableWrap=el('div',undefined,'price-guide-table-wrap');tableWrap.appendChild(table);
         const current=el('div',undefined,'price-guide-current');
-        if(product.current_price==null||!product.current){
+        if(product.current_price_per_tonne==null||!product.current){
             current.classList.add('is-missing');current.textContent='No current price set for '+product.name+'.';
         }else{
-            const state=product.current.profit_per_kg<0?'is-loss':product.current.margin<15?'is-low':'is-good';
+            const state=product.current.profit_per_tonne<0?'is-loss':product.current.margin<15?'is-low':'is-good';
             current.classList.add(state);
-            current.append(el('span','Your current price: '+naira(product.current_price)+' /kg'),
-                el('strong',(product.current.profit_per_kg<0?'Loss ':'Profit ')+naira(Math.abs(product.current.profit_per_kg))+' /kg'+
-                    (product.current.margin==null?'':' ('+product.current.margin+'% '+(product.current.profit_per_kg<0?'below':'above')+' cost)')),
+            current.append(el('span','Your current price: '+whole(product.current_price_per_tonne)+' /tonne'),
+                el('strong',(product.current.profit_per_tonne<0?'Loss ':'Profit ')+whole(Math.abs(product.current.profit_per_tonne))+' /tonne'+
+                    (product.current.margin==null?'':' ('+(product.current.profit_per_tonne<0?'loss of ':'')+Math.abs(product.current.margin)+'% '+(product.current.profit_per_tonne<0?'of the price':'profit margin')+')')),
                 el('span','On the stock held: '+(product.current.profit_on_stock<0?'loss ':'profit ')+whole(Math.abs(product.current.profit_on_stock))));
         }
         if(!(Number(product.stock_quantity)>0))card.appendChild(el('p','No '+product.name+' in stock: the cost shown is from the last stock held.','price-guide-note'));

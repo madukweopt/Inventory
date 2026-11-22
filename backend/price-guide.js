@@ -1,4 +1,6 @@
-// Price Guide (Director only): what each product really costs per kg, and the price and profit at chosen margins.
+// Price Guide (Director only): what each product really costs per tonne, and the price and profit at chosen profit
+// margins. A margin is profit as a share of the selling price: price = full cost ÷ (1 − margin), so a 20% margin
+// means 20% of the price is profit. Figures are worked out per kg (as costs are kept) and shown per tonne.
 // A planning tool only: it changes no costing, stock values or dashboard figures.
 //
 // Full cost per kg of the stock held =
@@ -97,15 +99,16 @@ function buildPriceGuide({costs,running,manualReceipts=[],prices={},normalDays=2
         const runningPerKg=held[name].quantity>0?held[name].running/held[name].quantity:0;
         const full=production+runningPerKg;
         const current=prices[name]==null?null:Number(prices[name]);
+        const tonne=value=>round(value*1000);
         return {
-            name,stock_quantity:round(quantity),
-            production_cost_per_kg:round(production),running_cost_per_kg:round(runningPerKg),full_cost_per_kg:round(full),
+            name,stock_quantity:round(quantity),stock_tonnes:round(quantity/1000,3),
+            production_cost_per_tonne:tonne(production),running_cost_per_tonne:tonne(runningPerKg),full_cost_per_tonne:tonne(full),
             margins:MARGINS.map(margin=>{
-                const price=full*(1+margin/100);
-                return {margin,price_per_kg:round(price),profit_per_kg:round(price-full),profit_on_stock:round((price-full)*quantity)};
+                const price=full/(1-margin/100);
+                return {margin,price_per_tonne:tonne(price),profit_per_tonne:tonne(price-full),profit_on_stock:round((price-full)*quantity)};
             }),
-            current_price:current,
-            current:current==null?null:{profit_per_kg:round(current-full),margin:full>0?round((current-full)/full*100,1):null,profit_on_stock:round((current-full)*quantity)}
+            current_price_per_tonne:current==null?null:tonne(current),
+            current:current==null?null:{profit_per_tonne:tonne(current-full),margin:current>0?round((current-full)/current*100,1):null,profit_on_stock:round((current-full)*quantity)}
         };
     });
     const thisMonth=monthOf(today),lastMonth=monthOf(new Date(Date.UTC(Number(thisMonth.slice(0,4)),Number(thisMonth.slice(5,7))-2,1)).toISOString());

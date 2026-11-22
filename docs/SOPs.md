@@ -862,7 +862,7 @@ The Storekeeper does not negotiate prices, approve sales or collect payments. Th
 
 ### 3. Authorise the sale
 
-1. The Director saves the approved price and its start date on **Prices**. Before choosing it, the Director can open **Price Guide**, which shows what each product really costs per kg (production cost plus the salaries, rent and running expenses of the days it was produced) and the price and profit at 15%, 20% and 30% above that cost.
+1. The Director saves the approved price and its start date on **Prices**. Before choosing it, the Director can open **Price Guide**, which shows what each product really costs per tonne (production cost plus the salaries, rent and running expenses of the days it was produced) and the price and profit per tonne at a 15%, 20% and 30% profit margin, where the margin is the share of the selling price that is profit.
 2. If a price is missing or wrong, ask the Director to correct it before authorising the sale.
 3. The Manager or Director selects the sale date, customer and product, and enters the **Quantity ordered**: the amount the customer asked for. The Storekeeper sees it on the sale in **Pending Weighing**.
 4. Check the price supplied by the app. Choose **Factory weight** or **Customer’s agreed weight** under **Payment weight**. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. The Director cannot be the accompanying representative. Do not enter a second price or dispatch weight in this form.
