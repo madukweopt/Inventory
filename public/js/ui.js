@@ -31,7 +31,9 @@
                 ? 'production'
                 : /purchase|supplier/.test(label)
                   ? 'truck'
-                  : /price|sale/.test(label)
+                  : /guide/.test(label)
+                    ? 'calculator'
+                    : /price|sale/.test(label)
                     ? 'tag'
                     : /notification/.test(label)
                       ? 'bell'

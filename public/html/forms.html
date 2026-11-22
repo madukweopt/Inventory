@@ -14,6 +14,7 @@
         <link rel="stylesheet" href="/css/sale-documents.css" />
         <link rel="stylesheet" href="/css/partners.css" />
         <link rel="stylesheet" href="/css/activity-log.css" />
+        <link rel="stylesheet" href="/css/price-guide.css" />
             <!-- Installable app: name, icon and colour, and the home-screen icon. -->
         <link rel="manifest" href="/manifest.webmanifest" /><meta name="theme-color" content="#08653e" /><link rel="icon" type="image/png" href="/images/app/favicon-48.png" /><link rel="apple-touch-icon" href="/images/app/apple-touch-icon.png" />
     </head>
@@ -119,6 +120,8 @@
                 </button>
 
                 <button type="button" class="submenu-button">Settings</button>
+
+                <button type="button" class="submenu-button" id="price-guide-button">Price Guide</button>
 
                 <button
                     type="button"
@@ -1382,6 +1385,21 @@
                     </div>
                 </form>
             </section>
+            <section id="price-guide" class="card price-guide-page">
+                <h2>Price Guide</h2>
+                <p class="form-description">What each product really costs per kg, and the price and profit at 15%, 20% and 30% above cost. Cost = production cost of the stock you hold (kernel, diesel, electricity, losses) + the salaries, rent and running expenses of the days it was produced. For planning only: it sets no prices and changes no figures elsewhere.</p>
+                <label class="price-guide-days">Normal production days per month
+                    <input type="number" id="price-guide-days" min="1" max="31" step="1" value="26" inputmode="numeric" />
+                </label>
+                <p class="price-guide-days-help">Running costs are shared over this many production days a month. Days lost to breakdowns or shortages are not added to the price; they show below as idle-day cost.</p>
+                <p id="price-guide-message" role="status"></p>
+                <div id="price-guide-products" class="price-guide-products"></div>
+                <section class="price-guide-idle" aria-labelledby="price-guide-idle-title">
+                    <h3 id="price-guide-idle-title">Idle-day cost (not included in the prices above)</h3>
+                    <div id="price-guide-idle"></div>
+                </section>
+            </section>
+
             <section id="prices" class="card prices-page">
                 <div class="prices-heading">
                     <div>
@@ -1444,6 +1462,7 @@
         <script src="/js/partners.js"></script>
         <script src="/js/stock-history.js"></script>
         <script src="/js/activity-log.js"></script>
+        <script src="/js/price-guide.js"></script>
         <script src="/js/data-pages.js"></script>
         <script src="/js/date-filters.js"></script>
     </body>

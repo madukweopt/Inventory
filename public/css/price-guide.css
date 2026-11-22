@@ -1,0 +1,42 @@
+/* Price Guide: one card per product (cost breakdown, margin table, current price), then idle-day cost. */
+#price-guide{max-width:860px;margin-inline:auto}
+#price-guide .price-guide-days{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:4px 0 2px;font-weight:700;color:#2f4437}
+#price-guide .price-guide-days input{width:90px;margin:0}
+#price-guide .price-guide-days-help{margin:4px 0 12px;font-size:.85rem;color:#607167}
+#price-guide #price-guide-message:empty{display:none}
+#price-guide .price-guide-products{display:grid;gap:14px}
+#price-guide .price-guide-card{display:grid;gap:12px;padding:16px;border:1px solid #d6e6d0;border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(20,60,30,.05)}
+#price-guide .price-guide-card-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px}
+#price-guide .price-guide-card-head h3{margin:0;font-size:1.3rem;color:#124d24}
+#price-guide .price-guide-stock{color:#607167;font-weight:600}
+#price-guide .price-guide-costs{display:grid;border:1px solid #e1ebdc;border-radius:12px;overflow:hidden}
+#price-guide .price-guide-cost-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 12px}
+#price-guide .price-guide-cost-row+.price-guide-cost-row{border-top:1px solid #e1ebdc}
+#price-guide .price-guide-cost-row span{color:#2f4437;font-size:.9rem}
+#price-guide .price-guide-cost-row strong{white-space:nowrap;color:#1b2a20}
+#price-guide .price-guide-cost-row.is-total{background:#eef6e9}
+#price-guide .price-guide-cost-row.is-total span,#price-guide .price-guide-cost-row.is-total strong{color:#124d24;font-weight:800}
+#price-guide .price-guide-table-wrap{overflow-x:auto}
+#price-guide .price-guide-table caption{caption-side:bottom;padding-top:6px;text-align:left;font-size:.8rem;color:#607167}
+#price-guide .price-guide-table{width:100%;min-width:0;border-collapse:collapse;font-size:.92rem}
+#price-guide .price-guide-table th{padding:8px;background:#124d24;color:#fff;text-align:left;white-space:normal;line-height:1.2;vertical-align:bottom}
+#price-guide .price-guide-table td{padding:9px 8px;border-top:1px solid #e1ebdc;white-space:nowrap}
+#price-guide .price-guide-table :is(th,td):not(:first-child){text-align:right}
+#price-guide .price-guide-table td:nth-child(2){font-weight:800}
+#price-guide .price-guide-current{display:grid;gap:2px;padding:10px 12px;border-radius:12px;border:1px solid}
+#price-guide .price-guide-current.is-good{background:#e3f3c9;border-color:#c7e0bb;color:#124d24}
+#price-guide .price-guide-current.is-low{background:#fdf1dc;border-color:#f0d6a8;color:#7a4a0b}
+#price-guide .price-guide-current.is-loss{background:#fde3e3;border-color:#f3c4c4;color:#a3201f}
+#price-guide .price-guide-current.is-missing{background:#f1f3f1;border-color:#dde3de;color:#4f6155}
+#price-guide .price-guide-note{margin:0;font-size:.85rem;color:#7a4a0b}
+#price-guide .price-guide-idle{margin-top:16px}
+#price-guide .price-guide-idle h3{margin:0 0 8px;font-size:1.05rem;color:#124d24}
+#price-guide #price-guide-idle{display:grid;gap:8px}
+#price-guide .price-guide-idle-row{display:grid;gap:2px;padding:10px 12px;border:1px solid #e1ebdc;border-radius:12px;background:#fff}
+#price-guide .price-guide-idle-row.has-idle{border-color:#f0d6a8;background:#fff8ec}
+@media(max-width:420px){
+    #price-guide .price-guide-card{padding:12px}
+    #price-guide .price-guide-table{font-size:.78rem}
+    #price-guide .price-guide-table :is(th,td){padding:7px 5px}
+    #price-guide .price-guide-cost-row{flex-direction:column;gap:2px}
+}

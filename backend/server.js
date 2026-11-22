@@ -150,6 +150,8 @@ app.use(require('./routes/accounts').router);
 const reportRoutes=require('./routes/reports');
 app.use(reportRoutes.router);
 const {calculateCosts,calculateChecks}=reportRoutes;
+// Price Guide (Director only): full cost per kg of the stock held and the price and profit at chosen margins.
+require('./price-guide').registerPriceGuide(app,{pool,requireRole,calculateCosts});
 
 // Routes kept in their own files from before.
 require('./delivery-notes').registerDeliveryNotes(app,pool,requireRole);

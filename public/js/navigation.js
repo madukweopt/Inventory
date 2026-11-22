@@ -15,6 +15,7 @@ const assetsBtn=document.querySelector('#assets-button');
 const employeesBtn=document.querySelector('#employees-button');
 const companyDetailsBtn=document.querySelector('#company-details-button');
 const pricesBtn=document.querySelector('#prices-button');
+const priceGuideBtn=document.querySelector('#price-guide-button');
 const weighingTasksBtn=document.querySelector('#weighing-tasks-button');
 const pendingWeighingBadge=document.querySelector('.pending-weighing-badge');
 const manageUsersBtn=document.querySelector('#manage-users-button');
@@ -75,6 +76,7 @@ function applyRoleVisibility(user) {
 	hide('#employees-button',role==='storekeeper');
 	hide('#partners-button, #assets-button',role==='storekeeper');
 	hide('#manage-users-button',role!=='admin');
+	hide('#price-guide-button',role!=='admin');
 	hide('#production-panel, #sales-panel',role==='storekeeper');
 	hide('#profit-panel',role!=='admin');
 	hide('.dashboard-checks-wrap',role!=='admin');
@@ -197,7 +199,7 @@ if(new URLSearchParams(location.search).get('menu')==='forms') {
 	openFormsMenu();
 }
 
-const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button");
+const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button, #price-guide-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {
 	// Handles click events from link.
@@ -257,6 +259,13 @@ if(companyDetailsBtn) {
 	// Opens the database-backed company details page.
 	companyDetailsBtn.addEventListener('click',() => {
 		window.location.href='/forms.html#company-details';
+	});
+}
+
+// Opens the Director's Price Guide: full cost per kg and the price and profit at chosen margins.
+if(priceGuideBtn) {
+	priceGuideBtn.addEventListener('click',() => {
+		window.location.href='/forms.html#price-guide';
 	});
 }
 
