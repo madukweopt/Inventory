@@ -133,3 +133,26 @@ test('Page scripts load without reference errors',function() {
         }
     }
 });
+
+// Installable app: valid details with real icons, linked from every page, and a helper that only covers being offline.
+test('the app can be installed: details, icons, page links and an offline-only helper',function() {
+    const manifest=JSON.parse(read('public/manifest.webmanifest'));
+    assert.equal(manifest.display,'standalone');assert.equal(manifest.start_url,'/index.html');assert.ok(manifest.name&&manifest.short_name);
+    for(const icon of manifest.icons) {
+        const png=fs.readFileSync(path.join(root,'public',icon.src));
+        const [width,height]=[png.readUInt32BE(16),png.readUInt32BE(20)];
+        assert.equal(width+'x'+height,icon.sizes,icon.src+' is the size it claims');
+    }
+    assert.ok(manifest.icons.some(icon=>icon.sizes==='512x512'&&icon.purpose==='maskable'));
+    for(const page of ['login','index','forms','checks','sops']) {
+        const html=read('public/html/'+page+'.html');
+        assert.match(html,/<link rel="manifest" href="\/manifest\.webmanifest"/,page);
+        assert.match(html,/<link rel="apple-touch-icon"/,page);
+    }
+    assert.match(read('public/js/ui.js'),/serviceWorker\.register\('\/service-worker\.js'\)/);
+    const helper=read('public/service-worker.js');
+    // It answers only page openings (falling back to the offline page) and the offline page's own files.
+    assert.match(helper,/request\.mode==='navigate'/);assert.match(helper,/caches\.match\('\/offline\.html'\)/);
+    assert.doesNotMatch(helper,/\/api\//,'the helper never touches data requests');
+    assert.doesNotMatch(helper,/cache\.put|caches\.open\([^)]*\)\.then\([^)]*put/,'the helper never stores pages or records');
+});

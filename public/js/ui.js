@@ -245,3 +245,8 @@
             }).observe(badge, { childList: true, attributes: true, subtree: true });
     }
 })();
+
+// Installable app: starts the background helper that shows the "You're offline" page when there is no network.
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('/service-worker.js').catch(() => {}));
+}
