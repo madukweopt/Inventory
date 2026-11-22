@@ -109,6 +109,18 @@ app.get("/checks.html",requirePageRole(['admin']),function(req,res) {
 	res.sendFile(path.join(htmlDirectory,"checks.html"));
 });
 
+// Installable app: its details (name, icon, colour), the background helper and the "You're offline" page.
+// The helper is served from the site root so it covers every page, and is always re-checked so updates arrive.
+app.get('/manifest.webmanifest',function(req,res) {
+	res.type('application/manifest+json').sendFile(path.join(publicDirectory,'manifest.webmanifest'));
+});
+app.get('/service-worker.js',function(req,res) {
+	res.set('Cache-Control','no-cache').sendFile(path.join(publicDirectory,'service-worker.js'));
+});
+app.get('/offline.html',function(req,res) {
+	res.sendFile(path.join(htmlDirectory,'offline.html'));
+});
+
 // Tells the browser whether development-only debugging tools may be loaded.
 app.get('/debug-settings',function(req,res) {
 	return res.json({

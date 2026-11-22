@@ -135,6 +135,15 @@ test('the activity log records who really acted, including under Switch Account,
     }
 });
 
+test('the installable app files are served without signing in, with the right types',async function() {
+    const manifest=await request(app).get('/manifest.webmanifest').expect(200);
+    assert.match(manifest.headers['content-type'],/application\/manifest\+json/);assert.equal(JSON.parse(manifest.text).short_name,'SOMAD');
+    const helper=await request(app).get('/service-worker.js').expect(200);
+    assert.match(helper.headers['content-type'],/javascript/);assert.equal(helper.headers['cache-control'],'no-cache');
+    assert.match((await request(app).get('/offline.html').expect(200)).text,/You're offline/);
+    await request(app).get('/images/app/icon-512.png').expect(200).expect('Content-Type',/image\/png/);
+});
+
 test('every response carries the security headers',async function() {
     const page=await request(app).get('/login.html').expect(200);
     assert.match(page.headers['content-security-policy'],/default-src 'self'/);
