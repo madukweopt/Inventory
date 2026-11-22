@@ -151,8 +151,8 @@ test('the Price Guide gives the Director full cost and margin prices for each pr
     assert.equal(guide.normal_days,26);assert.deepEqual(guide.margins,[15,20,30]);
     assert.deepEqual(guide.products.map(row=>row.name),['PKO','PKC','Sludge']);
     for(const product of guide.products) {
-        assert.ok(Math.abs(product.full_cost_per_tonne-(product.production_cost_per_tonne+product.running_cost_per_tonne))<0.05,product.name+' full cost adds up');
-        for(const option of product.margins) if(option.price_per_tonne>0) assert.ok(Math.abs(option.profit_per_tonne/option.price_per_tonne-option.margin/100)<0.0001,'profit is the margin share of the price');
+        assert.ok(Math.abs(product.full_cost_per_kg-(product.production_cost_per_kg+product.running_cost_per_kg))<0.02,product.name+' full cost adds up');
+        for(const option of product.margins) if(option.price_per_kg>0) assert.ok(Math.abs(option.profit_per_kg/option.price_per_kg-option.margin/100)<0.001,'profit is the margin share of the price');
         assert.equal(product.margins.length,3);
     }
     assert.equal(guide.idle.length,2);

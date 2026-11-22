@@ -26,23 +26,23 @@ test('each production day carries a normal day of running costs, kept as a movin
     const guide=buildPriceGuide({costs,running,prices:{PKO:900},normalDays:26,today:'2026-11-05'});
     // Day 1: PKO gets 73% of ₦100,000 = ₦73,000 for 380 kg; half is sold (the average per kg does not change),
     // then day 2 adds 75% of ₦100,000 = ₦75,000 for 400 kg. Left: 190 kg at ₦36,500 + 400 kg at ₦75,000.
-    close(product(guide,'PKO').running_cost_per_tonne,(36500+75000)/590*1000,'PKO running cost per tonne');
+    close(product(guide,'PKO').running_cost_per_kg,(36500+75000)/590,'PKO running cost per kg');
     // PKC: ₦25,000 for 560 kg and ₦25,000 for 600 kg, none sold.
-    close(product(guide,'PKC').running_cost_per_tonne,50000/1160*1000,'PKC running cost per tonne');
-    close(product(guide,'Sludge').running_cost_per_tonne,2000/20*1000,'Sludge running cost per tonne');
-    // Full cost = production cost (the app's moving average) + running cost, per tonne. A profit margin is profit
+    close(product(guide,'PKC').running_cost_per_kg,50000/1160,'PKC running cost per kg');
+    close(product(guide,'Sludge').running_cost_per_kg,2000/20,'Sludge running cost per kg');
+    // Full cost = production cost (the app's moving average) + running cost, per kg. A profit margin is profit
     // as a share of the selling price: price = full cost ÷ (1 − margin).
     const pko=product(guide,'PKO'),full=600+(36500+75000)/590;
-    close(pko.full_cost_per_tonne,full*1000,'PKO full cost per tonne');
-    assert.equal(pko.stock_tonnes,0.59);
+    close(pko.full_cost_per_kg,full,'PKO full cost per kg');
+    assert.equal(pko.stock_quantity,590);
     assert.deepEqual(pko.margins.map(row=>row.margin),[15,20,30]);
-    close(pko.margins[0].price_per_tonne,full/0.85*1000,'15% margin price');
+    close(pko.margins[0].price_per_kg,full/0.85,'15% margin price');
     const twenty=pko.margins[1];
-    close(twenty.profit_per_tonne/twenty.price_per_tonne,0.2,'profit is 20% of the price');
-    close(pko.margins[2].profit_per_tonne,(full/0.7-full)*1000,'30% margin profit per tonne');
+    close(twenty.profit_per_kg/twenty.price_per_kg,0.2,'profit is 20% of the price');
+    close(pko.margins[2].profit_per_kg,full/0.7-full,'30% margin profit per kg');
     close(twenty.profit_on_stock,(full/0.8-full)*590,'20% profit on the stock held');
-    close(pko.current_price_per_tonne,900000,'current price per tonne');
-    close(pko.current.profit_per_tonne,(900-full)*1000,'current profit per tonne');
+    close(pko.current_price,900,'current price per kg');
+    close(pko.current.profit_per_kg,900-full,'current profit per kg');
     close(pko.current.margin,Math.round((900-full)/900*1000)/10,'current profit margin');
     assert.equal(product(guide,'PKC').current,null,'no price set for PKC');
     // October had 2 production days of 26 normal: 24 idle days at ₦100,000 are not in the prices.
@@ -56,7 +56,7 @@ test('a week without production does not raise the cost of the stock made afterw
     const busy={production_costs:[day('2026-10-01',100,100),day('2026-10-02',100,100)],product_dispatch_costs:[],finished_stock:stock(200,200,0)};
     const afterBreak={production_costs:[day('2026-10-01',100,100),day('2026-10-09',100,100)],product_dispatch_costs:[],finished_stock:stock(200,200,0)};
     const a=buildPriceGuide({costs:busy,running,normalDays:26,today:'2026-11-01'}),b=buildPriceGuide({costs:afterBreak,running,normalDays:26,today:'2026-11-01'});
-    assert.equal(product(a,'PKO').running_cost_per_tonne,product(b,'PKO').running_cost_per_tonne);
+    assert.equal(product(a,'PKO').running_cost_per_kg,product(b,'PKO').running_cost_per_kg);
 });
 
 test('more production days than normal never charge more than the month, and idle cost is never negative',()=>{
