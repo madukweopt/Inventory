@@ -116,6 +116,7 @@ function applyFormPermissions(user) {
 	hideCard('#inventory-data',role==='manager');
 	hideCard('#stock-history',role!=='admin');
 	hideCard('#activity-log',role!=='admin');
+	hideCard('#price-guide',role!=='admin');
 	hideCard('#purchases-form',role==='storekeeper');
 	hideCard('#sales-form',role==='storekeeper');
 	hideCard('#production-form',role==='storekeeper');
@@ -205,6 +206,8 @@ async function displaySelectedForm() {
 		loadSaleDocument();
 	} else if(formId==="#prices") {
 		loadPrices();
+	} else if(formId==="#price-guide") {
+		if(window.loadPriceGuide) window.loadPriceGuide();
 	} else if(formId==="#weighing-tasks") {
 		loadWeighingTasks();
 	} else if(formId==="#other-partners") {

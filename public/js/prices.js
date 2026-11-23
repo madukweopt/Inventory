@@ -36,7 +36,17 @@ async function loadPrices() {
 			const currentDisplay=document.createElement('div');
 			currentDisplay.className='price-current';
 			const currentPrice=document.createElement('strong');
-			currentPrice.textContent=current?'₦'+formatNumber(current.unit_price)+'/'+priceUnit:'No current price';
+			// The figure and its unit are separate, so a long price can put "/kg" on its own line instead of overflowing.
+			if(current) {
+				const amount=document.createElement('span');
+				amount.textContent='₦'+formatNumber(current.unit_price);
+				const unit=document.createElement('span');
+				unit.textContent='/'+priceUnit;
+				currentPrice.append(amount,unit);
+			} else {
+				currentPrice.className='price-missing';
+				currentPrice.textContent='No current price';
+			}
 			const currentStatus=document.createElement('span');
 			currentStatus.className='price-status '+(current?'current':'not-set');
 			currentStatus.textContent=current?'Current':'Not set';

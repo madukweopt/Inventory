@@ -144,6 +144,25 @@ test('the installable app files are served without signing in, with the right ty
     await request(app).get('/images/app/icon-512.png').expect(200).expect('Content-Type',/image\/png/);
 });
 
+// The Price Guide is the Director's planning page; other roles cannot see it.
+test('the Price Guide gives the Director full cost and margin prices for each product, and no one else',async function() {
+    const director=request.agent(app);await login(director,'admin_test','AdminPass123');
+    const guide=(await director.get('/api/price-guide?normal_days=26').expect(200)).body;
+    assert.equal(guide.normal_days,26);assert.deepEqual(guide.margins,[15,20,30]);
+    assert.deepEqual(guide.products.map(row=>row.name),['PKO','PKC','Sludge']);
+    for(const product of guide.products) {
+        assert.ok(Math.abs(product.full_cost_per_kg-(product.production_cost_per_kg+product.running_cost_per_kg))<0.02,product.name+' full cost adds up');
+        for(const option of product.margins) if(option.price_per_kg>0) assert.ok(Math.abs(option.profit_per_kg/option.price_per_kg-option.margin/100)<0.001,'profit is the margin share of the price');
+        assert.equal(product.margins.length,3);
+    }
+    assert.equal(guide.idle.length,2);
+    assert.equal((await director.get('/api/price-guide?normal_days=999').expect(200)).body.normal_days,31,'normal days are kept between 1 and 31');
+    for(const [username,password] of [['manager_test','ManagerPass123'],['storekeeper_test','StorePass123']]) {
+        const staff=request.agent(app);await login(staff,username,password);
+        await staff.get('/api/price-guide').expect(403);
+    }
+});
+
 test('every response carries the security headers',async function() {
     const page=await request(app).get('/login.html').expect(200);
     assert.match(page.headers['content-security-policy'],/default-src 'self'/);
