@@ -280,3 +280,7 @@ body :is(#customers,#suppliers,#other-partners).reference-workspace:is(#customer
 }
 
 .workspace-history-item,.workspace-item-badge{background:var(--item-badge-bg,#ffe98b);color:var(--item-badge-ink,#162d13)}
+/* The current price stays inside its box: the unit moves under a long figure, and "No current price" wraps in smaller text. */
+#prices.reference-workspace:is(#customers,#suppliers,#employees,#employee-details,#prices,#weighing-tasks,#other-partners,#capital-assets):is(#customers,#suppliers,#employees,#employee-details,#prices,#weighing-tasks,#other-partners,#capital-assets) .price-current strong{display:flex;flex-wrap:wrap;justify-content:center;max-width:100%;white-space:normal;text-align:center}
+#prices.reference-workspace:is(#customers,#suppliers,#employees,#employee-details,#prices,#weighing-tasks,#other-partners,#capital-assets):is(#customers,#suppliers,#employees,#employee-details,#prices,#weighing-tasks,#other-partners,#capital-assets) .price-current strong>span{white-space:nowrap}
+#prices.reference-workspace:is(#customers,#suppliers,#employees,#employee-details,#prices,#weighing-tasks,#other-partners,#capital-assets):is(#customers,#suppliers,#employees,#employee-details,#prices,#weighing-tasks,#other-partners,#capital-assets) .price-current strong.price-missing{display:block;font-size:13px;font-weight:700;letter-spacing:0;line-height:1.25;color:#5f6b66;overflow-wrap:break-word}
