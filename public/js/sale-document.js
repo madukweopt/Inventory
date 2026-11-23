@@ -32,7 +32,12 @@ function salePaymentSummary(sale) {
 	if(remaining===0) status='Paid';
 	else if(paid>0) status='Partly Paid';
 	else if(sale.due_date&&sale.due_date<new Date().toISOString().slice(0,10)) status='Overdue';
-	return { total: total,paid: paid,remaining: remaining,status: status };
+	// A late balance shows how late it is, even after a deposit: "Partly Paid · 5 days overdue".
+	const today=new Date().toISOString().slice(0,10);
+	const daysOverdue=remaining>0&&sale.due_date&&sale.due_date<today?
+		Math.round((Date.parse(today)-Date.parse(sale.due_date))/86400000):0;
+	const label=daysOverdue?status+' · '+daysOverdue+(daysOverdue===1?' day':' days')+' overdue':status;
+	return { total: total,paid: paid,remaining: remaining,status: status,label: label,daysOverdue: daysOverdue };
 }
 
 // Adds a small line icon in front of a document element.
@@ -198,7 +203,7 @@ function showSaleInvoice() {
 	summaryRow.append(terms,totals);
 	printArea.replaceChildren(
 		buildSaleDocumentHeading(data,'INVOICE',sale.invoice_number,[['Invoice No',sale.invoice_number],['Invoice Date',formatDate(sale.sales_date)],['Payment Due',dueDate]]),
-		buildSaleDocumentParty(data,'Customer','Bill To:',summary.status,false,'Status: '+summary.status),
+		buildSaleDocumentParty(data,'Customer','Bill To:',summary.status,false,'Status: '+summary.label),
 		dates,itemCard,item,summaryRow,
 		buildSaleDocumentSignoff([['Issued By'],['Authorised By']],false),
 		createDocumentText('p','sale-doc-thanks doc-print-only','Thank you for your business.')
@@ -228,7 +233,7 @@ function showSaleStatement() {
 		remaining
 	);
 	printArea.replaceChildren(
-		buildSaleDocumentHeading(data,'ACCOUNT STATEMENT',data.sale.invoice_number,[['Invoice No',data.sale.invoice_number],['Invoice Date',formatDate(data.sale.sales_date)],['Status',summary.status]]),
+		buildSaleDocumentHeading(data,'ACCOUNT STATEMENT',data.sale.invoice_number,[['Invoice No',data.sale.invoice_number],['Invoice Date',formatDate(data.sale.sales_date)],['Status',summary.label]]),
 		buildSaleDocumentParty(data,'Customer','Statement For:',summary.status,true),
 		list,totals
 	);
@@ -368,7 +373,7 @@ function renderSaleSummaryCard(sale) {
 	const remaining=createDocumentText('div','sale-summary-remaining');
 	remaining.append(createDocumentText('span','','Amount Remaining'),createDocumentText('strong','','₦'+formatNumber(summary.remaining)));
 	const paid=createDocumentText('div','sale-summary-paid');
-	paid.append(createDocumentText('span','','Total Paid'),createDocumentText('strong','','₦'+formatNumber(summary.paid)),documentStatusBadge(summary.status));
+	paid.append(createDocumentText('span','','Total Paid'),createDocumentText('strong','','₦'+formatNumber(summary.paid)),documentStatusBadge(summary.status,summary.label));
 	box.replaceChildren(remaining,paid);
 }
 

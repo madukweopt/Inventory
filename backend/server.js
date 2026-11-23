@@ -11,7 +11,7 @@ const {publicDirectory,htmlDirectory,employeePhotosDirectory,companyLogosDirecto
 const app=express();
 const PORT=process.env.PORT||3000;
 const isProduction=process.env.NODE_ENV==='production';
-const debugToolsEnabled=process.env.ENABLE_DEBUG_TOOLS==='true';
+const debugToolsEnabled=!isProduction&&process.env.ENABLE_DEBUG_TOOLS==='true';
 
 // Security headers on every response. Pages may only load scripts, styles, fonts and data from this server
 // (images may also be drawn signatures and photo previews), other sites may not show the app inside a frame,
@@ -68,6 +68,17 @@ app.use(session({
 		maxAge: 1000*60*60*8
 	}
 }));
+
+// Reject stale sessions even when another in-flight request has re-saved a revoked cookie.
+app.use(async (req,res,next)=>{
+    if(!req.session?.user_id||req.path==='/api/login'||req.path==='/api/logout'||/^\/(css|js|fonts|images)\//.test(req.path)) return next();
+    const session=req.session;
+    const active=await pool.query(`SELECT 1 FROM users u WHERE u.user_id=$1 AND u.enabled AND u.session_version=$2
+        AND ($3::int IS NULL OR EXISTS (SELECT 1 FROM users a WHERE a.user_id=$3 AND a.enabled AND a.role='admin' AND a.session_version=$4))`,
+        [session.user_id,session.session_version??0,session.admin_user_id??null,session.admin_session_version??0]);
+    if(active.rowCount) return next();
+    req.session.destroy(()=>req.path.startsWith('/api/')?res.status(401).json({message:'Sign in again.'}):res.redirect('/login.html'));
+});
 
 // Every successful save, edit or delete is written to the Activity Log (Data → Activity Log, Director only).
 require('./activity-log').registerActivityLog(app,pool,requireRole);

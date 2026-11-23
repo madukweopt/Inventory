@@ -49,7 +49,7 @@ async function calculateCosts(existingClient) {
     stock_counts.created_at,
     stock_counts.issued AS quantity,
     'out' AS type,
-    1 AS event_order
+    1 AS event_order,stock_counts.source_type,stock_counts.adjustment_reason
     FROM stock_counts
     INNER JOIN items
     ON stock_counts.item_id = items.item_id
@@ -61,13 +61,18 @@ async function calculateCosts(existingClient) {
     AND NOT (stock_counts.source_type='Production' AND EXISTS(SELECT 1 FROM production_batches pb
         WHERE pb.request_id=stock_counts.source_id))
     UNION ALL SELECT i.item_id,i.name,i.item_type,to_char(COALESCE(pb.movement_date,w.request_date),'YYYY-MM-DD'),
-        pb.created_at,pb.kernel_used,'out',1 FROM production_batches pb
+        pb.created_at,pb.kernel_used,'out',1,'Production',NULL FROM production_batches pb
         JOIN weighing_requests w ON w.request_id=pb.request_id JOIN production p ON p.production_id=w.completed_record_id
         JOIN items i ON LOWER(i.name)='p kernel'
         WHERE NOT pb.voided AND w.status<>'Cancelled' AND pb.kernel_used>0
     `);
 
 	const issues=rawIssues.rows;
+    // Raw materials and consumables put back into stock by hand: a return to store, or a count that found more.
+    const rawReceipts=(await costClient.query(`SELECT items.item_id,items.name,to_char(stock_counts.count_date,'YYYY-MM-DD') AS date,
+        stock_counts.created_at,stock_counts.received AS quantity,stock_counts.adjustment_reason
+        FROM stock_counts JOIN items ON items.item_id=stock_counts.item_id
+        WHERE stock_counts.source_type='Manual' AND stock_counts.received>0 AND items.item_type IN ('raw_material','consumable')`)).rows;
 
 	const RawProduction=await costClient.query(`
     SELECT
@@ -129,7 +134,7 @@ async function calculateCosts(existingClient) {
         JOIN production_batches pb ON pb.request_id=w.request_id AND NOT pb.voided
         WHERE w.request_type='Production' AND w.completed_record_id=production.production_id AND w.status<>'Cancelled'),production_date),'YYYY-MM-DD') AS date,
         process_loss AS quantity FROM production WHERE process_loss>0`)).rows;
-    const costs=calculateContinuousCosts({purchases,issues,production,productStock,productItems,losses});
+    const costs=calculateContinuousCosts({purchases,issues,production,productStock,productItems,losses,rawReceipts});
     if(!existingClient) await costClient.query('COMMIT');
 	return costs;
     } catch(error) {if(!existingClient) await costClient.query('ROLLBACK');throw error;} finally {if(!existingClient)costClient.release();}
@@ -308,8 +313,8 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
 			`SELECT 'day' AS period,
         items.name AS name,
         COALESCE (SUM(sales.quantity), 0) AS quantity_sold,
-        COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0) AS average_unit_price,
-        COALESCE (SUM(sales.quantity * sales.unit_price), 0) AS total_sales
+        COALESCE (SUM(invoice_amount(sales.quantity,sales.unit_price)) / NULLIF(SUM(sales.quantity), 0), 0) AS average_unit_price,
+        COALESCE (SUM(invoice_amount(sales.quantity,sales.unit_price)), 0) AS total_sales
         FROM items
         LEFT JOIN sales
         ON sales.item_id = items.item_id
@@ -322,8 +327,8 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
         SELECT 'week',
         items.name,
         COALESCE (SUM(sales.quantity), 0),
-        COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0),
-        COALESCE (SUM(sales.quantity * sales.unit_price), 0)
+        COALESCE (SUM(invoice_amount(sales.quantity,sales.unit_price)) / NULLIF(SUM(sales.quantity), 0), 0),
+        COALESCE (SUM(invoice_amount(sales.quantity,sales.unit_price)), 0)
         FROM items
         LEFT JOIN sales ON sales.item_id = items.item_id
         AND sales.sales_date >= date_trunc('week', ${datesql})
@@ -336,8 +341,8 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
         SELECT 'month',
         items.name,
         COALESCE (SUM(sales.quantity), 0),
-        COALESCE (SUM(sales.quantity * sales.unit_price) / NULLIF(SUM(sales.quantity), 0), 0),
-        COALESCE (SUM(sales.quantity * sales.unit_price), 0)
+        COALESCE (SUM(invoice_amount(sales.quantity,sales.unit_price)) / NULLIF(SUM(sales.quantity), 0), 0),
+        COALESCE (SUM(invoice_amount(sales.quantity,sales.unit_price)), 0)
         FROM items
         LEFT JOIN sales ON sales.item_id = items.item_id
         AND sales.sales_date >= date_trunc('month', ${datesql})
@@ -464,8 +469,12 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
 			businessDispatches.map(dispatch => ({...dispatch,cost_of_dispatch:dispatch.cost_of_dispatch*(1-invoicedShare(dispatch))})),
 			selectedDate
 		);
+		// Raw materials spilled, disposed of or found short are stock losses too. They are placed in the helper's PKO slot only
+		// so it can sort them into day, week and month; periodTotal below adds every slot together.
+		const rawLosses=(costs.raw_material_losses||[]).map(loss => ({...loss,name:'PKO'}));
 		const stockLossPeriods=Object.fromEntries(stockAdjustmentReasons.map(reason => [reason,calculateDispatchPeriods(
-			costs.product_dispatch_costs.filter(dispatch => dispatch.source_type==='Manual'&&(dispatch.adjustment_reason||'Other')===reason),
+			[...costs.product_dispatch_costs.filter(dispatch => dispatch.source_type==='Manual'),...rawLosses]
+				.filter(dispatch => (dispatch.adjustment_reason||'Other')===reason),
 			selectedDate
 		)]));
 		output.day.cost_of_goods_sold=dispatchPeriods.day;

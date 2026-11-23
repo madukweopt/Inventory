@@ -306,7 +306,7 @@ async function validateSeed(client,start,end){
             (SELECT request_id,SUM(kernel_used) AS kernel,SUM(pko_produced) AS pko,SUM(pkc_produced) AS pkc,SUM(sludge_produced) AS sludge FROM production_batches WHERE NOT voided GROUP BY request_id)b ON b.request_id=w.request_id
             WHERE p.kernel_used<>b.kernel OR p.pko_produced<>b.pko OR p.pkc_produced<>b.pkc OR p.sludge_produced<>b.sludge OR w.kernel_used<>b.kernel OR w.pko_produced<>b.pko OR w.pkc_produced<>b.pkc OR w.sludge_produced<>b.sludge`,
         receipt_invoice_errors:`SELECT COUNT(*)::int AS n FROM sales s LEFT JOIN (SELECT sales_id,SUM(amount) FILTER (WHERE reversed_at IS NULL) AS paid,COUNT(*) AS receipts FROM sale_payments GROUP BY sales_id)p ON p.sales_id=s.sales_id
-            WHERE (invoice_number IS NULL AND (billing_basis<>'Customer' OR COALESCE(p.receipts,0)>0)) OR invoice_snapshot IS NULL OR COALESCE(p.paid,0)>quantity*unit_price`,
+            WHERE (invoice_number IS NULL AND (billing_basis<>'Customer' OR COALESCE(p.receipts,0)>0)) OR invoice_snapshot IS NULL OR COALESCE(p.paid,0)>invoice_amount(quantity,unit_price)`,
         delivery_notes:`SELECT COUNT(*)::int AS n FROM sales s LEFT JOIN delivery_notes d ON d.sales_id=s.sales_id WHERE d.sales_id IS NULL OR d.driver_signature IS NULL
             OR (s.billing_basis='Customer' AND s.invoice_number IS NOT NULL AND s.quantity<>d.buyer_weight) OR COALESCE(s.factory_quantity,-1)<0`,
         production_loss:`SELECT COUNT(*)::int AS n FROM production p JOIN weighing_requests w ON w.request_type='Production' AND w.completed_record_id=p.production_id

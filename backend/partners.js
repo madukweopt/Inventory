@@ -1,5 +1,6 @@
 // Other partners (fabricators, installers, equipment dealers, repairers) and the capital asset register.
 // Capital jobs are recorded once as an asset; payments on running jobs each create one running expense.
+const { readSubmissionKey } = require('./record-rules');
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const JOB_TYPES = ['Fabrication', 'Installation', 'Equipment purchase', 'Repair', 'Maintenance/Service', 'Other'];
 const CAPITAL_TYPES = ['Fabrication', 'Installation', 'Equipment purchase'];
@@ -77,7 +78,7 @@ function registerPartners(app, pool, requireRole) {
         }
     }
     const jobTotals = `SELECT j.*,to_char(j.job_date,'YYYY-MM-DD') AS job_day,COALESCE(SUM(p.amount),0) AS paid,j.agreed_amount-COALESCE(SUM(p.amount),0) AS owed
-        FROM partner_jobs j LEFT JOIN partner_payments p ON p.job_id=j.job_id`;
+        FROM partner_jobs j LEFT JOIN partner_payments p ON p.job_id=j.job_id AND p.reversed_at IS NULL`;
     app.get('/api/partners', requireRole(viewers), async (req, res) => {
         try {
             res.json(
@@ -85,7 +86,8 @@ function registerPartners(app, pool, requireRole) {
                     await pool.query(`SELECT s.*,COUNT(j.job_id)::int AS number_of_jobs,COALESCE(SUM(j.agreed_amount),0) AS total_agreed,
             COALESCE(SUM(j.paid),0) AS total_paid,COALESCE(SUM(j.owed),0) AS balance_owed,to_char(MAX(j.job_date),'YYYY-MM-DD') AS last_job_date,
             (SELECT job_type FROM partner_jobs x WHERE x.partner_id=s.partner_id GROUP BY job_type ORDER BY COUNT(*) DESC,job_type LIMIT 1) AS main_work
-            FROM service_partners s LEFT JOIN (${jobTotals} GROUP BY j.job_id) j ON j.partner_id=s.partner_id GROUP BY s.partner_id ORDER BY s.name`)
+            FROM service_partners s LEFT JOIN (${jobTotals} GROUP BY j.job_id) j ON j.partner_id=s.partner_id
+            WHERE s.archived_at IS NULL GROUP BY s.partner_id ORDER BY s.name`)
                 ).rows
             );
         } catch (e) {
@@ -113,7 +115,8 @@ function registerPartners(app, pool, requireRole) {
                             'SELECT j.*',
                             `SELECT j.*,(SELECT asset_id FROM capital_assets a WHERE a.job_id=j.job_id) AS asset_id,(SELECT asset_type FROM capital_assets a WHERE a.job_id=j.job_id) AS asset_type,
             (SELECT COALESCE(json_agg(json_build_object('payment_id',q.payment_id,'payment_date',to_char(q.payment_date,'YYYY-MM-DD'),'amount',q.amount,'payment_method',q.payment_method,
-                'reference_number',q.reference_number,'note',q.note,'recorded_by_name',(SELECT username FROM users WHERE user_id=q.recorded_by)) ORDER BY q.payment_date,q.payment_id),'[]'::json)
+                'reference_number',q.reference_number,'note',q.note,'recorded_by_name',(SELECT username FROM users WHERE user_id=q.recorded_by),
+                'reversed_on',to_char(q.reversed_at,'YYYY-MM-DD'),'reversal_reason',q.reversal_reason) ORDER BY q.payment_date,q.payment_id),'[]'::json)
              FROM partner_payments q WHERE q.job_id=j.job_id) AS payments`
                         )} WHERE j.partner_id=$1 GROUP BY j.job_id ORDER BY j.job_date DESC,j.job_id DESC`,
                         [req.params.id]
@@ -155,36 +158,25 @@ function registerPartners(app, pool, requireRole) {
             return row;
         })
     );
-    // Testing stage: the Director can delete any partner. Its jobs, payments, the running expenses those payments created and its asset entries go too.
+    // A partner with jobs is archived, not deleted, so its jobs, payments, expenses and assets stay in the records and
+    // past reports do not change. A partner with no jobs at all is removed completely.
     app.delete('/api/partners/:id', requireRole(['admin']), (req, res) =>
         transact(res, async client => {
             const partner = (
-                await client.query('SELECT partner_id FROM service_partners WHERE partner_id=$1 FOR UPDATE', [
+                await client.query('SELECT partner_id FROM service_partners WHERE partner_id=$1 AND archived_at IS NULL FOR UPDATE', [
                     req.params.id
                 ])
             ).rows[0];
             if (!partner) throw fail(404, 'Partner not found.');
-            const jobs = `SELECT job_id FROM partner_jobs WHERE partner_id=$1`;
-            const expenses = (
-                await client.query(`DELETE FROM partner_payments WHERE job_id IN (${jobs}) RETURNING expense_id`, [
-                    partner.partner_id
-                ])
-            ).rows
-                .map(row => row.expense_id)
-                .filter(Boolean);
-            if (expenses.length)
-                await client.query('DELETE FROM expenses WHERE expense_id=ANY($1::integer[])', [expenses]);
-            await client.query(`DELETE FROM capital_assets WHERE job_id IN (${jobs})`, [partner.partner_id]);
-            await client.query('DELETE FROM partner_jobs WHERE partner_id=$1', [partner.partner_id]);
+            if ((await client.query('SELECT 1 FROM partner_jobs WHERE partner_id=$1 LIMIT 1', [partner.partner_id])).rowCount) {
+                await client.query('UPDATE service_partners SET archived_at=CURRENT_TIMESTAMP WHERE partner_id=$1', [partner.partner_id]);
+                return {
+                    message:
+                        'Partner archived. It no longer shows under Other Partners, but its jobs, payments, expenses and assets are kept.'
+                };
+            }
             await client.query('DELETE FROM service_partners WHERE partner_id=$1', [partner.partner_id]);
-            return {
-                message:
-                    'Partner deleted, with its jobs, payments' +
-                    (expenses.length
-                        ? ', ' + expenses.length + ' running ' + (expenses.length === 1 ? 'expense' : 'expenses')
-                        : '') +
-                    ' and asset entries.'
-            };
+            return { message: 'Partner deleted.' };
         })
     );
     app.post('/api/partners/:id/jobs', requireRole(viewers), (req, res) =>
@@ -232,6 +224,8 @@ function registerPartners(app, pool, requireRole) {
     app.patch('/api/partner-jobs/:id', requireRole(viewers), (req, res) =>
         transact(res, async client => {
             const job = jobDetails(req.body);
+            // Payments lock the same job, so a price change and a payment never both pass against an old balance.
+            await client.query('SELECT 1 FROM partner_jobs WHERE job_id=$1 FOR UPDATE', [req.params.id]);
             const current = (await client.query(`${jobTotals} WHERE j.job_id=$1 GROUP BY j.job_id`, [req.params.id]))
                 .rows[0];
             if (!current) throw fail(404, 'Job not found.');
@@ -292,10 +286,20 @@ function registerPartners(app, pool, requireRole) {
                     )
                 ).rows[0];
                 if (!job) throw fail(404, 'Job not found.');
+                // The same payment form sent again (lost connection, double tap) returns the payment already saved.
+                const submissionKey = readSubmissionKey(req.body.submission_key);
+                if (submissionKey) {
+                    const prior = (await client.query('SELECT * FROM partner_payments WHERE submission_key=$1', [submissionKey])).rows[0];
+                    if (prior) {
+                        if (prior.job_id !== job.job_id || Number(prior.amount) !== amount)
+                            throw fail(409, 'This payment was already saved with different details. Refresh before recording another.');
+                        return { ...prior, already_saved: true };
+                    }
+                }
                 const paid = Number(
                     (
                         await client.query(
-                            'SELECT COALESCE(SUM(amount),0) AS paid FROM partner_payments WHERE job_id=$1',
+                            'SELECT COALESCE(SUM(amount),0) AS paid FROM partner_payments WHERE job_id=$1 AND reversed_at IS NULL',
                             [job.job_id]
                         )
                     ).rows[0].paid
@@ -326,7 +330,7 @@ function registerPartners(app, pool, requireRole) {
                     ).rows[0].expense_id;
                 return (
                     await client.query(
-                        `INSERT INTO partner_payments(job_id,payment_date,amount,payment_method,reference_number,note,expense_id,recorded_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+                        `INSERT INTO partner_payments(job_id,payment_date,amount,payment_method,reference_number,note,expense_id,recorded_by,submission_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
                         [
                             job.job_id,
                             date,
@@ -335,7 +339,8 @@ function registerPartners(app, pool, requireRole) {
                             words(req.body.reference_number, 'a reference', 100, false),
                             words(req.body.note, 'a note', 300, false),
                             expenseId,
-                            req.session.user_id
+                            req.session.user_id,
+                            submissionKey
                         ]
                     )
                 ).rows[0];
@@ -343,16 +348,24 @@ function registerPartners(app, pool, requireRole) {
             201
         )
     );
+    // A wrong payment is reversed, not deleted: it stays on the job, marked with the date, reason and who reversed it,
+    // and no longer counts as paid. The running expense it created is removed, because that money was not spent.
     app.delete('/api/partner-payments/:id', requireRole(['admin']), (req, res) =>
         transact(res, async client => {
+            const reason = words(req.body?.reason, 'the reason for reversing this payment', 300, true);
+            const payment = (await client.query('SELECT job_id FROM partner_payments WHERE payment_id=$1', [req.params.id])).rows[0];
+            if (!payment) throw fail(404, 'Payment not found.');
+            await client.query('SELECT 1 FROM partner_jobs WHERE job_id=$1 FOR UPDATE', [payment.job_id]);
             const row = (
-                await client.query('DELETE FROM partner_payments WHERE payment_id=$1 RETURNING expense_id', [
-                    req.params.id
-                ])
+                await client.query('SELECT expense_id FROM partner_payments WHERE payment_id=$1 AND reversed_at IS NULL', [req.params.id])
             ).rows[0];
-            if (!row) throw fail(404, 'Payment not found.');
+            if (!row) throw fail(409, 'This payment has already been reversed.');
+            await client.query(
+                'UPDATE partner_payments SET reversed_at=CURRENT_TIMESTAMP,reversed_by=$2,reversal_reason=$3,expense_id=NULL WHERE payment_id=$1',
+                [req.params.id, req.session.user_id, reason]
+            );
             if (row.expense_id) await client.query('DELETE FROM expenses WHERE expense_id=$1', [row.expense_id]);
-            return { message: 'Payment deleted.' + (row.expense_id ? ' Its running expense was removed too.' : '') };
+            return { message: 'Payment reversed.' + (row.expense_id ? ' Its running expense was removed.' : '') };
         })
     );
     // Asset register, with paid and owed figures for assets that came through a partner job.
@@ -361,7 +374,7 @@ function registerPartners(app, pool, requireRole) {
             res.json(
                 (
                     await pool.query(`SELECT a.*,to_char(a.acquired_date,'YYYY-MM-DD') AS acquired_day,j.partner_id,j.job_type,
-            CASE WHEN a.job_id IS NULL THEN a.cost ELSE COALESCE((SELECT SUM(amount) FROM partner_payments p WHERE p.job_id=a.job_id),0) END AS paid
+            CASE WHEN a.job_id IS NULL THEN a.cost ELSE COALESCE((SELECT SUM(amount) FROM partner_payments p WHERE p.job_id=a.job_id AND p.reversed_at IS NULL),0) END AS paid
             FROM capital_assets a LEFT JOIN partner_jobs j ON j.job_id=a.job_id ORDER BY a.acquired_date DESC,a.asset_id DESC`)
                 ).rows
             );

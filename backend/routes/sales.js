@@ -20,19 +20,22 @@ router.get("/api/sales",requireRole(['admin','manager','storekeeper']),function(
 		sales.quantity,sales.billing_basis,COALESCE(sales.factory_quantity,sales.quantity) AS factory_quantity,
         EXISTS(SELECT 1 FROM delivery_notes d WHERE d.sales_id=sales.sales_id) AS has_delivery_note,
 		sales.unit_price,
-		sales.quantity * sales.unit_price AS total,
+		invoice_amount(sales.quantity,sales.unit_price) AS total,
 		sales.invoice_number,
 		wr.scale_ticket,wr.vehicle_number,wr.completed_by AS weighed_by,wr.status AS dispatch_status,
 		to_char(sales.due_date,'YYYY-MM-DD') AS due_date,
 		COALESCE(payments.amount_paid,0) AS amount_paid,
-		GREATEST(sales.quantity*sales.unit_price-COALESCE(payments.amount_paid,0),0) AS amount_remaining,
+		GREATEST(invoice_amount(sales.quantity,sales.unit_price)-COALESCE(payments.amount_paid,0),0) AS amount_remaining,
 		CASE
             WHEN sales.invoice_number IS NULL THEN 'Awaiting customer weight'
-			WHEN COALESCE(payments.amount_paid,0)>=sales.quantity*sales.unit_price THEN 'Paid'
+			WHEN COALESCE(payments.amount_paid,0)>=invoice_amount(sales.quantity,sales.unit_price) THEN 'Paid'
 			WHEN COALESCE(payments.amount_paid,0)>0 THEN 'Partly Paid'
 			WHEN sales.due_date<CURRENT_DATE THEN 'Overdue'
 			ELSE 'Pending'
-		END AS payment_status
+		END AS payment_status,
+		-- Shown beside Partly Paid too, so a late balance is never hidden by a small deposit.
+		CASE WHEN sales.invoice_number IS NOT NULL AND sales.due_date<CURRENT_DATE
+			AND COALESCE(payments.amount_paid,0)<invoice_amount(sales.quantity,sales.unit_price) THEN CURRENT_DATE-sales.due_date ELSE 0 END AS days_overdue
 		FROM sales
 		INNER JOIN customers
 		ON sales.customer_id = customers.customer_id
@@ -63,7 +66,7 @@ router.get('/api/sales/:id/invoice',requireRole(['admin','manager','storekeeper'
 		const saleResult=await pool.query(`SELECT
 			s.sales_id,to_char(s.sales_date,'YYYY-MM-DD') AS sales_date,
 			to_char(s.due_date,'YYYY-MM-DD') AS due_date,s.invoice_number,
-			s.invoice_snapshot,s.quantity,s.billing_basis,s.unit_price,s.quantity*s.unit_price AS total,
+			s.invoice_snapshot,s.quantity,s.billing_basis,s.unit_price,invoice_amount(s.quantity,s.unit_price) AS total,
             EXISTS(SELECT 1 FROM delivery_notes d WHERE d.sales_id=s.sales_id) AS has_delivery_note,
 			c.customer_id,c.name AS customer,c.phone_number AS customer_phone,
 			c.email AS customer_email,c.address AS customer_address,i.name AS item,
@@ -104,7 +107,7 @@ router.post('/api/sales/:id/payments',requireRole(['admin','manager']),async fun
 	try {
 		await client.query('BEGIN');
 		const saleResult=await client.query(`SELECT
-			sales_id,invoice_number,quantity*unit_price AS total
+			sales_id,invoice_number,invoice_amount(quantity,unit_price) AS total
 		FROM sales WHERE sales_id=$1 FOR UPDATE`,[req.params.id]);
 		if(saleResult.rows.length===0) {
 			await client.query('ROLLBACK');
@@ -119,7 +122,7 @@ router.post('/api/sales/:id/payments',requireRole(['admin','manager']),async fun
 				if(String(prior.sales_id)!==String(sale.sales_id)||Number(prior.amount)!==amount) {
 					return res.status(409).json({ err: 'This payment was already saved with different details. Refresh before recording another payment.' });
 				}
-				return res.status(200).json(prior);
+				return res.status(200).json({...prior,already_saved:true});
 			}
 		}
         if(!sale.invoice_number){await client.query('ROLLBACK');return res.status(409).json({err:'Finalise the customer weight invoice before recording payment.'});}
@@ -179,10 +182,16 @@ router.post("/api/sales",requireRole(['admin','manager']),async function(req,res
 			error: "could not save sale"
 		});
 	}
+	if(require('../record-rules').futureAuthorisation(sales.sales_date)) return res.status(400).json({ err:'Authorise for today or an earlier day. A future date cannot be authorised.' });
 	// The quantity the customer ordered, so the Storekeeper knows how much to load.
 	const orderedQuantity=readInventoryQuantity(sales.ordered_quantity);
 	if(orderedQuantity===null||orderedQuantity<=0) {
 		return res.status(400).json({ err: 'Enter the quantity the customer ordered, with no more than two decimal places.' });
+	}
+	// The payment date agreed with a credit customer. Blank means payment is due on dispatch.
+	const agreedDueDate=sales.agreed_due_date||null;
+	if(agreedDueDate!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(agreedDueDate)||agreedDueDate<sales.sales_date)) {
+		return res.status(400).json({ err: 'Enter a payment due date on or after the sale date, or leave it blank.' });
 	}
 	try {
 		const priceResult=await pool.query(`SELECT unit_price FROM product_prices
@@ -202,13 +211,13 @@ router.post("/api/sales",requireRole(['admin','manager']),async function(req,res
         if(!representativeRole||representativeRole==='admin')return res.status(400).json({err:'Choose a staff member other than the Director as the accompanying representative.'});
 		const inserted=await authorise(pool,'Sale',sales,req.session.user_id,
 			`INSERT INTO weighing_requests
-			(request_type,request_date,customer_id,item_id,unit_price,created_by,billing_basis,representative_id,ordered_quantity)
-			VALUES ('Sale',$1::date,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,[
+			(request_type,request_date,customer_id,item_id,unit_price,created_by,billing_basis,representative_id,ordered_quantity,agreed_due_date)
+			VALUES ('Sale',$1::date,$2,$3,$4,$5,$6,$7,$8,$9::date) RETURNING *`,[
 			sales.sales_date,
 			sales.customer_id,
 			sales.item_id,
 			savedUnitPrice,
-			req.session.user_id,basis,representative,orderedQuantity
+			req.session.user_id,basis,representative,orderedQuantity,agreedDueDate
 		]);
 		return res.status(201).json(inserted.rows[0]);
 	} catch(error) {

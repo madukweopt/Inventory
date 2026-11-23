@@ -48,6 +48,7 @@ router.post("/api/production",requireRole(['admin','manager']),async function(re
 			err: "Check your inputs and try again"
 		});
 	}
+	if(require('../record-rules').futureAuthorisation(production.production_date)) return res.status(400).json({ err:'Authorise for today or an earlier day. A future date cannot be authorised.' });
     if(!/^\d{2}:[0-5]\d$/.test(production.production_hours)||!/^\d{2}:[0-5]\d$/.test(production.down_time)) {
         return res.status(400).json({err:'Enter production hours and downtime as hours:minutes, for example 00:30 or 08:50'});
     }
@@ -307,10 +308,10 @@ router.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storeke
 				(SELECT nextval('sales_sales_id_seq') AS sales_id)
 				INSERT INTO sales
 				(sales_id,sales_date,customer_id,item_id,quantity,unit_price,due_date,invoice_number,billing_basis,factory_quantity)
-				SELECT sales_id,$1,$2,$3,CASE WHEN $6='Customer' THEN 0 ELSE $4 END,$5,$1,
+				SELECT sales_id,$1,$2,$3,CASE WHEN $6='Customer' THEN 0 ELSE $4::numeric END,$5,GREATEST(COALESCE($7::date,$1::date),$1::date),
                 CASE WHEN $6='Customer' THEN NULL ELSE 'INV-'||to_char($1::date,'YYYY')||'-'||lpad(sales_id::text,6,'0') END,$6,$4
 				FROM next_sale RETURNING sales_id`,
-			[movementDate,request.customer_id,request.item_id,quantity,request.unit_price,request.billing_basis]);
+			[movementDate,request.customer_id,request.item_id,quantity,request.unit_price,request.billing_basis,request.agreed_due_date]);
 			completedRecordId=sale.rows[0].sales_id;
             await snapshotInvoice(client,completedRecordId);
             await client.query(`INSERT INTO delivery_notes(sales_id,representative_id,driver_name,driver_signature,driver_signed_at,driver_recorded_by)
@@ -337,7 +338,7 @@ router.patch('/api/weighing-requests/:id/complete',requireRole(['admin','storeke
 			// Every entry was already saved by an earlier attempt (a retry after a lost connection): nothing changes.
 			if(!saved) {
 				await client.query('COMMIT');
-				return res.json({ message:entries.length>1?'These entries were already saved':'Batch already saved',record_id:request.completed_record_id,saved:0 });
+				return res.json({ already_saved:true,message:entries.length>1?'These entries were already saved':'Batch already saved',record_id:request.completed_record_id,saved:0 });
 			}
 			productionEntriesSaved=saved;
 		}

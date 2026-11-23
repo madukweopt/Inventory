@@ -198,15 +198,18 @@
             el('p', partner.note || 'No note recorded.', 'partner-details-note-text')
         );
         if (role() === 'admin') {
-            const remove = el('button', 'Delete partner', 'partner-details-delete-btn');
+            const hasJobs = Number(partner.number_of_jobs) > 0;
+            const remove = el('button', hasJobs ? 'Archive partner' : 'Delete partner', 'partner-details-delete-btn');
             remove.type = 'button';
             remove.onclick = () =>
                 confirmAction(
-                    'Delete Partner',
-                    'Delete ' +
-                        partner.name +
-                        '? All its jobs and payments will be deleted, together with the running expenses those payments created and its asset entries.',
-                    'Delete Partner',
+                    hasJobs ? 'Archive Partner' : 'Delete Partner',
+                    hasJobs
+                        ? 'Archive ' +
+                              partner.name +
+                              '? It will no longer show under Other Partners. Its jobs, payments, expenses and assets are kept, so past figures do not change.'
+                        : 'Delete ' + partner.name + '? It has no jobs.',
+                    hasJobs ? 'Archive Partner' : 'Delete Partner',
                     async () => {
                         const result = await send('/api/partners/' + partner.partner_id, 'DELETE');
                         openPartnerId = null;
@@ -270,7 +273,7 @@
         const payments = el('div', undefined, 'partner-payments');
         if (!job.payments.length) payments.appendChild(el('p', 'No payments yet.', 'partner-empty'));
         for (const payment of job.payments) {
-            const row = el('div', undefined, 'partner-payment');
+            const row = el('div', undefined, 'partner-payment' + (payment.reversed_on ? ' is-reversed' : ''));
             row.append(
                 el(
                     'span',
@@ -281,8 +284,12 @@
                 ),
                 el('strong', naira(payment.amount))
             );
-            if (role() === 'admin') {
-                const remove = el('button', 'Delete');
+            if (payment.reversed_on)
+                row.appendChild(
+                    el('small', 'Reversed ' + formatDate(payment.reversed_on) + ': ' + payment.reversal_reason, 'partner-payment-reversal')
+                );
+            else if (role() === 'admin') {
+                const remove = el('button', 'Reverse');
                 remove.type = 'button';
                 remove.onclick = () => deletePayment(payment, job);
                 row.appendChild(remove);
@@ -389,6 +396,8 @@
         sync();
     }
     function openPaymentDialog(partner, job) {
+        // One key per opened form: sending it again after a lost connection returns the payment already saved.
+        const submissionKey = crypto.randomUUID();
         openDialog(
             'Record Payment to ' + partner.name,
             [
@@ -410,7 +419,7 @@
             ],
             'Save Payment',
             async values => {
-                await send('/api/partner-jobs/' + job.job_id + '/payments', 'POST', values);
+                await send('/api/partner-jobs/' + job.job_id + '/payments', 'POST', { ...values, submission_key: submissionKey });
                 await window.loadOtherPartners(true);
                 return {
                     message:
@@ -425,21 +434,23 @@
     function confirmAction(title, text, label, action) {
         return openDialog(title, [], label, action, text);
     }
+    // A wrong payment is reversed with a reason; it stays listed, marked as reversed, and no longer counts as paid.
     function deletePayment(payment, job) {
-        confirmAction(
-            'Delete Payment',
-            'Delete the ' +
+        openDialog(
+            'Reverse Payment',
+            [{ label: 'Reason for reversing', name: 'reason', type: 'textarea', max: 300 }],
+            'Reverse Payment',
+            async values => {
+                const result = await send('/api/partner-payments/' + payment.payment_id, 'DELETE', { reason: values.reason });
+                await window.loadOtherPartners(true);
+                return result;
+            },
+            'Reverse the ' +
                 naira(payment.amount) +
                 ' payment of ' +
                 formatDate(payment.payment_date) +
-                '?' +
-                (job.cost_category === 'Running' ? ' Its running expense will also be removed.' : ''),
-            'Delete Payment',
-            async () => {
-                const result = await send('/api/partner-payments/' + payment.payment_id, 'DELETE');
-                await window.loadOtherPartners(true);
-                return result;
-            }
+                '? It stays listed as reversed and no longer counts as paid.' +
+                (job.cost_category === 'Running' ? ' Its running expense will be removed.' : '')
         );
     }
     function deleteJob(job) {
@@ -825,6 +836,8 @@
     // A start-up cost is saved as an expense; its first months before production count as start-up costs.
     // Director only. Passing a saved start-up cost opens the same dialog to edit it.
     function openStartupDialog(cost) {
+        // One key per opened form, so a retried save cannot add the same start-up cost twice.
+        const submissionKey = crypto.randomUUID();
         const inputs = openDialog(
             cost ? 'Edit Start-up Cost' : 'Add Start-up Cost',
             [
@@ -863,7 +876,7 @@
                     startup = Number(values.startup_months);
                 if (!Number.isInteger(startup) || startup < 1 || startup > months)
                     throw Error('Months before production must be from 1 to the months it covers.');
-                const record = { ...values, category: 'Expenses' };
+                const record = { ...values, category: 'Expenses', submission_key: submissionKey };
                 if (cost)
                     await send('/api/correction_edit', 'PATCH', {
                         kind: 'expenses',
@@ -892,6 +905,8 @@
     // Only the Director sees the add button (partners.css); the server also refuses months from other roles.
     // Passing a saved expense opens the same dialog to edit it, including its months.
     function openPrepaidDialog(expense) {
+        // One key per opened form, so a retried save cannot add the same rent or insurance twice.
+        const submissionKey = crypto.randomUUID();
         const inputs = openDialog(
             expense ? 'Edit Prepaid Cost' : 'Add Prepaid Cost',
             [
@@ -919,7 +934,7 @@
             ],
             expense ? 'Save Changes' : 'Add Cost',
             async values => {
-                const record = { ...values, category: 'Expenses', startup_months: 0 };
+                const record = { ...values, category: 'Expenses', startup_months: 0, submission_key: submissionKey };
                 if (expense)
                     await send('/api/correction_edit', 'PATCH', {
                         kind: 'expenses',

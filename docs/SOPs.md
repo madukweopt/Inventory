@@ -87,7 +87,7 @@ The purchase record and stock receipt are saved together. Do not enter the same 
 ### Selling and loading
 
 1. The Director saves the approved selling prices on **Prices**.
-2. The Manager or Director selects the sale date, customer, product, the **Quantity ordered** and **Payment weight**: **Factory weight** or **Customer’s agreed weight**. Select the accompanying representative, then **Authorise Sale**. Only the Director can assign another approved staff member.
+2. The Manager or Director selects the sale date, customer, product, the **Quantity ordered** and **Payment weight**: **Factory weight** or **Customer’s agreed weight**. Select the accompanying representative, then **Authorise Sale**. Only the Director can assign another approved staff member. For an approved credit sale, enter the agreed **Payment due date**; leave it blank when the customer pays on dispatch.
 3. The Storekeeper weighs the actual amount going to the customer.
 4. She enters it and the date it actually left the factory in **Pending Weighing**. The driver checks the amount, enters their name and signs on the device. Then she selects **Confirm Dispatch**.
 
@@ -99,6 +99,8 @@ Confirming dispatch saves the factory weight and deducts it from stock once. The
 - Only the Director records payments to partners. The partner’s card shows what was agreed, what was paid and what is still owed. Balance Owed shows red while money is still owed and green once it is paid in full.
 - Fabrication, installation and equipment purchases are capital assets. They appear in **Assets and Start-up Costs** and do not reduce profit.
 - Repairs and servicing are running costs. Each payment is added to **Expenses** automatically. Do not enter it again.
+- If a payment was recorded by mistake, the Director selects **Reverse** on it and enters the reason. The payment stays on the job, crossed out with the date and reason, and no longer counts as paid. The running expense of a repair payment is removed. To change an amount, reverse the payment and record the correct one.
+- A partner with jobs is not deleted. **Archive partner** removes them from **Other Partners** but keeps their jobs, payments, expenses and assets, so past figures do not change. A partner with no jobs can be deleted.
 - The Director enters a machine or tank bought outright from a one-off seller directly in **Assets and Start-up Costs**.
 - Use **Expenses** only for normal running costs. For costs from before production, such as rent paid during installation, the Director opens **Assets and Start-up Costs**, selects the **Start-up Costs** tab, then **+ Add Start-up Cost**. Only the Director sees start-up costs. Enter the amount, the months it covers and how many of those months were before production. Those months show as start-up costs on the dashboard and in the total invested on the **Summary** tab. Select **Edit** on a start-up cost to change it, or **Delete** to remove it. For rent, insurance or a yearly licence paid in advance after production started, the Director opens **Assets and Start-up Costs**, selects the **Prepaid Costs** tab, then **+ Add Prepaid Cost**, and enters the months it covers. Do not use the normal Expenses form for these. The prepaid costs already added are listed on that tab. Select **Edit** to change the amount, date or months, or **Delete** to remove one. The dashboard counts an equal share each day, like salaries, and shows it as **Rent and prepaid costs**.
 
@@ -112,6 +114,7 @@ Use grams for both the sample and the impurities. The app calculates the percent
 
 - Tell the Director if a saved weight or other record is wrong. Give the correct measurement and the reason for the change.
 - The Director uses the app’s correction buttons. Do not add a false purchase, sale or stock entry to hide a mistake.
+- Authorise a purchase, sale or production day for today, or for an earlier day to catch up on one that was missed. The app does not accept a future date.
 - The Manager can cancel only a job that the Manager created, before any quantity has been saved.
 - The Manager cannot cancel a job created by the Director or another user.
 - The Director can cancel any open job that is still allowed to be cancelled. A job with saved quantities cannot be undone by cancelling it.
@@ -862,10 +865,10 @@ The Storekeeper does not negotiate prices, approve sales or collect payments. Th
 
 ### 3. Authorise the sale
 
-1. The Director saves the approved price and its start date on **Prices**. Before choosing it, the Director can open **Price Guide**, which shows what each product really costs per kg (production cost plus the salaries, rent and running expenses of the days it was produced) and the price and profit per kg at a 15%, 20% and 30% profit margin, where the margin is the share of the selling price that is profit.
+1. The Director saves the approved price and its start date on **Prices**. Before choosing it, the Director can open **Price Guide**, which shows what each product really costs per kg (production cost, the normal production loss of the last 90 days, and the salaries, rent and running expenses of the days it was produced) and the price and profit per kg at a 15%, 20% and 30% profit margin, where the margin is the share of the selling price that is profit.
 2. If a price is missing or wrong, ask the Director to correct it before authorising the sale.
 3. The Manager or Director selects the sale date, customer and product, and enters the **Quantity ordered**: the amount the customer asked for. The Storekeeper sees it on the sale in **Pending Weighing**.
-4. Check the price supplied by the app. Choose **Factory weight** or **Customer’s agreed weight** under **Payment weight**. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. The Director cannot be the accompanying representative. Do not enter a second price or dispatch weight in this form.
+4. Check the price supplied by the app. Choose **Factory weight** or **Customer’s agreed weight** under **Payment weight**. Select the accompanying representative. The Manager can select themselves; only the Director can assign another approved staff member. The Director cannot be the accompanying representative. Do not enter a second price or dispatch weight in this form. For an approved credit sale, enter the agreed **Payment due date**.
 5. Select **Authorise Sale**.
 6. Tell the Storekeeper about the collection and assign Operators to prepare the products and equipment.
 
@@ -928,6 +931,7 @@ Open **Delivery Note** from the sale record or open the job in **Pending Weighin
 - An invoice shows what the customer owes.
 - A payment receipt shows a payment recorded as received.
 - A statement shows the sale, payments and remaining balance.
+- An unpaid balance past its **Payment due date** shows how late it is, for example **Partly Paid · 5 days overdue**. Without a due date, payment is due on the dispatch date.
 
 The Director or Manager records checked customer payments using the sale payment controls, then generates the receipt. The Storekeeper does not record payments. Do not mark a credit sale as fully paid before the money has actually been received.
 

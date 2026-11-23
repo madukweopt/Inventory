@@ -80,7 +80,7 @@ async function correctRecord(pool,kind,record,operation,userId=null) {
             if(!/^\d{4}-\d{2}-\d{2}$/.test(record[config.date]||'')) fail(400,'Enter a valid record date');
             if(kind==='sales'&&Number(paid)>0) {
                 if(Number(record.customer_id)!==original.customer_id) fail(409,'A sale with recorded payments cannot be moved to another customer');
-                const tooSmall=await client.query('SELECT $1::numeric*$2::numeric < $3::numeric AS invalid',[amount,price,paid]);
+                const tooSmall=await client.query('SELECT invoice_amount($1::numeric,$2::numeric) < $3::numeric AS invalid',[amount,price,paid]);
                 if(tooSmall.rows[0].invalid) fail(409,'Sale total cannot be less than its recorded payments');
             }
             const reason=String(record.correction_reason||'').trim();
@@ -90,7 +90,9 @@ async function correctRecord(pool,kind,record,operation,userId=null) {
                 ${kind==='sales'?',factory_quantity=CASE WHEN factory_quantity IS NOT NULL THEN $4::numeric ELSE NULL END,due_date=CASE WHEN due_date=sales_date THEN $1::date ELSE due_date END':''}
                 WHERE ${config.id}=$6 RETURNING *`,
                 [record[config.date],record[config.party],record.item_id,amount,price,id]);
-            await client.query(`UPDATE weighing_requests SET request_date=$1,${config.party}=$2,
+            // The authorisation keeps its own date. It moves only if the goods are now dated before it, because goods
+            // cannot move before they are authorised.
+            await client.query(`UPDATE weighing_requests SET request_date=LEAST(request_date,$1::date),${config.party}=$2,
                 item_id=$3,quantity=$4,${config.price}=$5 WHERE request_id=ANY($6::integer[])`,
                 [record[config.date],record[config.party],record.item_id,amount,price,requestIds]);
             if(kind==='sales'&&(Number(record.customer_id)!==original.customer_id||Number(record.item_id)!==original.item_id)) {

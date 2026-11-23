@@ -76,3 +76,23 @@ test('the month in progress counts only normal days already past as idle, and es
     assert.equal(november.in_progress,true);assert.equal(november.salaries_estimated,true);
     close(november.idle_day_cost,100000*(13-3),'November idle so far');
 });
+
+test('break-even includes the normal production loss, so selling every kg at it recovers the kernel spent',()=>{
+    // ₦30,000 of kernel: 80 kg of products carry ₦24,000 and 20 kg lost carry ₦6,000 (25% of the product cost).
+    const lossDay={...day('2026-11-02',80,0),completed_production_cost:24000,loss_cost:6000,pko_daily_cost_per_kg:300};
+    const running={payroll:{},spread:{},oneOff:{}};
+    const guide=buildPriceGuide({costs:{production_costs:[lossDay],product_dispatch_costs:[],finished_stock:stock(80,0,0,[300,0,0])},running,normalDays:26,today:'2026-11-05'});
+    const pko=product(guide,'PKO');
+    assert.equal(pko.loss_rate,25);close(pko.loss_cost_per_kg,75,'loss per kg');close(pko.full_cost_per_kg,375,'break-even');
+});
+
+test('empty stock shows the last production cost with its date, and no estimate for a product never made',()=>{
+    const running={payroll:{},spread:{},oneOff:{}};
+    const made={...day('2026-11-02',50,0),completed_production_cost:15000,loss_cost:0,pko_daily_cost_per_kg:300};
+    const guide=buildPriceGuide({costs:{production_costs:[made],product_dispatch_costs:[out('2026-11-03','PKO',50)],finished_stock:stock(0,0,0,[0,0,0])},
+        running,prices:{PKO:400},normalDays:26,today:'2026-11-05'});
+    const pko=product(guide,'PKO');
+    assert.equal(pko.cost_basis,'last');assert.equal(pko.cost_date,'2026-11-02');close(pko.full_cost_per_kg,300,'last cost');
+    assert.ok(pko.current.margin<100,'a sold-out product never shows a 100% margin');
+    assert.equal(product(guide,'PKC').cost_basis,'none');assert.equal(product(guide,'PKC').margins.length,0);
+});

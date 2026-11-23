@@ -10,9 +10,9 @@ router.get("/api/expenses",requireRole(['admin','manager','storekeeper']),functi
 	pool.query(
 		`SELECT expenses.expense_id, to_char(expenses.expense_date, 'YYYY-MM-DD') AS expense_date, expenses.created_at, expenses.category, expenses.description,
     expenses.amount_spent,expenses.spread_months,expenses.startup_months
-    FROM expenses
+    FROM expenses WHERE $1 OR startup_months=0
     ORDER BY
-    expenses.created_at DESC;`,
+    expenses.created_at DESC;`,[req.session.role==='admin'],
 		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
@@ -46,7 +46,7 @@ router.post("/api/expenses",requireRole(['admin','manager']),async function(req,
 		if(!prior) return false;
 		if(Number(prior.amount_spent)!==Number(expense.amount_spent)||prior.description!==expense.description) {
 			res.status(409).json({ err: 'This expense was already saved with different details. Refresh before recording another.' });
-		} else res.status(200).json(prior);
+		} else res.status(200).json({...prior,already_saved:true});
 		return true;
 	};
 	try {

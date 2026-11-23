@@ -50,4 +50,14 @@ function expenseSpreading(expense) {
 	return { spread: spread,startup: startup };
 }
 
-module.exports={readInventoryQuantity,readSubmissionKey,stockAdjustmentReasons,validExpense,expenseSpreading};
+// Today's date in Lagos (UTC+1, no daylight saving). Authorisations may be for today or an earlier day (to catch up
+// on a missed day) but never for a future day. Automated tests may set TEST_TODAY to move "today".
+function lagosToday() {
+	if(process.env.NODE_ENV==='test'&&/^\d{4}-\d{2}-\d{2}$/.test(process.env.TEST_TODAY||'')) return process.env.TEST_TODAY;
+	return new Date(Date.now()+3600000).toISOString().slice(0,10);
+}
+function futureAuthorisation(date) {
+	return /^\d{4}-\d{2}-\d{2}$/.test(String(date||''))&&String(date)>lagosToday();
+}
+
+module.exports={readInventoryQuantity,readSubmissionKey,stockAdjustmentReasons,validExpense,expenseSpreading,lagosToday,futureAuthorisation};

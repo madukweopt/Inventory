@@ -16,7 +16,7 @@ router.get("/api/customers",requireRole(['admin','manager','storekeeper']),funct
     customers.created_at,
 
     COALESCE(
-        SUM(sales.quantity * sales.unit_price),
+        SUM(invoice_amount(sales.quantity,sales.unit_price)),
         0
     ) AS total_purchases,
 
@@ -390,7 +390,7 @@ router.get('/api/customers-purchases',requireRole(['admin','manager','storekeepe
 		items.name AS Item,
 		sales.quantity,
 		sales.unit_price,
-		sales.quantity * sales.unit_price AS total
+		invoice_amount(sales.quantity,sales.unit_price) AS total
 		FROM sales
 		INNER JOIN items
 		ON sales.item_id = items.item_id

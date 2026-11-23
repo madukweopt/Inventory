@@ -349,6 +349,7 @@ function createUserDialog() {
 				<option value="storekeeper"></option>
 			</datalist>
 
+			<label><input id="account-disabled" type="checkbox" /> Disable this account</label>
 			<label for="account-password">Password</label>
 			<input id="account-password" type="password" minlength="8" autocomplete="new-password" />
 			<small class="user-password-help">A new account requires a password of at least 8 characters.</small>
@@ -380,6 +381,8 @@ function showUserMessage(message,isError=false) {
 function resetUserForm() {
 	const accountSelect=userDialog.querySelector('#user-account-select');
 	accountSelect.value='';
+	userDialog.querySelector('#account-disabled').checked=false;
+	userDialog.querySelector('#account-disabled').disabled=true;
 	userDialog.querySelector('#account-username').value='';
 	userDialog.querySelector('#account-role').value='';
 	userDialog.querySelector('#account-password').value='';
@@ -403,7 +406,7 @@ async function loadUserAccounts(selectedUserId='') {
 	accountSelect.replaceChildren(new Option('Create a new account',''));
 	userAccounts.forEach(function(account) {
 		accountSelect.appendChild(
-			new Option(account.username+' — '+account.role,account.user_id)
+			new Option(account.username+' — '+account.role+(account.enabled===false?' (disabled)':''),account.user_id)
 		);
 	});
 
@@ -418,6 +421,7 @@ async function loadUserAccounts(selectedUserId='') {
 // Returns the username, role and optional replacement password from the form.
 function readUserForm() {
 	return {
+		enabled: !userDialog.querySelector('#account-disabled').checked,
 		username: userDialog.querySelector('#account-username').value.trim(),
 		role: userDialog.querySelector('#account-role').value.trim(),
 		password: userDialog.querySelector('#account-password').value
@@ -460,6 +464,8 @@ if(manageUsersBtn&&userDialog) {
 		}
 
 		userDialog.querySelector('#account-username').value=selected.username;
+		userDialog.querySelector('#account-disabled').disabled=false;
+		userDialog.querySelector('#account-disabled').checked=selected.enabled===false;
 		userDialog.querySelector('#account-role').value=selected.role;
 		userDialog.querySelector('#account-password').value='';
 		userDialog.querySelector('.user-password-help').textContent=
@@ -573,7 +579,7 @@ if(switchAccountBtn&&switchAccountDialog) {
 			}
 			switchSelect.replaceChildren(new Option('Choose an account',''));
 			accounts
-				.filter(account => ['manager','storekeeper'].includes(account.role))
+				.filter(account => account.enabled!==false&&['manager','storekeeper'].includes(account.role))
 				.forEach(function(account) {
 					switchSelect.appendChild(new Option(
 						account.username+' — '+account.role,

@@ -2,10 +2,10 @@
 // Unfinished quantity is a material-balance estimate, not a measurement of machine contents.
 // Product shares are applied per production authorisation, so oil weighed a day after its cake
 // still shares the same production cost instead of each weighing day being costed alone.
-function calculateContinuousCosts({purchases,issues,production,productStock,productItems,losses=[]}) {
+function calculateContinuousCosts({purchases,issues,production,productStock,productItems,losses=[],rawReceipts=[]}) {
     const days=new Map();
     const dayFor=date=>{
-        if(!days.has(date))days.set(date,{purchases:[],issues:[],production:[],stock:[],loss:0});
+        if(!days.has(date))days.set(date,{purchases:[],issues:[],production:[],stock:[],loss:0,rawReceipts:[]});
         return days.get(date);
     };
     for(const record of purchases)dayFor(record.date).purchases.push(record);
@@ -13,7 +13,8 @@ function calculateContinuousCosts({purchases,issues,production,productStock,prod
     for(const record of production)dayFor(record.date).production.push(record);
     for(const record of productStock)dayFor(record.date).stock.push(record);
     for(const record of losses)dayFor(record.date).loss+=Number(record.quantity)||0;
-    const raw={},finished={},output=[],dispatches=[],progress=[],groups={};
+    for(const record of rawReceipts)dayFor(record.date).rawReceipts.push(record);
+    const raw={},finished={},output=[],dispatches=[],progress=[],groups={},rawLosses=[];
     let quantity=0,value=0,unmatched=0,unpriced=false;
     const number=v=>Number(v)||0;
     const productKey=name=>String(name).trim().toLowerCase();
@@ -30,12 +31,31 @@ function calculateContinuousCosts({purchases,issues,production,productStock,prod
             const item=raw[purchase.item_id]||(raw[purchase.item_id]={quantity:0,value:0});
             item.quantity+=number(purchase.quantity);item.value+=number(purchase.value);
         }
+        // A return to store puts material back at its average cost. Returned kernel also leaves the unfinished
+        // production it was issued to; a count that found more simply adds to stock.
+        for(const receipt of day.rawReceipts) {
+            const item=raw[receipt.item_id]||(raw[receipt.item_id]={quantity:0,value:0});
+            const amount=number(receipt.quantity),unitCost=average(item);
+            if(receipt.adjustment_reason==='Return to store'&&productKey(receipt.name)==='p kernel'&&quantity>0) {
+                const back=Math.min(amount,quantity),backValue=value*back/quantity;
+                quantity-=back;value-=backValue;
+                item.quantity+=amount;item.value+=backValue+unitCost*(amount-back);
+            } else {item.quantity+=amount;item.value+=unitCost*amount;}
+        }
         let issued=0,issuedCost=0,rawUnpriced=false;
         for(const issue of day.issues) {
             const item=raw[issue.item_id]||(raw[issue.item_id]={quantity:0,value:0});
             const amount=number(issue.quantity),unitCost=average(item),cost=unitCost*amount;
             if(amount>item.quantity)rawUnpriced=true;
             item.quantity-=amount;item.value-=cost;
+            // Material removed by hand with a reason (spill, disposal, count difference) is a stock loss, not production.
+            // Daily consumable usage has no reason and stays a production cost.
+            if(issue.source_type==='Manual'&&issue.adjustment_reason) {
+                rawLosses.push({dispatch_date:date,created_at:issue.created_at,item_id:issue.item_id,name:issue.name,
+                    quantity_dispatched:amount,weighted_average_cost:unitCost,cost_of_dispatch:cost,
+                    source_type:'Manual',adjustment_reason:issue.adjustment_reason,provisional:true});
+                continue;
+            }
             const material=materials[issue.item_id]||(materials[issue.item_id]={item_id:issue.item_id,name:issue.name,item_type:issue.item_type,quantity_issued:0,total_cost:0});
             material.quantity_issued+=amount;material.total_cost+=cost;
             issuedCost+=cost;
@@ -132,7 +152,7 @@ function calculateContinuousCosts({purchases,issues,production,productStock,prod
                 remaining_quantity:balance.quantity,remaining_value:balance.value,provisional:true});
         }
     }
-    return {production_costs:output,product_dispatch_costs:dispatches,
+    return {production_costs:output,product_dispatch_costs:dispatches,raw_material_losses:rawLosses,
         finished_stock:Object.values(finished).map(item=>({...item,weighted_average_cost:average(item)})),
         work_in_progress:{quantity,value,unmatched_output_quantity:unmatched,provisional:true,
             status:unmatched||unpriced?'Review required':'Estimated',unpriced_materials:unpriced,basis:'Kernel issued minus weighed oil, cake, sludge and recorded production losses'},

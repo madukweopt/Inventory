@@ -4,9 +4,9 @@ async function lockStock(client) {
 }
 async function stockFloor(client) {
     const result=await client.query(`SELECT item_id,
-        to_char(count_date,'YYYY-MM-DD')||'|'||to_char(created_at,'YYYY-MM-DD HH24:MI:SS.US')||'|'||lpad(count_id::text,20,'0') AS point,
-        SUM(received-issued) OVER(PARTITION BY item_id ORDER BY count_date,created_at,count_id ROWS UNBOUNDED PRECEDING) AS balance
-        FROM stock_counts ORDER BY item_id,count_date,created_at,count_id`);
+        to_char(count_date,'YYYY-MM-DD')||'|'||to_char(created_at,'YYYY-MM-DD HH24:MI:SS.US')||'|'||lpad(count_id::text,20,'0')||'|'||lpad(batch_id::text,20,'0') AS point,
+        SUM(received-issued) OVER(PARTITION BY item_id ORDER BY count_date,created_at,count_id,batch_id ROWS UNBOUNDED PRECEDING) AS balance
+        FROM timed_stock_movements ORDER BY item_id,count_date,created_at,count_id,batch_id`);
     const snapshot=new Map();
     for(const row of result.rows) {
         if(!snapshot.has(row.item_id))snapshot.set(row.item_id,[]);

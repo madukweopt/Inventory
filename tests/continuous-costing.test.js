@@ -46,3 +46,14 @@ test('Products weighed on different days share one production authorisation cost
  assert.ok(Math.abs(tuesday.pko_production_cost-total*0.73)<0.001);
  assert.ok(Math.abs(tuesday.sludge_production_cost-total*0.02)<0.001);
 });
+test('Kernel disposed of is a stock loss, not material in production',()=>{
+ const disposal={...issue('2026-01-01',100),source_type:'Manual',adjustment_reason:'Disposal'};
+ const result=calculateContinuousCosts({purchases:[purchase('2026-01-01',100,300)],issues:[disposal],productStock:[],losses:[],productItems:items,production:[]});
+ assert.equal(result.work_in_progress.quantity,0);assert.equal(result.work_in_progress.value,0);
+ assert.equal(result.raw_material_losses.length,1);assert.equal(result.raw_material_losses[0].cost_of_dispatch,30000);
+});
+test('Kernel returned to store the next day leaves production at its cost',()=>{
+ const back={date:'2026-01-02',item_id:1,name:'P Kernel',quantity:40,adjustment_reason:'Return to store',created_at:'2026-01-02T10:00:00Z'};
+ const result=calculateContinuousCosts({purchases:[purchase('2026-01-01',100,300)],issues:[issue('2026-01-01',100)],productStock:[],losses:[],productItems:items,production:[],rawReceipts:[back]});
+ assert.equal(result.work_in_progress.quantity,60);assert.equal(result.work_in_progress.value,18000);
+});
