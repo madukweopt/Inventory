@@ -23,8 +23,13 @@
         const card=el('article',undefined,'price-guide-card');
         const head=el('header',undefined,'price-guide-card-head');
         head.append(el('h3',product.name),el('span','In stock: '+kg(product.stock_quantity),'price-guide-stock'));
+        if(product.cost_basis==='none'){
+            card.append(head,el('p','No current cost estimate: no '+product.name+' has been produced yet.','price-guide-note'));
+            return card;
+        }
         const costs=el('div',undefined,'price-guide-costs');
-        costs.append(costLine('Production cost (kernel, diesel, electricity, losses)',product.production_cost_per_kg),
+        costs.append(costLine('Production cost (kernel, diesel, electricity)',product.production_cost_per_kg),
+            costLine('Production losses ('+product.loss_rate+'% normal loss, last 90 days)',product.loss_cost_per_kg),
             costLine('Running costs (salaries, rent, expenses of its production days)',product.running_cost_per_kg),
             costLine('Full cost = break-even price',product.full_cost_per_kg,'is-total'));
         const table=el('table',undefined,'price-guide-table');
@@ -49,7 +54,8 @@
                     (product.current.margin==null?'':' ('+(product.current.profit_per_kg<0?'loss of ':'')+Math.abs(product.current.margin)+'% '+(product.current.profit_per_kg<0?'of the price':'profit margin')+')')),
                 el('span','On the stock held: '+(product.current.profit_on_stock<0?'loss ':'profit ')+whole(Math.abs(product.current.profit_on_stock))));
         }
-        if(!(Number(product.stock_quantity)>0))card.appendChild(el('p','No '+product.name+' in stock: the cost shown is from the last stock held.','price-guide-note'));
+        if(product.cost_basis==='last')card.appendChild(el('p','No '+product.name+' in stock: costs are from the last production on '+
+            new Date(product.cost_date+'T00:00:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})+'.','price-guide-note'));
         card.append(head,costs,tableWrap,current);
         return card;
     }

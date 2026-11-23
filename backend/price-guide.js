@@ -13,6 +13,12 @@
 // shortages are not loaded onto the stock that follows; their share is shown separately as idle-day cost.
 // The running cost per kg is kept as a moving weighted average like the production cost: it rises as stock is
 // produced and shrinks as stock is sold, written off or corrected, so it always matches the stock still held.
+//
+// Production losses: the kernel cost of weight lost in the machines is not part of the products' production cost
+// (the dashboard shows it as a separate loss), so the guide adds it back per kg at the normal loss rate of the last
+// 90 days of production. Without it, the break-even price would not recover the money spent on kernel.
+// When a product's stock is empty, its costs come from the last production that made it, with that date;
+// if it has never been made, no estimate is given.
 
 const PRODUCTS=[['PKO','pko','storekeeper_pko_received'],['PKC','pkc','storekeeper_pkc_received'],['Sludge','sludge','sludge_received']];
 const MARGINS=[15,20,30];
@@ -81,10 +87,10 @@ function buildPriceGuide({costs,running,manualReceipts=[],prices={},normalDays=2
     for(const out of costs.product_dispatch_costs) events.push({date:dayOf(out.dispatch_date),created:String(out.created_at||''),order:1,name:out.name,quantity:-Number(out.quantity_dispatched)});
     // Same order as the app's own costing: each day's production and added stock first, then what left, by time.
     events.sort((a,b)=>a.date.localeCompare(b.date)||a.order-b.order||a.created.localeCompare(b.created));
-    const held=Object.fromEntries(PRODUCTS.map(([name])=>[name,{quantity:0,running:0}]));
+    const held=Object.fromEntries(PRODUCTS.map(([name])=>[name,{quantity:0,running:0,last:0}]));
     for(const event of events) {
         const stock=held[event.name];if(!stock)continue;
-        if(event.quantity>=0) { stock.quantity+=event.quantity;stock.running+=event.running; }
+        if(event.quantity>=0) { stock.quantity+=event.quantity;stock.running+=event.running;if(stock.quantity>0)stock.last=stock.running/stock.quantity; }
         else {
             const leaving=Math.min(-event.quantity,stock.quantity);
             if(stock.quantity>0) stock.running-=stock.running*leaving/stock.quantity;
@@ -92,16 +98,32 @@ function buildPriceGuide({costs,running,manualReceipts=[],prices={},normalDays=2
             if(stock.quantity<=0.000001) { stock.quantity=0;stock.running=0; }
         }
     }
-    const products=PRODUCTS.map(([name])=>{
+    // Normal loss rate: kernel cost lost in the machines as a share of the cost that became products.
+    const since=new Date(Date.parse(String(today).slice(0,10)+'T00:00:00Z')-90*86400000).toISOString().slice(0,10);
+    const recent=(costs.production_costs||[]).filter(row=>dayOf(row.production_date)>=since);
+    const lossDays=recent.some(row=>Number(row.completed_production_cost)>0)?recent:(costs.production_costs||[]);
+    const lostCost=lossDays.reduce((sum,row)=>sum+(Number(row.loss_cost)||0),0);
+    const productCost=lossDays.reduce((sum,row)=>sum+(Number(row.completed_production_cost)||0),0);
+    const lossRate=productCost>0?lostCost/productCost:0;
+    const products=PRODUCTS.map(([name,key])=>{
         const finished=costs.finished_stock.find(row=>row.name===name)||{quantity:0,weighted_average_cost:0};
         const quantity=Number(finished.quantity)||0;
-        const production=Number(finished.weighted_average_cost)||0;
-        const runningPerKg=held[name].quantity>0?held[name].running/held[name].quantity:0;
-        const full=production+runningPerKg;
+        let production=Number(finished.weighted_average_cost)||0,runningPerKg=held[name].quantity>0?held[name].running/held[name].quantity:0;
+        let basis='stock',costDate=null;
+        if(!(quantity>0)) {
+            // Stock is empty: use the last production that made this product.
+            const last=[...(costs.production_costs||[])].reverse().find(row=>Number(row[key+'_daily_cost_per_kg'])>0);
+            production=last?Number(last[key+'_daily_cost_per_kg']):0;runningPerKg=last?held[name].last:0;
+            basis=last?'last':'none';costDate=last?dayOf(last.production_date):null;
+        }
         const current=prices[name]==null?null:Number(prices[name]);
+        if(basis==='none') return {name,stock_quantity:0,cost_basis:basis,cost_date:null,margins:[],current_price:current,current:null};
+        const lossPerKg=production*lossRate;
+        const full=production+lossPerKg+runningPerKg;
         return {
-            name,stock_quantity:round(quantity),
-            production_cost_per_kg:round(production),running_cost_per_kg:round(runningPerKg),full_cost_per_kg:round(full),
+            name,stock_quantity:round(quantity),cost_basis:basis,cost_date:costDate,
+            production_cost_per_kg:round(production),loss_cost_per_kg:round(lossPerKg),loss_rate:round(lossRate*100,1),
+            running_cost_per_kg:round(runningPerKg),full_cost_per_kg:round(full),
             margins:MARGINS.map(margin=>{
                 const price=full/(1-margin/100);
                 return {margin,price_per_kg:round(price),profit_per_kg:round(price-full),profit_on_stock:round((price-full)*quantity)};

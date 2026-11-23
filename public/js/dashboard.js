@@ -123,15 +123,31 @@ if(dateInput) {
 	updateDateLabel();
 	showStockLevels();
 
+	// The production, sales and profit panels share one report request: a click or date change asks the server once,
+	// and all panels show the same set of records. The shared answer is reused for a few seconds only, so later
+	// clicks still fetch fresh figures.
+	let periodRequest={date:null,at:0,promise:null};
+	function loadPeriods(selectedDate) {
+		if(periodRequest.date!==selectedDate||Date.now()-periodRequest.at>3000) {
+			const promise=fetch("/api/dashboard_period?date="+encodeURIComponent(selectedDate)).then(async function(response) {
+				const body=await response.json();
+				if(!response.ok) {
+					if(periodRequest.promise===promise) periodRequest.date=null;
+					throw new Error(body.err||"Could not load the dashboard figures");
+				}
+				return body;
+			});
+			periodRequest={date:selectedDate,at:Date.now(),promise:promise};
+		}
+		return periodRequest.promise;
+	}
+
 	// Loads and displays period production.
 	async function showPeriodProduction(period) {
 		const user=await window.currentUserPromise;
 		if(!user||user.role==='storekeeper') return;
 		const selectedDate=dateInput.value;
-		const RawPeriods=await fetch(
-			"/api/dashboard_period?date="+selectedDate
-		);
-		const periods=await RawPeriods.json();
+		const periods=await loadPeriods(selectedDate);
 		const production=periods[period].production;
 		const prodGrid=document.querySelector(".prod-grid");
 		prodGrid.innerHTML="";
@@ -195,12 +211,7 @@ if(dateInput) {
 
 		try {
 			const selectedDate=dateInput.value;
-			const response=await fetch(
-				"/api/dashboard_period?date="+encodeURIComponent(selectedDate)
-			);
-			if(!response.ok) throw new Error("Could not load profit figures");
-
-			const periods=await response.json();
+			const periods=await loadPeriods(selectedDate);
 			const profit=periods[period];
 			if(!profit)
 				throw new Error("Profit data is missing for "+period);
@@ -426,10 +437,7 @@ if(dateInput) {
 			const user=await window.currentUserPromise;
 			if(!user||user.role==='storekeeper') return;
 			const selectedDate=dateInput.value;
-			const response=await fetch(
-				"/api/dashboard_period?date="+selectedDate
-			);
-			const sales=await response.json();
+			const sales=await loadPeriods(selectedDate);
 			const periodSales=sales[period].sales;
 			// Transforms collection entries into the required output shape.
 			const salesArray=Object.entries(periodSales).map(function([

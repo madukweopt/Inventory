@@ -50,6 +50,8 @@ test('only the real records carry over, with numbers and links kept, into a new 
         await source.query(`INSERT INTO capital_assets(asset_id,name,asset_type,acquired_date,cost,job_id,created_by) VALUES
             (8,'Filter press','Machine','2026-08-20',2000000,9,1),(11,'CCTV Camera','Other','2026-08-17',180000,NULL,1)`);
         await source.query(`INSERT INTO customers(name) VALUES ('Test customer')`);
+        await source.query(`INSERT INTO sop_revisions(revision_id,content_html,saved_by,created_at) VALUES
+            (1,'<h2>Manual</h2><p>Supplied wording</p>','director','2026-11-16T10:00:00Z'),(2,'<h2>Manual</h2><p>Corrected receiving step</p>','director','2026-11-17T10:00:00Z')`);
 
         const payload=await exportCarryOver(source);
         assert.deepEqual(payload.tables.expenses.map(row=>row.expense_id),[174,176,180],'start-up, prepaid and partner-payment expenses only');
@@ -69,7 +71,11 @@ test('only the real records carry over, with numbers and links kept, into a new 
         assert.equal(await count(target,'SELECT count(*) AS n FROM users'),0);
 
         const result=await importCarryOver(target,payload,{confirmDatabase:databaseName});
-        assert.deepEqual(result.counts,{items:3,users:3,service_partners:2,partner_jobs:2,expenses:3,partner_payments:2,capital_assets:2});
+        assert.deepEqual(result.counts,{items:3,users:3,sop_revisions:2,service_partners:2,partner_jobs:2,expenses:3,partner_payments:2,capital_assets:2});
+        // The corrected manual comes across with who saved it and when, so staff see the same latest wording.
+        const sop=(await target.query("SELECT revision_id,content_html,saved_by,created_at FROM sop_revisions ORDER BY revision_id")).rows;
+        assert.equal(sop.length,2);assert.match(sop[1].content_html,/Corrected receiving step/);assert.equal(sop[1].saved_by,'director');
+        assert.equal(sop[1].created_at.toISOString(),'2026-11-17T10:00:00.000Z');
         // Numbers and links kept; nothing else came across.
         assert.equal(await count(target,"SELECT count(*) AS n FROM capital_assets WHERE asset_id=8 AND job_id=9 AND created_by=1"),1);
         assert.equal(await count(target,"SELECT count(*) AS n FROM partner_payments WHERE payment_id=4 AND job_id=12 AND expense_id=180 AND recorded_by=4"),1);

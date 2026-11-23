@@ -11,7 +11,7 @@ const router=require('express').Router();
 // Handles GET /api/stock_counts requests.
 router.get("/api/stock_counts",requireRole(['admin','storekeeper']),function(req,res) {
 	pool.query(
-		"SELECT stock_counts.source_type, stock_counts.source_id, stock_counts.adjustment_reason, stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id) AS closing_stock FROM stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.count_date DESC, stock_counts.created_at DESC, stock_counts.count_id DESC",
+		"SELECT stock_counts.source_type, stock_counts.source_id, stock_counts.adjustment_reason, stock_counts.count_id, stock_counts.item_id, items.name, to_char(stock_counts.count_date, 'YYYY-MM-DD') AS count_date, stock_counts.created_at, stock_counts.received, stock_counts.issued, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id,stock_counts.batch_id) - (stock_counts.received - stock_counts.issued) AS opening_stock, SUM(stock_counts.received - stock_counts.issued) OVER (PARTITION BY stock_counts.item_id ORDER BY stock_counts.count_date, stock_counts.created_at, stock_counts.count_id,stock_counts.batch_id) AS closing_stock FROM timed_stock_movements stock_counts INNER JOIN items ON stock_counts.item_id = items.item_id ORDER BY stock_counts.count_date DESC, stock_counts.created_at DESC, stock_counts.count_id DESC,stock_counts.batch_id DESC",
 		// Handles the result of the preceding database query.
 		function(err,result) {
 			if(err) {
@@ -89,7 +89,7 @@ router.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
                 if(String(prior.item_id)!==String(stockInventory.item_id)||Number(prior.received)!==receivedQuantity||Number(prior.issued)!==issuedQuantity) {
                     return res.status(409).json({ err: 'This stock change was already saved with different details. Refresh before recording another.' });
                 }
-                return res.status(200).json(prior);
+                return res.status(200).json({...prior,already_saved:true});
             }
         }
         const before=await stockFloor(client);
@@ -137,7 +137,7 @@ router.post('/api/consumable-usage',requireRole(['admin','storekeeper']),async f
             if(existing.recorded_by!==req.session.user_id||existing.item_id!==Number(usage.item_id)||existing.saved_date!==usage.usage_date||Number(existing.issued)!==amount){
                 throw Object.assign(new Error('This usage entry has already been saved with different details. Refresh Inventory Data before recording another entry.'),{status:409});
             }
-            await client.query('COMMIT');return res.json({message:'Daily usage already recorded; stock was not deducted again.',record:existing});
+            await client.query('COMMIT');return res.json({message:'Daily usage already recorded; stock was not deducted again.',record:existing,already_saved:true});
         }
         const item=(await client.query('SELECT item_type FROM items WHERE item_id=$1',[usage.item_id])).rows[0];
         if(!item||item.item_type!=='consumable')throw Object.assign(new Error('This form records consumable usage only. Use Pending Weighing for purchases, sales and kernel issues.'),{status:400});

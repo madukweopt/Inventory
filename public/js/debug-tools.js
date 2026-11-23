@@ -14,7 +14,7 @@ async function loadDebugTools() {
 		}
 
 		const script=document.createElement('script');
-		script.src='https://cdn.jsdelivr.net/npm/eruda';
+		script.src='https://cdn.jsdelivr.net/npm/eruda@3.4.1/eruda.js';
 		script.onload=function() {
 			eruda.init();
 		};

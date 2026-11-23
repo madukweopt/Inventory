@@ -53,6 +53,12 @@ function stockChangeValues() {
 	return stockAdd.checked?{ received: quantity,issued: "0" }:{ received: "0",issued: quantity };
 }
 const productionDate=document.querySelector("#production-date");
+// Authorisations are for today or an earlier day, so the date pickers stop at today.
+[salesDate,purchaseDate,productionDate].forEach(input=>{
+	if(!input) return;
+	const now=new Date();
+	input.max=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10);
+});
 const kernelUsed=document.querySelector("#kernel-used");
 const oilProduced=document.querySelector("#oil-produced");
 const pkcProduced=document.querySelector("#pkc-produced");
@@ -161,6 +167,7 @@ async function displaySelectedForm() {
         document.getElementById('sales-representative').disabled=false;
         document.querySelector('label[for="sales-quantity"]').textContent='Quantity Issued (kg)';
         document.getElementById('sales-ordered-field').hidden=false;salesOrderedQuantity.required=true;
+        document.getElementById('sales-due-field').hidden=false;
 		salesForm.reset();
 		sessionStorage.removeItem('editRecord');
 		sessionStorage.removeItem('editKind');
@@ -484,7 +491,8 @@ async function saveSale(event) {
 		unit_price: unitPrice.value,
         billing_basis:document.getElementById('sales-billing-basis').value,
         representative_id:document.getElementById('sales-representative').value,
-        ordered_quantity:salesOrderedQuantity?salesOrderedQuantity.value:''
+        ordered_quantity:salesOrderedQuantity?salesOrderedQuantity.value:'',
+        agreed_due_date:document.getElementById('sales-agreed-due-date')?.value||''
 	};
     const retry=authorisationKey('Sale',sale);
     sale.authorisation_key=retry.key;

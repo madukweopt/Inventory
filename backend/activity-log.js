@@ -51,12 +51,12 @@ const ROUTES=[
     ['POST',/^\/api\/legacy-links\/(\w+)\/(\d+)$/,'Older stock record','Linked older stock records','path2'],
     ['POST',/^\/api\/partners$/,'Partner','Added a partner','json:partner_id'],
     ['PATCH',/^\/api\/partners\/(\d+)$/,'Partner','Changed a partner','path'],
-    ['DELETE',/^\/api\/partners\/(\d+)$/,'Partner','Deleted a partner','path'],
+    ['DELETE',/^\/api\/partners\/(\d+)$/,'Partner','Archived or deleted a partner','path'],
     ['POST',/^\/api\/partners\/(\d+)\/jobs$/,'Partner job','Added a partner job','json:job_id'],
     ['PATCH',/^\/api\/partner-jobs\/(\d+)$/,'Partner job','Changed a partner job','path'],
     ['DELETE',/^\/api\/partner-jobs\/(\d+)$/,'Partner job','Deleted a partner job','path'],
     ['POST',/^\/api\/partner-jobs\/(\d+)\/payments$/,'Partner payment','Recorded a partner payment','json:payment_id'],
-    ['DELETE',/^\/api\/partner-payments\/(\d+)$/,'Partner payment','Deleted a partner payment','path'],
+    ['DELETE',/^\/api\/partner-payments\/(\d+)$/,'Partner payment','Reversed a partner payment','path'],
     ['POST',/^\/api\/capital-assets$/,'Asset','Added an asset','json:asset_id'],
     ['PATCH',/^\/api\/capital-assets\/(\d+)$/,'Asset','Changed an asset','path'],
     ['DELETE',/^\/api\/capital-assets\/(\d+)$/,'Asset','Deleted an asset','path'],
@@ -93,27 +93,32 @@ function describe(method,path,body,json) {
 }
 
 function registerActivityLog(app,pool,requireRole) {
-    // Notes each successful write after the reply is sent; a logging failure never affects the user's action.
+    // Each successful write is logged before its reply is sent, so a person who sees "saved" can rely on the log
+    // having the entry. A retry that only finds the record already saved is logged as a confirmation, not a new action.
+    // A logging failure never affects the user's action.
     app.use('/api',function(req,res,next) {
         if(!WRITE_METHODS.has(req.method)) return next();
         const realUser=req.session&&(req.session.admin_user_id||req.session.user_id);
         const actingUser=req.session&&req.session.user_id;
-        let json=null;
         const sendJson=res.json.bind(res);
-        res.json=function(value) { json=value;return sendJson(value); };
-        res.on('finish',function() {
-            if(res.statusCode>=400) return;
+        let logged=false;
+        res.json=function(value) {
+            if(logged||res.statusCode>=400) return sendJson(value);
+            logged=true;
             const path=req.originalUrl.split('?')[0];
             // Sign-in has no user until it succeeds; read it from the new session.
             const userId=realUser||(req.session&&(req.session.admin_user_id||req.session.user_id))||null;
             const actingId=actingUser||(req.session&&req.session.user_id)||userId;
-            if(!userId) return;
-            const entry=describe(req.method,path,req.body,json);
+            if(!userId) return sendJson(value);
+            const entry=describe(req.method,path,req.body,value);
+            if(value&&value.already_saved) entry.action=('Confirmed already recorded: '+entry.action.charAt(0).toLowerCase()+entry.action.slice(1)).slice(0,200);
             pool.query(`INSERT INTO activity_log(user_id,acting_user_id,username,acting_username,action,record_type,record_id,method,path)
                 VALUES($1,$2,(SELECT username FROM users WHERE user_id=$1),(SELECT username FROM users WHERE user_id=$2),$3,$4,$5,$6,$7)`,
                 [userId,actingId,entry.action,entry.type,entry.id,req.method,path.slice(0,300)])
-                .catch(error=>console.error('Could not write the activity log:',error.message));
-        });
+                .catch(error=>console.error('Could not write the activity log:',error.message))
+                .finally(()=>sendJson(value));
+            return res;
+        };
         next();
     });
 

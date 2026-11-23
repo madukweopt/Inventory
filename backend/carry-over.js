@@ -11,6 +11,7 @@ const {migrationStatus}=require('./migrations');
 // Copied in this order, so every record's links already exist when it arrives.
 const TABLES=[
     ['users','user_id'],
+    ['sop_revisions','revision_id'],
     ['service_partners','partner_id'],
     ['partner_jobs','job_id'],
     ['expenses','expense_id'],
@@ -25,6 +26,7 @@ async function exportCarryOver(pool) {
     try {
         await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
         const tables={
+            sop_revisions:await rows(client,'SELECT to_jsonb(t) AS record FROM sop_revisions t ORDER BY revision_id'),
             users:await rows(client,'SELECT to_jsonb(t) AS record FROM users t ORDER BY user_id'),
             items:await rows(client,'SELECT to_jsonb(t) AS record FROM items t ORDER BY item_id'),
             service_partners:await rows(client,'SELECT to_jsonb(t) AS record FROM service_partners t ORDER BY partner_id'),
@@ -76,12 +78,16 @@ async function importCarryOver(pool,payload,{confirmDatabase,dryRun=false,migrat
                 counts.items++;
             }
             for(const [table,id] of TABLES) {
+                if(table==='sop_revisions'&&!Array.isArray(payload.tables[table])) throw fail('Export the source again to include the saved SOP revisions.','MISSING_SOPS');
                 const records=payload.tables[table]||[];
                 if(records.length) await client.query(`INSERT INTO ${table} SELECT * FROM jsonb_populate_recordset(NULL::${table},$1::jsonb)`,[JSON.stringify(records)]);
                 // New records continue after the copied numbers.
                 await client.query(`SELECT setval(pg_get_serial_sequence($1,$2),GREATEST((SELECT MAX(${id}) FROM ${table}),1),(SELECT MAX(${id}) FROM ${table}) IS NOT NULL)`,[table,id]);
                 counts[table]=records.length;
             }
+            const saved=await rows(client,'SELECT to_jsonb(t) AS record FROM sop_revisions t ORDER BY revision_id');
+            const exported=payload.tables.sop_revisions;
+            if(saved.length!==exported.length||saved.at(-1)?.content_html!==exported.at(-1)?.content_html) throw fail('SOP verification failed.','SOP_MISMATCH');
             await client.query(dryRun?'ROLLBACK':'COMMIT');
             return {database,dryRun,counts};
         } catch(error) { await client.query('ROLLBACK');throw error; }

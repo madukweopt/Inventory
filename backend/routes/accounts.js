@@ -31,7 +31,7 @@ router.get('/api/current-user',requireLogin,async function(req,res) {
 router.get('/api/users',requireRole(['admin']),async function(req,res) {
 	try {
 		const result=await pool.query(
-			`SELECT user_id,username,role,created_at
+			`SELECT user_id,username,role,enabled,created_at
 			FROM users
 			ORDER BY username`
 		);
@@ -108,7 +108,7 @@ router.patch('/api/users/:id',requireRole(['admin']),async function(req,res) {
 			err: 'Password must contain at least 8 characters'
 		});
 	}
-	if(userId===req.session.user_id&&role!=='admin') {
+	if(userId===req.session.user_id&&(role!=='admin'||req.body.enabled===false)) {
 		return res.status(400).json({
 			err: 'You cannot remove your own administrator access'
 		});
@@ -120,18 +120,18 @@ router.patch('/api/users/:id',requireRole(['admin']),async function(req,res) {
 			const passwordHash=await argon2.hash(password);
 			result=await pool.query(
 				`UPDATE users
-				SET username=$1,password_hash=$2,role=$3
+				SET username=$1,password_hash=$2,role=$3,enabled=COALESCE($5,enabled)
 				WHERE user_id=$4
 				RETURNING user_id,username,role,created_at`,
-				[username,passwordHash,role,userId]
+				[username,passwordHash,role,userId,req.body.enabled??null]
 			);
 		} else {
 			result=await pool.query(
 				`UPDATE users
-				SET username=$1,role=$2
+				SET username=$1,role=$2,enabled=COALESCE($4,enabled)
 				WHERE user_id=$3
 				RETURNING user_id,username,role,created_at`,
-				[username,role,userId]
+				[username,role,userId,req.body.enabled??null]
 			);
 		}
 
@@ -184,7 +184,7 @@ router.delete('/api/users/:id',requireRole(['admin']),async function(req,res) {
 		}
 		if(selected.rows[0].role==='admin') {
 			const admins=await client.query(
-				"SELECT COUNT(*)::integer AS total FROM users WHERE role='admin'"
+				"SELECT COUNT(*)::integer AS total FROM users WHERE role='admin' AND enabled"
 			);
 			if(admins.rows[0].total<=1) {
 				await client.query('ROLLBACK');
@@ -219,9 +219,9 @@ router.post('/api/switch-account',requireRole(['admin']),async function(req,res)
 	}
 	try {
 		const result=await pool.query(
-			`SELECT user_id,username,role
+			`SELECT user_id,username,role,session_version
 			FROM users
-			WHERE user_id=$1 AND role IN ('manager','storekeeper')`,
+			WHERE user_id=$1 AND enabled AND role IN ('manager','storekeeper')`,
 			[targetUserId]
 		);
 		if(result.rowCount===0) {
@@ -232,6 +232,8 @@ router.post('/api/switch-account',requireRole(['admin']),async function(req,res)
 
 		const target=result.rows[0];
 		req.session.admin_user_id=req.session.user_id;
+		req.session.admin_session_version=req.session.session_version??0;
+		req.session.session_version=target.session_version;
 		req.session.user_id=target.user_id;
 		req.session.user_name=target.username;
 		req.session.role=target.role;
@@ -260,9 +262,9 @@ router.post('/api/return-to-admin',async function(req,res) {
 	}
 	try {
 		const result=await pool.query(
-			`SELECT user_id,username,role
+			`SELECT user_id,username,role,session_version
 			FROM users
-			WHERE user_id=$1 AND role='admin'`,
+			WHERE user_id=$1 AND enabled AND role='admin'`,
 			[adminUserId]
 		);
 		if(result.rowCount===0) {
@@ -273,6 +275,8 @@ router.post('/api/return-to-admin',async function(req,res) {
 		req.session.user_id=admin.user_id;
 		req.session.user_name=admin.username;
 		req.session.role=admin.role;
+		req.session.session_version=admin.session_version;
+		delete req.session.admin_session_version;
 		delete req.session.admin_user_id;
 		req.session.save(function(error) {
 			if(error) {

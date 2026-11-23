@@ -57,6 +57,7 @@ router.post("/api/purchases",requireRole(['admin','manager']),async function(req
 			error: "Could not submit purchase"
 		});
 	}
+	if(require('../record-rules').futureAuthorisation(purchase.purchase_date)) return res.status(400).json({ err:'Authorise for today or an earlier day. A future date cannot be authorised.' });
 	// The quantity agreed with the supplier, so the Storekeeper knows what to expect.
 	const orderedQuantity=readInventoryQuantity(purchase.ordered_quantity);
 	if(orderedQuantity===null||orderedQuantity<=0) {

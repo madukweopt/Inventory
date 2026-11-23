@@ -45,7 +45,7 @@ router.post('/api/login',express.urlencoded({extended:false,limit:'4kb'}),async 
 	try {
 		const result=await pool.query(
 			`SELECT * FROM users 
-			WHERE username = $1`,
+			WHERE username = $1 AND enabled`,
 			[username]
 		);
 		const user=result.rows[0];
@@ -67,6 +67,7 @@ router.post('/api/login',express.urlencoded({extended:false,limit:'4kb'}),async 
 			req.session.user_id=user.user_id;
 			req.session.user_name=user.username;
 			req.session.role=user.role;
+			req.session.session_version=user.session_version;
 			req.session.save(function(saveError) {
 				if(saveError) {
 					console.error(saveError);

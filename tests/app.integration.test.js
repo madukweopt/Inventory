@@ -72,6 +72,8 @@ test.before(async function() {
 	}
 
 	process.env.NODE_ENV='test';
+	// Many tests use far-future dates to keep their records apart; the future-date rule is tested on its own below.
+	process.env.TEST_TODAY='2099-12-31';
 	process.env.SESSION_SECRET='test-session-secret-not-for-production';
 	process.env.DATABASE_URL=databaseUrlForSchema(isolatedDatabaseUrl,schemaName);
 	const server=require('../backend/server');
@@ -151,7 +153,8 @@ test('the Price Guide gives the Director full cost and margin prices for each pr
     assert.equal(guide.normal_days,26);assert.deepEqual(guide.margins,[15,20,30]);
     assert.deepEqual(guide.products.map(row=>row.name),['PKO','PKC','Sludge']);
     for(const product of guide.products) {
-        assert.ok(Math.abs(product.full_cost_per_kg-(product.production_cost_per_kg+product.running_cost_per_kg))<0.02,product.name+' full cost adds up');
+        if(product.cost_basis==='none') { assert.equal(product.margins.length,0);continue; }
+        assert.ok(Math.abs(product.full_cost_per_kg-(product.production_cost_per_kg+product.loss_cost_per_kg+product.running_cost_per_kg))<0.02,product.name+' full cost adds up');
         for(const option of product.margins) if(option.price_per_kg>0) assert.ok(Math.abs(option.profit_per_kg/option.price_per_kg-option.margin/100)<0.001,'profit is the margin share of the price');
         assert.equal(product.margins.length,3);
     }
@@ -1391,15 +1394,20 @@ test('Other partners: capital jobs become assets, running payments become one ex
     const listed=(await manager.get('/api/partners').expect(200)).body.find(row=>row.partner_id===partner.partner_id);
     assert.equal(Number(listed.total_agreed),580000);assert.equal(Number(listed.total_paid),280000);assert.equal(Number(listed.balance_owed),300000);
     await admin.delete('/api/partner-jobs/'+repair.job_id).expect(409);
-    await admin.delete('/api/partner-payments/'+paid.payment_id).expect(200);
-    assert.ok(!(await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===paid.expense_id),'Deleting the payment removes its expense');
+    await admin.delete('/api/partner-payments/'+paid.payment_id).send({}).expect(400);
+    await admin.delete('/api/partner-payments/'+paid.payment_id).send({reason:'Paid to the wrong job'}).expect(200);
+    await admin.delete('/api/partner-payments/'+paid.payment_id).send({reason:'Again'}).expect(409);
+    assert.ok(!(await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===paid.expense_id),'Reversing the payment removes its expense');
+    const reversed=(await manager.get('/api/partners/'+partner.partner_id+'/jobs').expect(200)).body.find(row=>row.job_id===repair.job_id);
+    assert.equal(reversed.payments.length,1,'The reversed payment stays listed');assert.equal(reversed.payments[0].reversal_reason,'Paid to the wrong job');
+    assert.equal(Number(reversed.paid),0,'A reversed payment no longer counts as paid');
     await manager.post('/api/expenses').send({expense_date:'2094-03-01',category:'Asset/Capital Expenditure',description:'Machine',amount_spent:1000}).expect(400);
     await manager.post('/api/capital-assets').send({name:'Scale',asset_type:'Machine',acquired_date:'2094-03-01',cost:650000}).expect(403);
     const scale=(await admin.post('/api/capital-assets').send({name:'Scale',asset_type:'Machine',acquired_date:'2094-03-01',cost:650000,source:'Scale shop'}).expect(201)).body;
     assert.equal(Number((await admin.get('/api/capital-assets').expect(200)).body.find(row=>row.asset_id===scale.asset_id).paid),650000);
     await admin.delete('/api/capital-assets/'+(await assetFor(tank.job_id)).asset_id).expect(409);
     await admin.delete('/api/capital-assets/'+scale.asset_id).expect(200);
-    // Testing stage: the Director can delete any partner, removing its jobs, payments, their running expenses and asset entries.
+    // A partner with jobs is archived: its jobs, payments, expenses and assets stay. A partner with no jobs is deleted.
     await manager.delete('/api/partners/'+partner.partner_id).expect(403);
     const unused=(await manager.post('/api/partners').send({name:'Unused Dealer'}).expect(201)).body;
     const quote=(await manager.post('/api/partners/'+unused.partner_id+'/jobs').send({job_date:'2094-04-01',job_type:'Equipment purchase',description:'Quoted crusher',agreed_amount:900000,asset_type:'Machine'}).expect(201)).body;
@@ -1407,10 +1415,13 @@ test('Other partners: capital jobs become assets, running payments become one ex
     const fee=(await admin.post('/api/partner-jobs/'+service.job_id+'/payments').send({payment_date:'2094-04-03',amount:40000,payment_method:'Cash'}).expect(201)).body;
     await admin.post('/api/partner-jobs/'+quote.job_id+'/payments').send({payment_date:'2094-04-03',amount:100000,payment_method:'Cash'}).expect(201);
     assert.ok(await assetFor(quote.job_id));
-    await admin.delete('/api/partners/'+unused.partner_id).expect(200);
-    assert.equal(await assetFor(quote.job_id),undefined);
-    assert.ok(!(await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===fee.expense_id),'Its running expenses are removed too');
+    assert.match((await admin.delete('/api/partners/'+unused.partner_id).expect(200)).body.message,/archived/i);
+    assert.ok(await assetFor(quote.job_id),'Its asset stays in the register');
+    assert.ok((await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===fee.expense_id),'Its running expenses stay');
     assert.ok(!(await manager.get('/api/partners').expect(200)).body.some(row=>row.partner_id===unused.partner_id));
+    await admin.delete('/api/partners/'+unused.partner_id).expect(404);
+    const empty=(await manager.post('/api/partners').send({name:'Never Used'}).expect(201)).body;
+    assert.match((await admin.delete('/api/partners/'+empty.partner_id).expect(200)).body.message,/deleted/i);
 });
 
 test('Expenses paid in advance are spread over their months, with start-up months reported separately',async function(){
@@ -1477,6 +1488,100 @@ test('Manual stock changes keep a Director-only history of creates, edits and de
 });
 
 // A failed logout answers once with an error instead of replying twice, which would stop the server.
+test('A retried partner payment is saved once, with one expense, and logged as a confirmation',async function(){
+    const partner=(await manager.post('/api/partners').send({name:'Retry Welder'}).expect(201)).body;
+    const job=(await manager.post('/api/partners/'+partner.partner_id+'/jobs').send({job_date:'2026-11-20',job_type:'Repair',description:'Retry repair',agreed_amount:1000}).expect(201)).body;
+    const payment={payment_date:'2026-11-20',amount:250,payment_method:'Cash',submission_key:crypto.randomUUID()};
+    const first=(await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send(payment).expect(201)).body;
+    const again=(await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send(payment).expect(201)).body;
+    assert.equal(again.payment_id,first.payment_id);assert.equal(again.already_saved,true);
+    await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send({...payment,amount:300}).expect(409);
+    const saved=(await manager.get('/api/partners/'+partner.partner_id+'/jobs').expect(200)).body[0];
+    assert.equal(saved.payments.length,1);assert.equal(Number(saved.owed),750);
+    const expenses=(await admin.get('/api/expenses').expect(200)).body.filter(row=>/Retry Welder/.test(row.description));
+    assert.equal(expenses.length,1);
+    const log=(await applicationPool.query("SELECT action FROM activity_log WHERE path=$1 ORDER BY log_id",['/api/partner-jobs/'+job.job_id+'/payments'])).rows.map(row=>row.action);
+    assert.equal(log.length,2);assert.match(log[1],/^Confirmed already recorded/);
+});
+
+test('A retried start-up cost is saved once',async function(){
+    const cost={expense_date:'2026-01-05',category:'Expenses',description:'Retry rent',amount_spent:120000,spread_months:12,startup_months:3,submission_key:crypto.randomUUID()};
+    const first=(await admin.post('/api/expenses').send(cost).expect(201)).body;
+    const again=(await admin.post('/api/expenses').send(cost).expect(200)).body;
+    assert.equal(again.expense_id,first.expense_id);
+    assert.equal((await admin.get('/api/expenses').expect(200)).body.filter(row=>row.description==='Retry rent').length,1);
+});
+
+test('Staff never receive start-up costs in the expenses list',async function(){
+    const cost=(await admin.post('/api/expenses').send({expense_date:'2026-01-06',category:'Expenses',description:'Hidden installation rent',amount_spent:60000,spread_months:6,startup_months:2}).expect(201)).body;
+    assert.ok((await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===cost.expense_id));
+    assert.ok(!(await manager.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===cost.expense_id));
+    assert.ok(!(await storekeeper.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===cost.expense_id));
+});
+
+test('Changing or disabling an account signs out its devices, including under Switch Account',async function(){
+    const account=(await admin.post('/api/users').send({username:'revoke_keeper',password:'RevokePass123',role:'storekeeper'}).expect(201)).body;
+    const phone=request.agent(app);await login(phone,'revoke_keeper','RevokePass123');
+    await phone.get('/api/current-user').expect(200);
+    const director=request.agent(app);await login(director,'admin_test','AdminPass123');
+    await director.post('/api/switch-account').send({user_id:account.user_id}).expect(200);
+    await admin.patch('/api/users/'+account.user_id).send({username:'revoke_keeper',role:'storekeeper',password:'ChangedPass123'}).expect(200);
+    await phone.get('/api/current-user').expect(401);
+    await director.get('/api/current-user').expect(401);
+    const again=request.agent(app);await login(again,'revoke_keeper','ChangedPass123');
+    await admin.patch('/api/users/'+account.user_id).send({username:'revoke_keeper',role:'storekeeper',enabled:false}).expect(200);
+    await again.get('/api/current-user').expect(401);
+    await request(app).post('/api/login').type('form').send({username:'revoke_keeper',password:'ChangedPass123'});
+    const blocked=request.agent(app);
+    await blocked.post('/api/login').type('form').send({username:'revoke_keeper',password:'ChangedPass123'});
+    await blocked.get('/api/current-user').expect(401);
+});
+
+test('A valid kernel issue after a same-day delivery is accepted, in the order it really happened',async function(){
+    const kernel=ids['P Kernel'];
+    // After every other kernel record, so issuing everything in store leaves no later date short.
+    const day=(await applicationPool.query("SELECT to_char(GREATEST(MAX(count_date)+1,CURRENT_DATE),'YYYY-MM-DD') AS d FROM stock_counts")).rows[0].d;
+    const balance=async()=>Number((await applicationPool.query('SELECT COALESCE(SUM(received-issued),0) AS b FROM stock_counts WHERE item_id=$1',[kernel])).rows[0].b);
+    const production=(await manager.post('/api/production').send({production_date:day,production_hours:'08:00',down_time:'00:00'}).expect(201)).body;
+    const url='/api/weighing-requests/'+production.request_id+'/complete';
+    const start=await balance();
+    // Morning: issue everything in store.
+    if(start>0) await storekeeper.patch(url).send({submission_key:crypto.randomUUID(),kernel_used:start,pko_produced:0,pkc_produced:0,sludge_produced:0}).expect(200);
+    // Noon: 100 kg delivered. Afternoon: issue the 100 kg just received.
+    const purchase=(await manager.post('/api/purchases').send({ordered_quantity:100,purchase_date:day,supplier_id:ids.supplier,item_id:kernel,unit_cost:300}).expect(201)).body;
+    await storekeeper.patch('/api/weighing-requests/'+purchase.request_id+'/complete').send({quantity:100}).expect(200);
+    await storekeeper.patch(url).send({submission_key:crypto.randomUUID(),kernel_used:100,pko_produced:0,pkc_produced:0,sludge_produced:0}).expect(200);
+    assert.equal(await balance(),0);
+});
+
+test('A price correction keeps the original authorisation date',async function(){
+    const purchase=(await manager.post('/api/purchases').send({ordered_quantity:100,purchase_date:'2026-11-16',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201)).body;
+    const saved=(await storekeeper.patch('/api/weighing-requests/'+purchase.request_id+'/complete').send({quantity:100,movement_date:'2026-11-18'}).expect(200)).body;
+    await admin.patch('/api/correction_edit').send({kind:'purchases',record:{purchase_id:saved.record_id,purchase_date:'2026-11-18',supplier_id:ids.supplier,item_id:ids['P Kernel'],quantity_supplied:100,unit_cost:310}}).expect(200);
+    const row=(await applicationPool.query("SELECT to_char(request_date,'YYYY-MM-DD') AS d,unit_cost FROM weighing_requests WHERE request_id=$1",[purchase.request_id])).rows[0];
+    assert.equal(row.d,'2026-11-16');assert.equal(Number(row.unit_cost),310);
+});
+
+test('Invoices are rounded to the kobo once, so the rounded amount pays them in full',async function(){
+    await admin.post('/api/prices').send({item_id:ids.PKO,unit_price:100.1,effective_date:'2026-11-22'});
+    const request=(await manager.post('/api/sales').send({ordered_quantity:10.25,sales_date:'2026-11-22',customer_id:ids.customer,item_id:ids.PKO,agreed_due_date:'2026-12-05'}).expect(201)).body;
+    const sale=(await storekeeper.patch('/api/weighing-requests/'+request.request_id+'/complete').send({quantity:10.25,...driver}).expect(200)).body;
+    const listed=(await admin.get('/api/sales').expect(200)).body.find(row=>row.sales_id===sale.record_id);
+    assert.equal(Number(listed.total),1026.03);assert.equal(listed.due_date,'2026-12-05');assert.equal(Number(listed.days_overdue),0);
+});
+
+test('Authorisations are for today or an earlier day, never a future day',async function(){
+    process.env.TEST_TODAY='2026-11-23';
+    try {
+        await manager.post('/api/production').send({production_date:'2026-11-24',production_hours:'08:00',down_time:'00:00'}).expect(400);
+        await manager.post('/api/purchases').send({ordered_quantity:10,purchase_date:'2026-11-24',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(400);
+        await manager.post('/api/sales').send({ordered_quantity:10,sales_date:'2026-11-24',customer_id:ids.customer,item_id:ids.PKO}).expect(400);
+        // Today and earlier days are accepted, so a missed day can still be caught up.
+        await manager.post('/api/purchases').send({ordered_quantity:10,purchase_date:'2026-11-23',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201);
+        await manager.post('/api/purchases').send({ordered_quantity:10,purchase_date:'2026-11-02',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201);
+    } finally { process.env.TEST_TODAY='2099-12-31'; }
+});
+
 test('a logout that cannot end the session reports the failure and the server keeps running',async function() {
     const agent=request.agent(app);
     await login(agent,'storekeeper_test','StorePass123');

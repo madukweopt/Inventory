@@ -1227,6 +1227,7 @@ function editForm() {
 	} else if(kind==="sales") {
 		salesQuantity.readOnly=false;
         document.getElementById('sales-ordered-field').hidden=true;salesOrderedQuantity.required=false;
+        document.getElementById('sales-due-field').hidden=true;
 		salesDate.value=record.sales_date.slice(0,10);
 		customer.value=record.customer_id;
 		productSold.value=record.item_id;
