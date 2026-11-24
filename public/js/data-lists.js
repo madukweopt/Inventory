@@ -894,13 +894,13 @@ function renderProductionCard(productionList) {
                     };history.appendChild(reopen);
                 }
             }
-            card.body.after(createProductionLossNote(row,row.yield_status==='Final'),meta,history);
+            card.body.after(createProductionLossNote(row,row.yield_status==='Final'),createKernelReturnsNote(row,loadProductionData),meta,history);
         },
 		field: [
 			{
 				label: "Kernel Used",
-				// Derives the displayed field value from the current record.
-				value: row => formatNumber(row.kernel_used),
+				// Kernel issued minus any kernel returned to store unused.
+				value: row => formatNumber(Number(row.kernel_used||0)-Number(row.kernel_returned||0)),
 				// Returns the unit displayed beside the current value.
 				unit: () => "kg",
 				className: "production-quantity"
@@ -1088,7 +1088,7 @@ async function renderProductionTable() {
 			const dateAndTime=formatedDate+" "+formatedTime;
 			const cells=[
 				dateAndTime,
-				production.kernel_used,
+				Number(production.kernel_used||0)-Number(production.kernel_returned||0),
 				production.pko_produced,
 				production.pkc_produced,
 				production.sludge_produced,
@@ -1255,6 +1255,8 @@ function editForm() {
 		updateEntryUnit(materialSupplied,".purchase-entry-unit");
 		quantitySupplied.value=record.quantity_supplied;
 		unitCost.value=record.unit_cost;
+        document.getElementById('purchase-correction-field').hidden=false;
+        document.getElementById('purchase-correction-reason').value='';
 
 		purchaseForm.removeEventListener("submit",savePurchases);
 		purchaseForm.addEventListener("submit",saveEdit);
@@ -1313,7 +1315,8 @@ async function saveEdit(event) {
 			supplier_id: supplier.value,
 			item_id: materialSupplied.value,
 			quantity_supplied: quantitySupplied.value,
-			unit_cost: unitCost.value
+			unit_cost: unitCost.value,
+			early_movement_reason: document.getElementById('purchase-correction-reason').value
 		};
 	} else if(kind==="expenses") {
 		updatedForm={

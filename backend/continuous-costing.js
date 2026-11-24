@@ -27,43 +27,49 @@ function calculateContinuousCosts({purchases,issues,production,productStock,prod
     // First pass: move mass-based cost out of unfinished material as products are weighed.
     for(const [date,day] of ordered) {
         const openingQuantity=quantity,openingValue=value,materials={};
-        for(const purchase of day.purchases.sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))) {
-            const item=raw[purchase.item_id]||(raw[purchase.item_id]={quantity:0,value:0});
-            item.quantity+=number(purchase.quantity);item.value+=number(purchase.value);
-        }
-        // A return to store puts material back at its average cost. Returned kernel also leaves the unfinished
-        // production it was issued to; a count that found more simply adds to stock.
-        for(const receipt of day.rawReceipts) {
-            const item=raw[receipt.item_id]||(raw[receipt.item_id]={quantity:0,value:0});
-            const amount=number(receipt.quantity),unitCost=average(item);
-            if(receipt.adjustment_reason==='Return to store'&&productKey(receipt.name)==='p kernel'&&quantity>0) {
-                const back=Math.min(amount,quantity),backValue=value*back/quantity;
-                quantity-=back;value-=backValue;
-                item.quantity+=amount;item.value+=backValue+unitCost*(amount-back);
-            } else {item.quantity+=amount;item.value+=unitCost*amount;}
-        }
         let issued=0,issuedCost=0,rawUnpriced=false;
-        for(const issue of day.issues) {
-            const item=raw[issue.item_id]||(raw[issue.item_id]={quantity:0,value:0});
-            const amount=number(issue.quantity),unitCost=average(item),cost=unitCost*amount;
+        // The day's deliveries and stock found by count come first, as before, so an issue recorded before its delivery
+        // was entered is still covered. Issues and returns to store then follow in the order they were recorded, so kernel
+        // returned later in the day comes out of the production it was issued to.
+        const isReturn=r=>r.adjustment_reason==='Return to store';
+        const first=[...day.purchases.map(r=>['purchase',r]),...day.rawReceipts.filter(r=>!isReturn(r)).map(r=>['receipt',r])];
+        const timed=[...day.issues.map(r=>['issue',r]),...day.rawReceipts.filter(isReturn).map(r=>['receipt',r])]
+            .map((m,index)=>({kind:m[0],record:m[1],index,time:new Date(m[1].created_at).getTime()}))
+            .sort((a,b)=>(Number.isFinite(a.time)&&Number.isFinite(b.time)&&a.time!==b.time)?a.time-b.time:a.index-b.index);
+        const movements=[...first.map(([kind,record])=>({kind,record})),...timed];
+        for(const {kind,record} of movements) {
+            const item=raw[record.item_id]||(raw[record.item_id]={quantity:0,value:0});
+            const amount=number(record.quantity);
+            if(kind==='purchase') {item.quantity+=amount;item.value+=number(record.value);continue;}
+            const unitCost=average(item);
+            if(kind==='receipt') {
+                // A return to store puts material back at its average cost. Returned kernel also leaves the unfinished
+                // production it was issued to; a count that found more simply adds to stock.
+                if(record.adjustment_reason==='Return to store'&&productKey(record.name)==='p kernel'&&quantity>0) {
+                    const back=Math.min(amount,quantity),backValue=value*back/quantity;
+                    quantity-=back;value-=backValue;
+                    item.quantity+=amount;item.value+=backValue+unitCost*(amount-back);
+                } else {item.quantity+=amount;item.value+=unitCost*amount;}
+                continue;
+            }
+            const cost=unitCost*amount;
             if(amount>item.quantity)rawUnpriced=true;
             item.quantity-=amount;item.value-=cost;
             // Material removed by hand with a reason (spill, disposal, count difference) is a stock loss, not production.
             // Daily consumable usage has no reason and stays a production cost.
-            if(issue.source_type==='Manual'&&issue.adjustment_reason) {
-                rawLosses.push({dispatch_date:date,created_at:issue.created_at,item_id:issue.item_id,name:issue.name,
+            if(record.source_type==='Manual'&&record.adjustment_reason) {
+                rawLosses.push({dispatch_date:date,created_at:record.created_at,item_id:record.item_id,name:record.name,
                     quantity_dispatched:amount,weighted_average_cost:unitCost,cost_of_dispatch:cost,
-                    source_type:'Manual',adjustment_reason:issue.adjustment_reason,provisional:true});
+                    source_type:'Manual',adjustment_reason:record.adjustment_reason,provisional:true});
                 continue;
             }
-            const material=materials[issue.item_id]||(materials[issue.item_id]={item_id:issue.item_id,name:issue.name,item_type:issue.item_type,quantity_issued:0,total_cost:0});
+            const material=materials[record.item_id]||(materials[record.item_id]={item_id:record.item_id,name:record.name,item_type:record.item_type,quantity_issued:0,total_cost:0});
             material.quantity_issued+=amount;material.total_cost+=cost;
-            issuedCost+=cost;
+            issuedCost+=cost;value+=cost;
             // Only kernel contributes to the physical production mass balance.
-            if(productKey(issue.name)==='p kernel')issued+=amount;
+            if(productKey(record.name)==='p kernel'){issued+=amount;quantity+=amount;}
         }
         unpriced=unpriced||rawUnpriced;
-        quantity+=issued;value+=issuedCost;
         const availableQuantity=quantity,availableValue=value;
         const received={pko:0,pkc:0,sludge:0},receipts=[];
         const isHistorical=day.production.some(row=>!row.batch_id||row.legacy_batch);

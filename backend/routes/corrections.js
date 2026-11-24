@@ -178,7 +178,7 @@ router.patch("/api/correction_edit",requireRole(['admin']),async function(req,re
 
 // Expenses created by a partner payment are corrected through that payment, so each cost is entered once.
 async function expenseFromPartnerPayment(expenseId) {
-	const linked=await pool.query('SELECT 1 FROM partner_payments WHERE expense_id=$1',[Number(expenseId)||0]);
+	const linked=await pool.query('SELECT 1 FROM partner_payments WHERE expense_id=$1 OR reversal_expense_id=$1',[Number(expenseId)||0]);
 	return linked.rowCount>0;
 }
 

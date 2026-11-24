@@ -92,34 +92,84 @@ function describe(method,path,body,json) {
     return {type,action,id:id===undefined||id===null||id===''?null:String(id).slice(0,40)};
 }
 
+const {AsyncLocalStorage}=require('node:async_hooks');
+const confirmed=action=>('Confirmed already recorded: '+action.charAt(0).toLowerCase()+action.slice(1)).slice(0,200);
+const requestLog=new AsyncLocalStorage();
+const INSERT_LOG=`INSERT INTO activity_log(user_id,acting_user_id,username,acting_username,action,record_type,record_id,method,path)
+    VALUES($1,$2,(SELECT username FROM users WHERE user_id=$1),(SELECT username FROM users WHERE user_id=$2),$3,$4,$5,$6,$7) RETURNING log_id`;
+// Writes one entry; db is the pool or a client inside the caller's transaction.
+function writeActivity(db,{userId,actingId,action,type,id,method,path}) {
+    return db.query(INSERT_LOG,[userId,actingId||userId,action,type,id,method,String(path).slice(0,300)]);
+}
+
 function registerActivityLog(app,pool,requireRole) {
-    // Each successful write is logged before its reply is sent, so a person who sees "saved" can rely on the log
-    // having the entry. A retry that only finds the record already saved is logged as a confirmation, not a new action.
-    // A logging failure never affects the user's action.
+    // A save made in a database transaction writes its log entry in that same transaction, just before COMMIT, so the
+    // change, its record number and its entry are saved together or not at all. The record number is read from the rows
+    // the transaction saved; a transaction that only found an earlier save is logged as a confirmation.
+    // A save without a transaction is logged before its reply is sent.
+    const connect=pool.connect.bind(pool);
+    pool.connect=function(callback) {
+        if(callback) return connect(callback);
+        return connect().then(client=>{
+            const context=requestLog.getStore();
+            if(!context) return client;
+            const query=client.query,release=client.release;
+            client.query=function(text,...rest) {
+                const sql=typeof text==='string'?text:text&&text.text;
+                if(typeof rest[rest.length-1]==='function') return query.call(client,text,...rest);
+                // A read-only transaction saves nothing, so it carries no log entry.
+                if(/^\s*(BEGIN|START TRANSACTION)\b/i.test(sql||'')) client.readOnlyTransaction=/READ\s+ONLY/i.test(sql);
+                if(!context.logged&&context.userId&&!client.readOnlyTransaction&&/^\s*COMMIT\s*;?\s*$/i.test(sql||'')) {
+                    const entry=describe(context.method,context.path,context.body,context.field?{[context.field]:context.savedId??context.foundId}:null);
+                    if(context.field&&context.savedId==null&&context.foundId!=null) entry.action=confirmed(entry.action);
+                    return query.call(client,INSERT_LOG,[context.userId,context.actingId,entry.action,entry.type,entry.id,context.method,context.path.slice(0,300)])
+                        .then(result=>query.call(client,text,...rest).then(done=>{
+                            Object.assign(context,{logged:true,logId:result.rows[0].log_id,loggedAction:entry.action,loggedId:entry.id});return done;}));
+                }
+                const pending=query.call(client,text,...rest);
+                // Remember the record number from the rows saved (or found) in this transaction.
+                if(context.field&&pending&&typeof pending.then==='function') pending.then(result=>{
+                    const id=result&&result.rows&&result.rows[0]&&result.rows[0][context.field];
+                    if(id==null) return;
+                    if(result.command==='INSERT'||result.command==='UPDATE') context.savedId=id; else context.foundId??=id;
+                },()=>{});
+                return pending;
+            };
+            client.release=function(...args) {
+                client.query=query;client.release=release;delete client.readOnlyTransaction;
+                return release.apply(client,args);
+            };
+            return client;
+        });
+    };
     app.use('/api',function(req,res,next) {
         if(!WRITE_METHODS.has(req.method)) return next();
-        const realUser=req.session&&(req.session.admin_user_id||req.session.user_id);
-        const actingUser=req.session&&req.session.user_id;
+        const path=req.originalUrl.split('?')[0];
+        // Sign-in is logged by the sign-in route once its session is saved, whatever the form of reply.
+        if(req.method==='POST'&&path==='/api/login') return next();
+        const route=ROUTES.find(([routeMethod,pattern])=>routeMethod===req.method&&pattern.test(path));
+        const field=route&&route[4]&&route[4].startsWith('json:')?route[4].slice(5):null;
+        const context={method:req.method,path,body:req.body,field,savedId:null,foundId:null,
+            userId:req.session&&(req.session.admin_user_id||req.session.user_id)||null,actingId:req.session&&req.session.user_id||null,logged:false,logId:null};
         const sendJson=res.json.bind(res);
-        let logged=false;
+        let replied=false;
         res.json=function(value) {
-            if(logged||res.statusCode>=400) return sendJson(value);
-            logged=true;
-            const path=req.originalUrl.split('?')[0];
-            // Sign-in has no user until it succeeds; read it from the new session.
-            const userId=realUser||(req.session&&(req.session.admin_user_id||req.session.user_id))||null;
-            const actingId=actingUser||(req.session&&req.session.user_id)||userId;
+            if(replied||res.statusCode>=400) return sendJson(value);
+            replied=true;
+            const userId=context.userId||(req.session&&(req.session.admin_user_id||req.session.user_id))||null;
+            const actingId=context.actingId||(req.session&&req.session.user_id)||userId;
             if(!userId) return sendJson(value);
             const entry=describe(req.method,path,req.body,value);
-            if(value&&value.already_saved) entry.action=('Confirmed already recorded: '+entry.action.charAt(0).toLowerCase()+entry.action.slice(1)).slice(0,200);
-            pool.query(`INSERT INTO activity_log(user_id,acting_user_id,username,acting_username,action,record_type,record_id,method,path)
-                VALUES($1,$2,(SELECT username FROM users WHERE user_id=$1),(SELECT username FROM users WHERE user_id=$2),$3,$4,$5,$6,$7)`,
-                [userId,actingId,entry.action,entry.type,entry.id,req.method,path.slice(0,300)])
-                .catch(error=>console.error('Could not write the activity log:',error.message))
-                .finally(()=>sendJson(value));
+            if(value&&value.already_saved) entry.action=confirmed(entry.action);
+            // Already saved with its transaction; corrected afterwards only in the rare case the reply says otherwise.
+            if(context.logged&&entry.action===context.loggedAction&&(entry.id==null||entry.id===context.loggedId)) return sendJson(value);
+            const write=context.logged
+                ? pool.query('UPDATE activity_log SET action=$2,record_id=COALESCE($3,record_id) WHERE log_id=$1',[context.logId,entry.action,entry.id])
+                : writeActivity(pool,{userId,actingId,action:entry.action,type:entry.type,id:entry.id,method:req.method,path});
+            write.catch(error=>console.error('Could not write the activity log:',error.message)).finally(()=>sendJson(value));
             return res;
         };
-        next();
+        requestLog.run(context,next);
     });
 
     // The Director's view, newest first, 100 at a time, filtered by person, record type and Lagos-time dates.
@@ -155,4 +205,4 @@ function registerActivityLog(app,pool,requireRole) {
     });
 }
 
-module.exports={registerActivityLog,describe};
+module.exports={registerActivityLog,describe,writeActivity};

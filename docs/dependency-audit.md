@@ -375,3 +375,5 @@ The saved copy from the repair performed in this investigation is:
 ## Audit rules (23 November 2026)
 
 The purchase and sale checks now say what is wrong with each record they report. A delivery or dispatch after its authorisation date is normal and is not reported; one dated before its authorisation is. A sale price that differs from its authorisation is reported only when no saved sale correction records that price. Missing stock entries, stock quantities that differ from the weighed quantity, wrong items and wrong stock dates are still reported. On the development database this removed 147 false alerts and left none, and a planted 200 kg stock difference and an unexplained price change were both reported.
+
+A delivery or dispatch dated before its authorisation is no longer reported when the correction that dated it earlier recorded the reason (24 November 2026). The authorisation keeps its own date.

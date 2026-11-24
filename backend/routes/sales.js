@@ -158,16 +158,21 @@ router.post('/api/sales/:id/payments/:paymentId/reverse',requireRole(['admin']),
 	if(!/^\d+$/.test(req.params.id)||!/^\d+$/.test(req.params.paymentId)||!reason||reason.length>300) {
 		return res.status(400).json({ err: 'Enter the reason for reversing this payment' });
 	}
+	// In a transaction, so the reversal and its Activity Log entry are saved together.
+	const client=await pool.connect();
 	try {
-		const result=await pool.query(`UPDATE sale_payments SET reversed_at=CURRENT_TIMESTAMP,reversed_by=$1,reversal_reason=$2
+		await client.query('BEGIN');
+		const result=await client.query(`UPDATE sale_payments SET reversed_at=CURRENT_TIMESTAMP,reversed_by=$1,reversal_reason=$2
 			WHERE payment_id=$3 AND sales_id=$4 AND reversed_at IS NULL RETURNING *`,
 			[req.session.user_id,reason,req.params.paymentId,req.params.id]);
-		if(result.rowCount===0) return res.status(409).json({ err: 'Payment not found or already reversed. Refresh the sale.' });
+		if(result.rowCount===0) {await client.query('ROLLBACK');return res.status(409).json({ err: 'Payment not found or already reversed. Refresh the sale.' });}
+		await client.query('COMMIT');
 		return res.json({ message: 'Payment reversed. Receipt '+result.rows[0].receipt_number+' is kept and marked reversed.',payment: result.rows[0] });
 	} catch(error) {
+		await client.query('ROLLBACK').catch(()=>{});
 		console.error(error);
 		return res.status(500).json({ err: 'Could not reverse the payment' });
-	}
+	} finally { client.release(); }
 });
 
 // Handles POST /api/sales requests.
@@ -190,6 +195,10 @@ router.post("/api/sales",requireRole(['admin','manager']),async function(req,res
 	}
 	// The payment date agreed with a credit customer. Blank means payment is due on dispatch.
 	const agreedDueDate=sales.agreed_due_date||null;
+	// Only the Director agrees credit terms with a customer.
+	if(agreedDueDate!==null&&req.session.role!=='admin') {
+		return res.status(403).json({ err: 'Only the Director can set a payment due date. Leave it blank so payment is due on the sale date.' });
+	}
 	if(agreedDueDate!==null&&(!/^\d{4}-\d{2}-\d{2}$/.test(agreedDueDate)||agreedDueDate<sales.sales_date)) {
 		return res.status(400).json({ err: 'Enter a payment due date on or after the sale date, or leave it blank.' });
 	}

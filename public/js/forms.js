@@ -47,6 +47,43 @@ function syncStockDirection() {
 	stockAdd.disabled=fixed==="remove";
 }
 if(stockReason) stockReason.addEventListener("change",syncStockDirection);
+// Kernel returned to store names the production day it came back from. Shown only for a new kernel return.
+const stockReturnField=document.querySelector("#stock-return-field");
+const stockReturnDay=document.querySelector("#stock-return-day");
+let kernelReturnDaysLoaded=false;
+async function syncKernelReturn() {
+	if(!stockReturnField) return;
+	const editing=new URLSearchParams(window.location.search).get('mode')==='edit';
+	const itemName=(stockName.selectedOptions[0]?.textContent||'').trim().toLowerCase();
+	const show=!editing&&stockReason.value==='Return to store'&&itemName==='p kernel';
+	stockReturnField.hidden=!show;stockReturnDay.required=show;
+	if(!show) stockDate.readOnly=false;
+	if(!show||kernelReturnDaysLoaded) return;
+	kernelReturnDaysLoaded=true;
+	try {
+		const response=await fetch('/api/kernel-return-days');
+		if(!response.ok) throw new Error('Could not load production days');
+		stockReturnDay.replaceChildren(new Option('Select the production day',''));
+		(await response.json()).forEach(day=>{
+			const option=new Option(formatDate(day.request_date)+' · '+
+				(day.status==='Completed'?'finished':'open')+' · up to '+Number(day.returnable).toLocaleString('en-NG')+' kg',day.request_id);
+			option.dataset.kernelDate=day.kernel_date;stockReturnDay.add(option);
+		});
+	} catch(error) {
+		kernelReturnDaysLoaded=false;
+		console.error(error);
+		appNotify('Production days could not be loaded. Try again.');
+	}
+}
+if(stockReason) stockReason.addEventListener("change",syncKernelReturn);
+// The return is dated on the day that kernel was issued, so the date follows the chosen production day.
+if(stockReturnDay) stockReturnDay.addEventListener("change",()=>{
+	const kernelDate=stockReturnDay.selectedOptions[0]?.dataset.kernelDate;
+	stockDate.readOnly=Boolean(kernelDate);
+	if(kernelDate) stockDate.value=kernelDate;
+});
+if(stockName) stockName.addEventListener("change",syncKernelReturn);
+if(inventoryForm) inventoryForm.addEventListener("reset",() => setTimeout(()=>{kernelReturnDaysLoaded=false;syncKernelReturn();}));
 if(inventoryForm) inventoryForm.addEventListener("reset",() => setTimeout(syncStockDirection));
 function stockChangeValues() {
 	const quantity=stockQuantity.value;
@@ -160,6 +197,7 @@ async function displaySelectedForm() {
 	const isEditMode=new URLSearchParams(window.location.search).get('mode')==='edit';
 	if(formId==='#purchases-form'&&!isEditMode) {
         document.getElementById('purchase-ordered-field').hidden=false;purchaseOrderedQuantity.required=true;
+        document.getElementById('purchase-correction-field').hidden=true;
 	}
 	if(formId==='#sales-form'&&!isEditMode) {
         document.getElementById('sales-billing-basis').disabled=false;
@@ -167,7 +205,9 @@ async function displaySelectedForm() {
         document.getElementById('sales-representative').disabled=false;
         document.querySelector('label[for="sales-quantity"]').textContent='Quantity Issued (kg)';
         document.getElementById('sales-ordered-field').hidden=false;salesOrderedQuantity.required=true;
-        document.getElementById('sales-due-field').hidden=false;
+        // Only the Director agrees credit terms; anyone else's sale is due on its sale date.
+        document.getElementById('sales-due-field').hidden=user.role!=='admin';
+        if(user.role!=='admin') document.getElementById('sales-agreed-due-date').value='';
 		salesForm.reset();
 		sessionStorage.removeItem('editRecord');
 		sessionStorage.removeItem('editKind');
@@ -591,7 +631,8 @@ async function saveInventory(event) {
 		count_date: stockDate.value,
 		item_id: stockName.value,
 		...stockChangeValues(),
-		adjustment_reason: stockReason.value
+		adjustment_reason: stockReason.value,
+		...(stockReturnField&&!stockReturnField.hidden?{return_request_id: stockReturnDay.value}:{})
 	};
 	if(!startSaving(inventoryForm)) return;
 	// The same entry retried after a lost connection keeps its key, so it is saved only once.

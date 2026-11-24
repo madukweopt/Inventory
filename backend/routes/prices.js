@@ -70,16 +70,20 @@ router.post('/api/prices',requireRole(['admin']),async function(req,res) {
 		return res.status(400).json({ err: 'Enter a product, valid price and effective date' });
 	}
 	try {
-		const result=await pool.query(`INSERT INTO product_prices
+		// One transaction, so the price and its Activity Log entry are saved together.
+		const result=await require('../db').transaction(client=>client.query(`INSERT INTO product_prices
 			(item_id,unit_price,effective_date,created_by)
 			SELECT items.item_id,$2,$3::date,$4 FROM items
 			WHERE items.item_id=$1 AND items.item_type='product'
 			ON CONFLICT (item_id,effective_date) DO UPDATE SET
 			unit_price=EXCLUDED.unit_price,created_by=EXCLUDED.created_by,created_at=CURRENT_TIMESTAMP
-			RETURNING *`,[itemId,unitPrice,effectiveDate,req.session.user_id]);
-		if(result.rows.length===0) return res.status(400).json({ err: 'Prices can only be set for saleable products' });
+			RETURNING *`,[itemId,unitPrice,effectiveDate,req.session.user_id]).then(saved=>{
+				if(saved.rows.length===0) throw Object.assign(new Error('Prices can only be set for saleable products'),{status:400});
+				return saved;
+			}));
 		return res.status(201).json(result.rows[0]);
 	} catch(error) {
+		if(error.status) return res.status(error.status).json({err:error.message});
 		console.error(error);
 		return res.status(500).json({ err: 'Could not save the product price' });
 	}

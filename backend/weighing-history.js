@@ -4,6 +4,11 @@ const weighingRequestDetails=`SELECT
             (wr.status='Awaiting Storekeeper' AND wr.request_type IN ('Sale','Purchase')
             AND ($2::text='admin' OR wr.created_by=$1)) AS can_change_order,wr.ordered_quantity,
             COALESCE((SELECT p.process_loss FROM production p WHERE p.production_id=wr.completed_record_id),0) AS process_loss,
+            COALESCE((SELECT p.kernel_returned FROM production p WHERE p.production_id=wr.completed_record_id),0) AS kernel_returned,
+            -- Kernel returned to store from this production day, listed on its card so the Director can remove one.
+            (SELECT COALESCE(json_agg(json_build_object('count_id',s.count_id,'quantity',s.received,'count_date',to_char(s.count_date,'YYYY-MM-DD'),
+                'recorded_by_name',(SELECT username FROM users WHERE user_id=s.recorded_by)) ORDER BY s.count_id),'[]'::json)
+             FROM stock_counts s WHERE s.return_request_id=wr.request_id) AS kernel_returns,
             wr.request_id,wr.daily_number,wr.request_type,TO_CHAR(wr.request_date,'YYYY-MM-DD') AS request_date,
 			wr.item_id,items.name AS item,wr.supplier_id,suppliers.name AS supplier,
 			wr.customer_id,customers.name AS customer,wr.unit_cost,wr.unit_price,wr.billing_basis,wr.representative_id,

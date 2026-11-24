@@ -199,6 +199,19 @@ if(new URLSearchParams(location.search).get('menu')==='forms') {
 	openFormsMenu();
 }
 
+// While the menu is open, a swipe on the dimmed area beside it does not scroll the page behind. A pull down with the
+// page already at the top is let through, so the phone's pull-to-refresh still works.
+if(mainMenu&&submenuAndBtn) {
+	let touchStartY=0;
+	mainMenu.addEventListener('touchstart',event => { touchStartY=event.touches[0].clientY; },{passive:true});
+	mainMenu.addEventListener('touchmove',event => {
+		if(!submenuAndBtn.classList.contains('show')||submenuAndBtn.contains(event.target)) return;
+		const pullingDown=event.touches[0].clientY>touchStartY;
+		if(pullingDown&&(window.scrollY||document.documentElement.scrollTop)<=0) return;
+		if(event.cancelable) event.preventDefault();
+	},{passive:false});
+}
+
 const submenuLinks=document.querySelectorAll(".submenu-one a, .submenu-two a, #customers-button, #suppliers-button, #partners-button, #assets-button, #employees-button, #company-details-button, #prices-button, #weighing-tasks-button, #price-guide-button");
 // Processes each entry in the collection.
 submenuLinks.forEach(function(link) {

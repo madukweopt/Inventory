@@ -207,6 +207,14 @@
                         </select>
                     </div>
 
+                    <div class="field" id="stock-return-field" hidden>
+                        <label for="stock-return-day">Returned from production day</label>
+                        <select id="stock-return-day" name="stock-return-day">
+                            <option value="">Select the production day</option>
+                        </select>
+                        <small>Unused kernel is dated on that production day and taken off its kernel issued and kernel used, so it is not counted as production loss.</small>
+                    </div>
+
                     <fieldset class="field stock-direction">
                         <legend>Change</legend>
                         <label><input type="radio" name="stock-direction" id="stock-remove" value="remove" required /> Remove from stock</label>
@@ -487,6 +495,12 @@
                                 required
                             />
                         </div>
+                    </div>
+
+                    <div class="field" id="purchase-correction-field" hidden>
+                        <label for="purchase-correction-reason">Reason, if delivery was before the authorisation date</label>
+                        <textarea id="purchase-correction-reason" name="purchase-correction-reason" maxlength="300"></textarea>
+                        <small>The authorisation keeps its own date. A delivery dated before it needs a reason.</small>
                     </div>
 
                     <button type="submit">Authorise Purchase</button>

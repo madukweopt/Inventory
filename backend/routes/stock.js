@@ -5,6 +5,7 @@ const {pool}=require('../db');
 const {requireRole}=require('../auth');
 const {lockStock,protectStock,stockFloor}=require('../stock-safety');
 const {recordStockHistory}=require('../record-corrections');
+const {checkKernelReturn,refreshKernelReturns,KERNEL_DATE}=require('../kernel-returns');
 const {readInventoryQuantity,readSubmissionKey,stockAdjustmentReasons}=require('../record-rules');
 const router=require('express').Router();
 
@@ -25,14 +26,20 @@ router.get("/api/stock_counts",requireRole(['admin','storekeeper']),function(req
 	);
 });
 
-// Carry each item balance through inactive days without creating stock movements.
+// Daily inventory lines for production days and for days when stock moved. Balances are carried through every
+// calendar day, so a day left out (nothing happened and no production) never changes the opening or closing stock.
+// On a production day every item is listed; on another day only the items that moved.
 router.get('/api/inventory-summary',requireRole(['admin','storekeeper']),async function(req,res) {
 	try {
 		const result=await pool.query(`WITH daily AS (
+			-- Kernel returned unused from a production day is shown as less kernel issued that day, not as kernel received.
 			SELECT stock_counts.item_id,items.name,stock_counts.count_date,
-			MAX(stock_counts.created_at) AS created_at,SUM(stock_counts.received) AS received,
-			SUM(stock_counts.issued) AS issued
+			MAX(stock_counts.created_at) AS created_at,
+			SUM(CASE WHEN stock_counts.return_request_id IS NULL THEN stock_counts.received ELSE 0 END) AS received,
+			SUM(stock_counts.issued-CASE WHEN stock_counts.return_request_id IS NULL THEN 0 ELSE stock_counts.received END) AS issued
 			FROM stock_counts INNER JOIN items ON items.item_id=stock_counts.item_id
+			-- A row left at 0 kg (for example by a reversed production entry) is not a movement and gives no line.
+			WHERE stock_counts.received<>0 OR stock_counts.issued<>0
 			GROUP BY stock_counts.item_id,items.name,stock_counts.count_date
 		), item_days AS (
 			SELECT item_id,name,generate_series(MIN(count_date)::timestamp,
@@ -40,15 +47,23 @@ router.get('/api/inventory-summary',requireRole(['admin','storekeeper']),async f
 			FROM daily GROUP BY item_id,name
 		), calendar AS (
 			SELECT item_days.item_id,item_days.name,item_days.count_date,daily.created_at,
-				COALESCE(daily.received,0) AS received,COALESCE(daily.issued,0) AS issued
+				COALESCE(daily.received,0) AS received,COALESCE(daily.issued,0) AS issued,daily.count_date IS NOT NULL AS moved
 			FROM item_days LEFT JOIN daily USING (item_id,name,count_date)
+		), balances AS (
+			SELECT item_id,name,count_date,created_at,received,issued,moved,
+			SUM(received-issued) OVER (PARTITION BY item_id ORDER BY count_date)-
+				(received-issued) AS opening_stock,
+			SUM(received-issued) OVER (PARTITION BY item_id ORDER BY count_date) AS closing_stock
+			FROM calendar
+		), production_days AS (
+			SELECT DISTINCT request_date AS count_date FROM weighing_requests
+			WHERE request_type='Production' AND status<>'Cancelled'
 		)
 		SELECT ROW_NUMBER() OVER (ORDER BY count_date,item_id) AS summary_id,item_id,name,
-		TO_CHAR(count_date,'YYYY-MM-DD') AS count_date,created_at,received,issued,
-		SUM(received-issued) OVER (PARTITION BY item_id ORDER BY count_date)-
-			(received-issued) AS opening_stock,
-		SUM(received-issued) OVER (PARTITION BY item_id ORDER BY count_date) AS closing_stock
-		FROM calendar ORDER BY count_date DESC,item_id`);
+		TO_CHAR(count_date,'YYYY-MM-DD') AS count_date,created_at,received,issued,opening_stock,closing_stock
+		FROM balances
+		WHERE moved OR count_date IN (SELECT count_date FROM production_days)
+		ORDER BY count_date DESC,item_id`);
 		return res.json(result.rows);
 	} catch(error) {
 		console.error(error);
@@ -57,6 +72,22 @@ router.get('/api/inventory-summary',requireRole(['admin','storekeeper']),async f
 });
 
 // Handles POST /api/stock_counts requests.
+// Production days that kernel can be returned from: the last 60 days with kernel issued, newest first.
+router.get('/api/kernel-return-days',requireRole(['admin']),async function(req,res) {
+	try {
+		const rows=(await pool.query(`SELECT w.request_id,to_char(w.request_date,'YYYY-MM-DD') AS request_date,w.status,
+				to_char(${KERNEL_DATE},'YYYY-MM-DD') AS kernel_date,
+				p.kernel_used,p.kernel_returned,GREATEST(p.kernel_used-p.kernel_returned,0) AS returnable
+			FROM weighing_requests w JOIN production p ON p.production_id=w.completed_record_id
+			WHERE w.request_type='Production' AND w.status<>'Cancelled' AND p.kernel_used>0 AND w.request_date>=CURRENT_DATE-60
+			ORDER BY w.request_date DESC,w.request_id DESC`)).rows;
+		return res.json(rows);
+	} catch(error) {
+		console.error(error);
+		return res.status(500).json({err:'Could not load production days.'});
+	}
+});
+
 router.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
 	const stockInventory=req.body;
 	const receivedQuantity=readInventoryQuantity(stockInventory.received);
@@ -93,8 +124,12 @@ router.post("/api/stock_counts",requireRole(['admin']),async function(req,res) {
             }
         }
         const before=await stockFloor(client);
-        const result=await client.query('INSERT INTO stock_counts(count_date,item_id,received,issued,recorded_by,adjustment_reason,submission_key) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *',
-            [stockInventory.count_date,stockInventory.item_id,receivedQuantity,issuedQuantity,req.session.user_id,reason,submissionKey]);
+        // Kernel returned to store names the production day it came back from, so that day's loss is not overstated.
+        // It is dated on the day that kernel was issued, so that day's kernel issued is net of it.
+        const kernelReturn=await checkKernelReturn(client,{reason,itemId:stockInventory.item_id,received:receivedQuantity,requestId:stockInventory.return_request_id});
+        const result=await client.query('INSERT INTO stock_counts(count_date,item_id,received,issued,recorded_by,adjustment_reason,submission_key,return_request_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
+            [kernelReturn?.date||stockInventory.count_date,stockInventory.item_id,receivedQuantity,issuedQuantity,req.session.user_id,reason,submissionKey,kernelReturn?.requestId??null]);
+        await refreshKernelReturns(client,kernelReturn?.requestId);
         await protectStock(client,before);
         await recordStockHistory(client,result.rows[0].count_id,'Created',null,result.rows[0],req.session.user_id);
         await client.query('COMMIT');return res.status(201).json(result.rows[0]);

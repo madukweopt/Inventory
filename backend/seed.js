@@ -310,14 +310,14 @@ async function validateSeed(client,start,end){
         delivery_notes:`SELECT COUNT(*)::int AS n FROM sales s LEFT JOIN delivery_notes d ON d.sales_id=s.sales_id WHERE d.sales_id IS NULL OR d.driver_signature IS NULL
             OR (s.billing_basis='Customer' AND s.invoice_number IS NOT NULL AND s.quantity<>d.buyer_weight) OR COALESCE(s.factory_quantity,-1)<0`,
         production_loss:`SELECT COUNT(*)::int AS n FROM production p JOIN weighing_requests w ON w.request_type='Production' AND w.completed_record_id=p.production_id
-            WHERE p.process_loss<>CASE WHEN w.status='Completed' THEN GREATEST(ROUND(p.kernel_used-p.pko_produced-p.pkc_produced-p.sludge_produced,2),0) ELSE 0 END`,
+            WHERE p.process_loss<>CASE WHEN w.status='Completed' THEN GREATEST(ROUND(p.kernel_used-p.kernel_returned-p.pko_produced-p.pkc_produced-p.sludge_produced,2),0) ELSE 0 END`,
         unlabelled_stock_changes:`SELECT COUNT(*)::int AS n FROM stock_counts WHERE source_type='Manual' AND COALESCE(source_part,'') NOT LIKE 'Use:%' AND adjustment_reason IS NULL`,
         capital_in_expenses:`SELECT COUNT(*)::int AS n FROM expenses WHERE category<>'Expenses'`,
         partner_payment_expenses:`SELECT COUNT(*)::int AS n FROM partner_payments p JOIN partner_jobs j ON j.job_id=p.job_id LEFT JOIN expenses e ON e.expense_id=p.expense_id
             WHERE (j.cost_category='Running' AND (e.expense_id IS NULL OR e.amount_spent<>p.amount OR e.expense_date<>p.payment_date)) OR (j.cost_category='Capital' AND p.expense_id IS NOT NULL)`,
         capital_jobs_without_asset:`SELECT COUNT(*)::int AS n FROM partner_jobs j LEFT JOIN capital_assets a ON a.job_id=j.job_id
             WHERE (j.cost_category='Capital')<>(a.asset_id IS NOT NULL) OR (a.asset_id IS NOT NULL AND (a.cost<>j.agreed_amount OR a.acquired_date<>j.job_date))`,
-        overpaid_partner_jobs:`SELECT COUNT(*)::int AS n FROM partner_jobs j WHERE j.agreed_amount<(SELECT COALESCE(SUM(amount),0) FROM partner_payments p WHERE p.job_id=j.job_id)`,
+        overpaid_partner_jobs:`SELECT COUNT(*)::int AS n FROM partner_jobs j WHERE j.agreed_amount<(SELECT COALESCE(SUM(amount),0) FROM partner_payments p WHERE p.job_id=j.job_id AND p.reversed_at IS NULL)`,
         misplaced_kernel_tests:`SELECT COUNT(*)::int AS n FROM kernel_impurity_tests t JOIN purchases p ON p.purchase_id=t.purchase_id JOIN items i ON i.item_id=p.item_id WHERE LOWER(i.name)<>'p kernel'`,
         payment_receipts:`SELECT COUNT(*)::int AS n FROM sale_payments WHERE receipt_number IS NULL`,
         missing_stock_movements:`SELECT COUNT(*)::int AS n FROM weighing_requests w WHERE w.status='Completed' AND (
@@ -418,7 +418,14 @@ async function restoreApplicationData(pool,filename){
         await client.query('TRUNCATE TABLE '+TABLES.map(table=>'"'+table+'"').join(',')+' RESTART IDENTITY');
         for(const table of ['users','activity_log','items','company_details','customers','suppliers','employees','employment_period_changes','salary_history','payroll','product_prices','weighing_requests','purchases','production','production_batches','sales','sale_payments','stock_counts','expenses','kernel_impurity_tests','sop_revisions','daily_consumable_checks','delivery_notes','delivery_note_evidence','sale_corrections','service_partners','partner_jobs','capital_assets','partner_payments','stock_change_history','session']){
             const rows=payload.tables[table];
-            if(rows.length)await client.query(`INSERT INTO "${table}" SELECT * FROM jsonb_populate_recordset(NULL::"${table}",$1::jsonb)`,['['+rows.join(',')+']']);
+            if(!rows.length) continue;
+            // Only the columns the backup holds are inserted; a column added since then (for example account disabling
+            // or kernel returned per production day) takes its normal default instead of failing as blank.
+            const present=new Set(rows.flatMap(row=>Object.keys(JSON.parse(row))));
+            const columns=(await client.query(`SELECT column_name FROM information_schema.columns
+                WHERE table_schema=current_schema() AND table_name=$1 AND is_generated='NEVER' ORDER BY ordinal_position`,[table])).rows
+                .map(row=>row.column_name).filter(name=>present.has(name)).map(name=>'"'+name.replaceAll('"','""')+'"');
+            await client.query(`INSERT INTO "${table}"(${columns.join(',')}) SELECT ${columns.join(',')} FROM jsonb_populate_recordset(NULL::"${table}",$1::jsonb)`,['['+rows.join(',')+']']);
         }
         for(const entry of payload.sequences){
             const sequence=(await client.query('SELECT pg_get_serial_sequence($1,$2) AS name',[entry.table_name,entry.column_name])).rows[0].name;

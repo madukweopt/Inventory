@@ -129,6 +129,19 @@ test('Reset seed populates linked authorisations, single-product weighings, invo
         assert.deepEqual((await pool.query('SELECT user_id,username,password_hash,role FROM users ORDER BY user_id')).rows,usersBefore);
         const corrupted=JSON.parse(fs.readFileSync(backupFile,'utf8'));corrupted.checksum='incorrect';fs.writeFileSync(path.join(backupDir,'bad.json'),JSON.stringify(corrupted));
         await assert.rejects(restoreApplicationData(pool,path.join(backupDir,'bad.json')),/integrity/);
+        // A backup from before account disabling existed has no enabled or session_version fields; it still restores.
+        const old=JSON.parse(fs.readFileSync(backupFile,'utf8'));
+        old.payload.tables.users=old.payload.tables.users.map(row=>{const user=JSON.parse(row);delete user.enabled;delete user.session_version;return JSON.stringify(user);});
+        old.payload.tables.production=old.payload.tables.production.map(row=>{const record=JSON.parse(row);delete record.kernel_returned;return JSON.stringify(record);});
+        old.checksum=require('node:crypto').createHash('sha256').update(JSON.stringify(old.payload)).digest('hex');
+        fs.writeFileSync(path.join(backupDir,'old.json'),JSON.stringify(old));
+        await pool.query('DELETE FROM sop_revisions');
+        await restoreApplicationData(pool,path.join(backupDir,'old.json'));
+        assert.deepEqual((await pool.query('SELECT user_id,username,password_hash,role FROM users ORDER BY user_id')).rows,usersBefore);
+        assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM users WHERE NOT enabled')).rows[0].n,0);
+        assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM production WHERE kernel_returned<>0')).rows[0].n,0);
+        assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM production')).rows[0].n,seeded.counts.production);
+        assert.equal((await pool.query('SELECT content_html FROM sop_revisions')).rows[0].content_html,'<h1>Preserved manual</h1>');
     }finally{fs.rmSync(backupDir,{recursive:true,force:true});}
 
 });

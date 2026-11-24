@@ -41,17 +41,26 @@ router.post("/api/expenses",requireRole(['admin','manager']),async function(req,
 	let submissionKey;
 	try { submissionKey=readSubmissionKey(expense.submission_key); } catch(error) { return res.status(400).json({ err: error.message }); }
 	// The same expense sent again (double tap or retry) returns the expense already saved.
+	// Saved in a transaction, so the expense and its Activity Log entry are saved together.
+	const client=await pool.connect();
 	const returnSaved=async function() {
-		const prior=(await pool.query('SELECT * FROM expenses WHERE submission_key=$1',[submissionKey])).rows[0];
+		const prior=(await client.query('SELECT * FROM expenses WHERE submission_key=$1',[submissionKey])).rows[0];
 		if(!prior) return false;
-		if(Number(prior.amount_spent)!==Number(expense.amount_spent)||prior.description!==expense.description) {
+		// A start-up cost is hidden from everyone but the Director, so a resend from anyone else never returns it.
+		if(Number(prior.startup_months)>0&&req.session.role!=='admin') {
+			res.status(409).json({ err: 'This form reference was already used. Refresh before recording another expense.' });
+			return true;
+		}
+		if(Number(prior.amount_spent)!==Number(expense.amount_spent)||prior.description!==expense.description||
+			Number(prior.spread_months)!==Number(spreading.spread??1)||Number(prior.startup_months)!==Math.min(spreading.startup??0,spreading.spread??1)) {
 			res.status(409).json({ err: 'This expense was already saved with different details. Refresh before recording another.' });
 		} else res.status(200).json({...prior,already_saved:true});
 		return true;
 	};
 	try {
-		if(submissionKey&&await returnSaved()) return;
-		const result=await pool.query(
+		await client.query('BEGIN');
+		if(submissionKey&&await returnSaved()) {await client.query('ROLLBACK');return;}
+		const result=await client.query(
 			"INSERT INTO expenses(expense_date, category, description, amount_spent, spread_months, startup_months, submission_key) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
 			[
 				expense.expense_date,
@@ -63,15 +72,17 @@ router.post("/api/expenses",requireRole(['admin','manager']),async function(req,
 				submissionKey
 			]
 		);
+		await client.query('COMMIT');
 		return res.status(201).json(result.rows[0]);
 	} catch(err) {
+		await client.query('ROLLBACK').catch(()=>{});
 		// Two copies sent at the same moment: the second hits the unique key and returns the first.
 		if(err.code==='23505'&&submissionKey&&await returnSaved()) return;
 		console.log(err);
 		return res.status(500).json({
 			err: "Could not submit expense. Internal server error"
 		});
-	}
+	} finally { client.release(); }
 });
 
 module.exports={router};

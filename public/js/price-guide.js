@@ -23,6 +23,11 @@
         const card=el('article',undefined,'price-guide-card');
         const head=el('header',undefined,'price-guide-card-head');
         head.append(el('h3',product.name),el('span','In stock: '+kg(product.stock_quantity),'price-guide-stock'));
+        if(product.cost_basis==='unknown'){
+            card.append(head,el('p','Cost unknown: '+kg(product.uncosted_quantity)+' of this '+product.name+' was added by hand (for example opening stock) with no production cost. '+
+                'No break-even or margin is shown until that stock has been sold.','price-guide-note'));
+            return card;
+        }
         if(product.cost_basis==='none'){
             card.append(head,el('p','No current cost estimate: no '+product.name+' has been produced yet.','price-guide-note'));
             return card;

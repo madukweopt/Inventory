@@ -257,15 +257,20 @@ router.patch('/api/payroll/:id',requireRole(['admin']),async function(req,res) {
 	}
 	try {
 		// Paid salaries are locked so a saved payment cannot be changed or reopened by mistake.
-		const result=await pool.query(
-			`UPDATE payroll SET bonus=$1,deduction=$2,
-			total_salary_cost=GREATEST(basic_salary+$1-$2,0),payment_status=$3,payment_date=$4
-			WHERE payroll_id=$5 AND NOT needs_review AND payment_status<>'Paid' RETURNING *`,
-			[bonus,deduction,status,paymentDate,payrollId]
-		);
-		if(result.rowCount===0) return res.status(409).json({err:'Payroll is missing, already paid, or needs review. Paid salaries are locked; recalculate unpaid payroll before saving.'});
-		return res.json(result.rows[0]);
+		// One transaction, so the payroll change and its Activity Log entry are saved together.
+		const row=await require('../db').transaction(async client=>{
+			const result=await client.query(
+				`UPDATE payroll SET bonus=$1,deduction=$2,
+				total_salary_cost=GREATEST(basic_salary+$1-$2,0),payment_status=$3,payment_date=$4
+				WHERE payroll_id=$5 AND NOT needs_review AND payment_status<>'Paid' RETURNING *`,
+				[bonus,deduction,status,paymentDate,payrollId]
+			);
+			if(result.rowCount===0) throw Object.assign(new Error('Payroll is missing, already paid, or needs review. Paid salaries are locked; recalculate unpaid payroll before saving.'),{status:409});
+			return result.rows[0];
+		});
+		return res.json(row);
 	} catch(error) {
+		if(error.status) return res.status(error.status).json({err:error.message});
 		console.error(error);
 		return res.status(500).json({ err: 'Could not save payroll' });
 	}
