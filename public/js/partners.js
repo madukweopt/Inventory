@@ -26,6 +26,43 @@
         if (!response.ok) throw Error(result.err || result.message || 'Could not save. Please try again.');
         return result;
     }
+    // A save whose answer was lost keeps its form reference and details until the server answers. If the form is closed
+    // and opened again, the same reference and details come back, so saving again cannot record the money twice.
+    function pendingSave(name) {
+        let pending = null;
+        try {
+            pending = JSON.parse(sessionStorage.getItem(name) || 'null');
+        } catch (error) {}
+        const forget = () => {
+            try {
+                sessionStorage.removeItem(name);
+            } catch (error) {}
+        };
+        const key = pending?.key || crypto.randomUUID();
+        return {
+            key,
+            values: pending?.values || {},
+            waiting: Boolean(pending),
+            notice: 'Your last attempt to save this may not have reached the server. Its details are filled in; saving again will not record it twice.',
+            async send(url, method, body, values) {
+                try {
+                    sessionStorage.setItem(name, JSON.stringify({ key, values }));
+                } catch (error) {}
+                try {
+                    const result = await send(url, method, body);
+                    forget();
+                    return result;
+                } catch (error) {
+                    // A lost connection keeps the reference; a refusal from the server means nothing was saved.
+                    if (!(error instanceof TypeError)) {
+                        forget();
+                        throw error;
+                    }
+                    throw Error('The connection was lost. Save again: if it already reached the server it will not be recorded twice.');
+                }
+            }
+        };
+    }
     // Opens a small form dialog; the fields are built with DOM methods so saved names are never treated as HTML.
     function openDialog(title, fields, submitLabel, action, intro) {
         const dialog = el('dialog', undefined, 'employee-finance-dialog partner-dialog');
@@ -197,7 +234,7 @@
             el('h5', 'Partner Note', 'partner-details-heading'),
             el('p', partner.note || 'No note recorded.', 'partner-details-note-text')
         );
-        if (role() === 'admin') {
+        if (role() === 'admin' && !partner.archived_at) {
             const hasJobs = Number(partner.number_of_jobs) > 0;
             const remove = el('button', hasJobs ? 'Archive partner' : 'Delete partner', 'partner-details-delete-btn');
             remove.type = 'button';
@@ -230,6 +267,11 @@
         const add = el('button', '+ Add Job', 'partner-add-job');
         add.type = 'button';
         add.onclick = () => openJobDialog(partner);
+        // An archived partner is listed only while a balance is unpaid; it takes payments but no new jobs.
+        if (partner.archived_at) {
+            add.hidden = true;
+            note.appendChild(el('p', 'Archived. Shown until the unpaid balance is settled. New jobs cannot be added.', 'partner-details-work'));
+        }
         const heading = el('h5', 'Work and Payments', 'partner-details-heading');
         const list = el('div', 'Loading jobs…', 'partner-job-list');
         details.append(note, summary, add, heading, list);
@@ -396,39 +438,41 @@
         sync();
     }
     function openPaymentDialog(partner, job) {
-        // One key per opened form: sending it again after a lost connection returns the payment already saved.
-        const submissionKey = crypto.randomUUID();
+        const saving = pendingSave('partnerPayment:' + job.job_id);
+        const earlier = saving.values;
         openDialog(
             'Record Payment to ' + partner.name,
             [
-                { label: 'Amount paid (₦) · owed ' + naira(job.owed), name: 'amount', type: 'number', value: job.owed },
+                { label: 'Amount paid (₦) · owed ' + naira(job.owed), name: 'amount', type: 'number', value: earlier.amount ?? job.owed },
                 {
                     label: 'Payment date',
                     name: 'payment_date',
                     type: 'date',
-                    value: new Date().toISOString().slice(0, 10)
+                    value: earlier.payment_date || new Date().toISOString().slice(0, 10)
                 },
                 {
                     label: 'Payment method',
                     name: 'payment_method',
                     options: ['Bank Transfer', 'Cash', 'Cheque', 'POS'],
-                    placeholder: 'Select method'
+                    placeholder: 'Select method',
+                    value: earlier.payment_method
                 },
-                { label: 'Bank reference (optional)', name: 'reference_number', required: false },
-                { label: 'Note (optional)', name: 'note', type: 'textarea', required: false }
+                { label: 'Bank reference (optional)', name: 'reference_number', required: false, value: earlier.reference_number },
+                { label: 'Note (optional)', name: 'note', type: 'textarea', required: false, value: earlier.note }
             ],
             'Save Payment',
             async values => {
-                await send('/api/partner-jobs/' + job.job_id + '/payments', 'POST', { ...values, submission_key: submissionKey });
+                const result = await saving.send('/api/partner-jobs/' + job.job_id + '/payments', 'POST', { ...values, submission_key: saving.key }, values);
                 await window.loadOtherPartners(true);
                 return {
                     message:
-                        'Payment recorded.' +
+                        (result.already_saved ? 'This payment was already recorded; it was not saved twice.' : 'Payment recorded.') +
                         (job.cost_category === 'Running'
                             ? ' It is also in Expenses as a running cost.'
                             : ' It is shown against the asset in Assets and Start-up Costs.')
                 };
-            }
+            },
+            saving.waiting ? saving.notice : undefined
         );
     }
     function confirmAction(title, text, label, action) {
@@ -836,8 +880,11 @@
     // A start-up cost is saved as an expense; its first months before production count as start-up costs.
     // Director only. Passing a saved start-up cost opens the same dialog to edit it.
     function openStartupDialog(cost) {
-        // One key per opened form, so a retried save cannot add the same start-up cost twice.
-        const submissionKey = crypto.randomUUID();
+        // A new cost keeps its form reference until the server answers, so a save repeated after a lost
+        // connection, even from a reopened form, cannot add the same start-up cost twice.
+        const saving = cost ? null : pendingSave('startupCost:new');
+        const earlier = saving?.values || {};
+        const submissionKey = saving?.key || crypto.randomUUID();
         const inputs = openDialog(
             cost ? 'Edit Start-up Cost' : 'Add Start-up Cost',
             [
@@ -845,28 +892,28 @@
                     label: 'Date paid',
                     name: 'expense_date',
                     type: 'date',
-                    value: cost?.expense_date || new Date().toISOString().slice(0, 10)
+                    value: cost?.expense_date || earlier.expense_date || new Date().toISOString().slice(0, 10)
                 },
                 {
                     label: 'Description',
                     name: 'description',
                     max: 100,
-                    value: cost?.description || '',
+                    value: cost?.description || earlier.description || '',
                     help: 'For example: Factory rent, January to December.'
                 },
-                { label: 'Amount paid (₦)', name: 'amount_spent', type: 'number', value: cost?.amount_spent },
+                { label: 'Amount paid (₦)', name: 'amount_spent', type: 'number', value: cost?.amount_spent ?? earlier.amount_spent },
                 {
                     label: 'Months it covers',
                     name: 'spread_months',
                     type: 'number',
-                    value: cost?.spread_months || 1,
+                    value: cost?.spread_months || earlier.spread_months || 1,
                     help: 'Starting with the month it was paid. Use 1 for a one-off cost such as registration fees.'
                 },
                 {
                     label: 'Months before production',
                     name: 'startup_months',
                     type: 'number',
-                    value: cost?.startup_months || 1,
+                    value: cost?.startup_months || earlier.startup_months || 1,
                     help: 'These months count as start-up costs; any later months count as normal running expenses.'
                 }
             ],
@@ -882,14 +929,15 @@
                         kind: 'expenses',
                         record: { ...record, expense_id: cost.expense_id }
                     });
-                else await send('/api/expenses', 'POST', record);
+                else await saving.send('/api/expenses', 'POST', record, values);
                 await window.loadCapitalAssets();
                 if (cost && location.hash === '#expenses-data' && typeof loadExpensesData === 'function')
                     await loadExpensesData();
                 return {
                     message: cost ? 'Start-up cost updated.' : 'Start-up cost added. It is also listed in Expenses.'
                 };
-            }
+            },
+            saving?.waiting ? saving.notice : undefined
         );
         for (const name of ['spread_months', 'startup_months']) {
             inputs[name].min = '1';
@@ -905,8 +953,11 @@
     // Only the Director sees the add button (partners.css); the server also refuses months from other roles.
     // Passing a saved expense opens the same dialog to edit it, including its months.
     function openPrepaidDialog(expense) {
-        // One key per opened form, so a retried save cannot add the same rent or insurance twice.
-        const submissionKey = crypto.randomUUID();
+        // A new cost keeps its form reference until the server answers, so a save repeated after a lost
+        // connection, even from a reopened form, cannot add the same rent or insurance twice.
+        const saving = expense ? null : pendingSave('prepaidCost:new');
+        const earlier = saving?.values || {};
+        const submissionKey = saving?.key || crypto.randomUUID();
         const inputs = openDialog(
             expense ? 'Edit Prepaid Cost' : 'Add Prepaid Cost',
             [
@@ -914,21 +965,21 @@
                     label: 'Date paid',
                     name: 'expense_date',
                     type: 'date',
-                    value: expense?.expense_date || new Date().toISOString().slice(0, 10)
+                    value: expense?.expense_date || earlier.expense_date || new Date().toISOString().slice(0, 10)
                 },
                 {
                     label: 'Description',
                     name: 'description',
                     max: 100,
-                    value: expense?.description || '',
+                    value: expense?.description || earlier.description || '',
                     help: 'For example: Factory rent, January to December 2027.'
                 },
-                { label: 'Amount paid (₦)', name: 'amount_spent', type: 'number', value: expense?.amount_spent },
+                { label: 'Amount paid (₦)', name: 'amount_spent', type: 'number', value: expense?.amount_spent ?? earlier.amount_spent },
                 {
                     label: 'Months it covers',
                     name: 'spread_months',
                     type: 'number',
-                    value: expense?.spread_months || 12,
+                    value: expense?.spread_months || earlier.spread_months || 12,
                     help: 'Starting with the month it was paid. The dashboard counts an equal share each day, like salaries.'
                 }
             ],
@@ -940,7 +991,7 @@
                         kind: 'expenses',
                         record: { ...record, expense_id: expense.expense_id }
                     });
-                else await send('/api/expenses', 'POST', record);
+                else await saving.send('/api/expenses', 'POST', record, values);
                 await window.loadPrepaidExpenses();
                 if (expense && location.hash === '#expenses-data' && typeof loadExpensesData === 'function')
                     await loadExpensesData();
@@ -952,7 +1003,9 @@
                         ' months.'
                 };
             },
-            'For costs from before production, use Start-up Costs in Assets and Start-up Costs instead.'
+            saving?.waiting
+                ? saving.notice
+                : 'For costs from before production, use Start-up Costs in Assets and Start-up Costs instead.'
         );
         Object.assign(inputs.spread_months, { min: '1', max: '60', step: '1', inputMode: 'numeric' });
         inputs.description.maxLength = 100;

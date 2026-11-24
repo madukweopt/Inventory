@@ -27,12 +27,23 @@ function sizeDashboardNumber(element,value) {
 	}
 }
 
+// Each panel draws only its newest request: a slow reply for an earlier date or period is ignored once the
+// selection has changed, so Monday's figures never appear under Tuesday.
+const panelRequests={};
+function startPanel(panel,selectedDate) {
+	const token=(panelRequests[panel]||0)+1;
+	panelRequests[panel]=token;
+	return ()=>panelRequests[panel]===token&&dateInput.value===selectedDate;
+}
+
 // Loads and displays stock levels.
 async function showStockLevels() {
 	try {
 		const selectedDate=dateInput.value;
+		const current=startPanel('stock',selectedDate);
 		const response=await fetch("/api/dashboard?date="+selectedDate);
 		const stockLevels=await response.json();
+		if(!current()) return;
 		const stockGrid=document.querySelector(".stock-grid");
 		stockGrid.innerHTML="";
 
@@ -147,7 +158,9 @@ if(dateInput) {
 		const user=await window.currentUserPromise;
 		if(!user||user.role==='storekeeper') return;
 		const selectedDate=dateInput.value;
+		const current=startPanel('production',selectedDate);
 		const periods=await loadPeriods(selectedDate);
+		if(!current()) return;
 		const production=periods[period].production;
 		const prodGrid=document.querySelector(".prod-grid");
 		prodGrid.innerHTML="";
@@ -211,7 +224,9 @@ if(dateInput) {
 
 		try {
 			const selectedDate=dateInput.value;
+			const current=startPanel('profit',selectedDate);
 			const periods=await loadPeriods(selectedDate);
+			if(!current()) return;
 			const profit=periods[period];
 			if(!profit)
 				throw new Error("Profit data is missing for "+period);
@@ -437,7 +452,9 @@ if(dateInput) {
 			const user=await window.currentUserPromise;
 			if(!user||user.role==='storekeeper') return;
 			const selectedDate=dateInput.value;
+			const current=startPanel('sales',selectedDate);
 			const sales=await loadPeriods(selectedDate);
+			if(!current()) return;
 			const periodSales=sales[period].sales;
 			// Transforms collection entries into the required output shape.
 			const salesArray=Object.entries(periodSales).map(function([
@@ -555,8 +572,10 @@ if(dateInput) {
 			if(!user||user.role!=='admin') return;
 			const dashboardCheck=document.querySelector(".dashboard-checks");
 			const selectedDate=dateInput.value;
+			const current=startPanel('checks',selectedDate);
 
 			const response=await fetch("/api/checks");
+			if(!current()) return;
 
 			if(!response.ok) {
 				const problem=await response.json();

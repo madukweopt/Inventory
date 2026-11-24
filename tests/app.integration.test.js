@@ -200,9 +200,13 @@ test('the login form signs in with a redirect and returns errors to the login pa
     await form.post('/api/login').type('form').set('Origin','https://elsewhere.example').send({username:'manager_test',password:'ManagerPass123'})
         .expect(303).expect('Location','/login.html?error=failed');
     await form.get('/index.html').expect(302);
+    const before=(await applicationPool.query("SELECT COALESCE(MAX(log_id),0) AS id FROM activity_log")).rows[0].id;
     await form.post('/api/login').type('form').send({username:'manager_test',password:'ManagerPass123'})
         .expect(303).expect('Location','/index.html');
     await form.get('/index.html').expect(200);
+    // A sign-in through the login page is in the Activity Log, once.
+    const signIns=(await applicationPool.query("SELECT 1 FROM activity_log WHERE log_id>$1 AND action='Signed in' AND user_id=$2",[before,ids.managerUser])).rowCount;
+    assert.equal(signIns,1);
 });
 
 test('SOP reader and PDF require login and are available to every staff role',async function(){
@@ -1083,29 +1087,35 @@ test('Repeated daily usage submissions deduct stock once and competing issues ca
     assert.equal(Number(balance.balance),300);
 });
 
-test('Daily inventory carries balances over inactive days through today without adding movements',async function(){
+test('Daily inventory lists production days and days stock moved, carrying balances over the days left out',async function(){
     const item=(await applicationPool.query("INSERT INTO items(name,item_type) VALUES('Idle-day sludge','product') RETURNING item_id")).rows[0].item_id;
-    const dates=(await applicationPool.query(`SELECT to_char(CURRENT_DATE-5,'YYYY-MM-DD') AS first,
-        to_char(CURRENT_DATE-3,'YYYY-MM-DD') AS sold,to_char(CURRENT_DATE-1,'YYYY-MM-DD') AS received,
-        to_char(CURRENT_DATE,'YYYY-MM-DD') AS today`)).rows[0];
+    const dates={first:'2071-03-01',idle:'2071-03-02',sold:'2071-03-03',production:'2071-03-04',received:'2071-03-05'};
     await admin.post('/api/stock_counts').send({count_date:dates.first,item_id:item,received:500,issued:0}).expect(201);
     await admin.post('/api/stock_counts').send({count_date:dates.sold,item_id:item,received:0,issued:150}).expect(201);
     await admin.post('/api/stock_counts').send({count_date:dates.received,item_id:item,received:200,issued:0}).expect(201);
-    const read=async()=> (await storekeeper.get('/api/inventory-summary').expect(200)).body.filter(row=>row.item_id===item).sort((a,b)=>a.count_date.localeCompare(b.count_date));
-    const rows=await read();
-    assert.equal(rows.length,6);
-    assert.deepEqual(rows.map(row=>[row.opening_stock,row.received,row.issued,row.closing_stock].map(Number)),[
-        [0,500,0,500],[500,0,0,500],[500,0,150,350],
-        [350,0,0,350],[350,200,0,550],[550,0,0,550]
-    ]);
-    assert.equal(rows.at(-1).count_date,dates.today);
-    assert.equal(rows.at(-1).created_at,null);
-    assert.equal((await applicationPool.query('SELECT * FROM stock_counts WHERE item_id=$1',[item])).rowCount,3);
-    // Backdated changes must recalculate later idle-day balances, rather than save stale snapshots.
-    await applicationPool.query('UPDATE stock_counts SET received=100 WHERE item_id=$1 AND count_date=$2',[item,dates.received]);
-    assert.equal(Number((await read()).at(-1).closing_stock),450);
-    await applicationPool.query('DELETE FROM stock_counts WHERE item_id=$1 AND count_date=$2',[item,dates.received]);
-    assert.equal(Number((await read()).at(-1).closing_stock),350);
+    // A production day with no movement of this item still gets a line; a day with nothing at all does not.
+    const day=(await applicationPool.query(`INSERT INTO weighing_requests(request_type,request_date,status,created_by)
+        VALUES('Production',$1,'Awaiting Storekeeper',$2) RETURNING request_id`,[dates.production,ids.managerUser])).rows[0].request_id;
+    // A row left at 0 kg (as a reversed production entry leaves) is not a movement and gives no line.
+    await applicationPool.query("INSERT INTO stock_counts(count_date,item_id,received,issued,source_type) VALUES($1,$2,0,0,'Manual')",[dates.idle,item]);
+    try {
+        const read=async()=> (await storekeeper.get('/api/inventory-summary').expect(200)).body
+            .filter(row=>row.item_id===item&&row.count_date<'2071-04-01').sort((a,b)=>a.count_date.localeCompare(b.count_date));
+        const rows=await read();
+        assert.deepEqual(rows.map(row=>row.count_date),[dates.first,dates.sold,dates.production,dates.received]);
+        assert.deepEqual(rows.map(row=>[row.opening_stock,row.received,row.issued,row.closing_stock].map(Number)),[
+            [0,500,0,500],[500,0,150,350],[350,0,0,350],[350,200,0,550]
+        ]);
+        assert.equal(rows[2].created_at,null);
+        assert.equal((await applicationPool.query('SELECT * FROM stock_counts WHERE item_id=$1',[item])).rowCount,4);
+        // Backdated changes recalculate later balances, rather than save stale snapshots.
+        await applicationPool.query('UPDATE stock_counts SET received=100 WHERE item_id=$1 AND count_date=$2',[item,dates.received]);
+        assert.equal(Number((await read()).at(-1).closing_stock),450);
+        await applicationPool.query('DELETE FROM stock_counts WHERE item_id=$1 AND count_date=$2',[item,dates.received]);
+        assert.equal(Number((await read()).at(-1).closing_stock),350);
+    } finally {
+        await applicationPool.query('DELETE FROM weighing_requests WHERE request_id=$1',[day]);
+    }
 });
 
 test('Daily consumable reminders require usage or a no-use confirmation for each item',async function(){
@@ -1397,7 +1407,12 @@ test('Other partners: capital jobs become assets, running payments become one ex
     await admin.delete('/api/partner-payments/'+paid.payment_id).send({}).expect(400);
     await admin.delete('/api/partner-payments/'+paid.payment_id).send({reason:'Paid to the wrong job'}).expect(200);
     await admin.delete('/api/partner-payments/'+paid.payment_id).send({reason:'Again'}).expect(409);
-    assert.ok(!(await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===paid.expense_id),'Reversing the payment removes its expense');
+    // The expense stays, cancelled by a linked reversal of the same amount on the same date.
+    const afterReversal=(await admin.get('/api/expenses').expect(200)).body;
+    assert.ok(afterReversal.some(row=>row.expense_id===paid.expense_id),'The original expense is kept');
+    const reversalRow=(await applicationPool.query('SELECT e.*,to_char(e.expense_date,\'YYYY-MM-DD\') AS day FROM partner_payments p JOIN expenses e ON e.expense_id=p.reversal_expense_id WHERE p.payment_id=$1',[paid.payment_id])).rows[0];
+    assert.equal(Number(reversalRow.amount_spent),-80000);assert.equal(reversalRow.day,'2094-02-02');assert.match(reversalRow.description,/^Reversal: .*Paid to the wrong job/);
+    await admin.delete('/api/correction_delete').send({kind:'expenses',record:{expense_id:reversalRow.expense_id}}).expect(409);
     const reversed=(await manager.get('/api/partners/'+partner.partner_id+'/jobs').expect(200)).body.find(row=>row.job_id===repair.job_id);
     assert.equal(reversed.payments.length,1,'The reversed payment stays listed');assert.equal(reversed.payments[0].reversal_reason,'Paid to the wrong job');
     assert.equal(Number(reversed.paid),0,'A reversed payment no longer counts as paid');
@@ -1415,7 +1430,11 @@ test('Other partners: capital jobs become assets, running payments become one ex
     const fee=(await admin.post('/api/partner-jobs/'+service.job_id+'/payments').send({payment_date:'2094-04-03',amount:40000,payment_method:'Cash'}).expect(201)).body;
     await admin.post('/api/partner-jobs/'+quote.job_id+'/payments').send({payment_date:'2094-04-03',amount:100000,payment_method:'Cash'}).expect(201);
     assert.ok(await assetFor(quote.job_id));
+    // Still owed ₦800,000, so it cannot be archived yet.
+    await admin.delete('/api/partners/'+unused.partner_id).expect(409);
+    await admin.post('/api/partner-jobs/'+quote.job_id+'/payments').send({payment_date:'2094-04-04',amount:800000,payment_method:'Cash'}).expect(201);
     assert.match((await admin.delete('/api/partners/'+unused.partner_id).expect(200)).body.message,/archived/i);
+    await manager.post('/api/partners/'+unused.partner_id+'/jobs').send({job_date:'2094-04-05',job_type:'Repair',description:'New work',agreed_amount:1000}).expect(409);
     assert.ok(await assetFor(quote.job_id),'Its asset stays in the register');
     assert.ok((await admin.get('/api/expenses').expect(200)).body.some(row=>row.expense_id===fee.expense_id),'Its running expenses stay');
     assert.ok(!(await manager.get('/api/partners').expect(200)).body.some(row=>row.partner_id===unused.partner_id));
@@ -1496,12 +1515,16 @@ test('A retried partner payment is saved once, with one expense, and logged as a
     const again=(await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send(payment).expect(201)).body;
     assert.equal(again.payment_id,first.payment_id);assert.equal(again.already_saved,true);
     await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send({...payment,amount:300}).expect(409);
+    await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send({...payment,payment_method:'Bank Transfer'}).expect(409);
     const saved=(await manager.get('/api/partners/'+partner.partner_id+'/jobs').expect(200)).body[0];
     assert.equal(saved.payments.length,1);assert.equal(Number(saved.owed),750);
     const expenses=(await admin.get('/api/expenses').expect(200)).body.filter(row=>/Retry Welder/.test(row.description));
     assert.equal(expenses.length,1);
-    const log=(await applicationPool.query("SELECT action FROM activity_log WHERE path=$1 ORDER BY log_id",['/api/partner-jobs/'+job.job_id+'/payments'])).rows.map(row=>row.action);
+    const entries=(await applicationPool.query("SELECT action,record_id FROM activity_log WHERE path=$1 ORDER BY log_id",['/api/partner-jobs/'+job.job_id+'/payments'])).rows;
+    const log=entries.map(row=>row.action);
     assert.equal(log.length,2);assert.match(log[1],/^Confirmed already recorded/);
+    // The record number is saved with the entry, in the same transaction as the payment.
+    assert.equal(entries[0].record_id,String(first.payment_id));assert.equal(entries[1].record_id,String(first.payment_id));
 });
 
 test('A retried start-up cost is saved once',async function(){
@@ -1510,6 +1533,28 @@ test('A retried start-up cost is saved once',async function(){
     const again=(await admin.post('/api/expenses').send(cost).expect(200)).body;
     assert.equal(again.expense_id,first.expense_id);
     assert.equal((await admin.get('/api/expenses').expect(200)).body.filter(row=>row.description==='Retry rent').length,1);
+});
+
+test('A resend never returns the Director\'s start-up cost to a manager',async function(){
+    const key=crypto.randomUUID();
+    await admin.post('/api/expenses').send({expense_date:'2026-01-07',category:'Expenses',description:'Private start-up rent',amount_spent:70000,spread_months:6,startup_months:2,submission_key:key}).expect(201);
+    const reply=await manager.post('/api/expenses').send({expense_date:'2026-01-07',category:'Expenses',description:'Private start-up rent',amount_spent:70000,submission_key:key}).expect(409);
+    assert.equal(reply.body.expense_id,undefined);assert.doesNotMatch(JSON.stringify(reply.body),/70000|Private/);
+});
+
+test('A payment whose Activity Log entry cannot be written is not saved',async function(){
+    const partner=(await manager.post('/api/partners').send({name:'Log Failure Welder'}).expect(201)).body;
+    const job=(await manager.post('/api/partners/'+partner.partner_id+'/jobs').send({job_date:'2026-11-20',job_type:'Repair',description:'Log failure repair',agreed_amount:1000}).expect(201)).body;
+    await applicationPool.query(`CREATE FUNCTION refuse_payment_log() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN IF NEW.action='Recorded a partner payment' THEN RAISE EXCEPTION 'log unavailable'; END IF; RETURN NEW; END $$`);
+    await applicationPool.query('CREATE TRIGGER refuse_payment_log BEFORE INSERT ON activity_log FOR EACH ROW EXECUTE FUNCTION refuse_payment_log()');
+    try {
+        await admin.post('/api/partner-jobs/'+job.job_id+'/payments').send({payment_date:'2026-11-20',amount:250,payment_method:'Cash'}).expect(500);
+    } finally {
+        await applicationPool.query('DROP TRIGGER refuse_payment_log ON activity_log');await applicationPool.query('DROP FUNCTION refuse_payment_log()');
+    }
+    assert.equal((await applicationPool.query('SELECT COUNT(*)::int AS n FROM partner_payments WHERE job_id=$1',[job.job_id])).rows[0].n,0);
+    assert.equal((await admin.get('/api/expenses').expect(200)).body.filter(row=>/Log Failure Welder/.test(row.description)).length,0);
 });
 
 test('Staff never receive start-up costs in the expenses list',async function(){
@@ -1554,17 +1599,67 @@ test('A valid kernel issue after a same-day delivery is accepted, in the order i
     assert.equal(await balance(),0);
 });
 
+test('Kernel returned to store unused is not counted as production loss',async function(){
+    const kernel=ids['P Kernel'];
+    const day=(await applicationPool.query("SELECT to_char(GREATEST(MAX(count_date)+1,CURRENT_DATE),'YYYY-MM-DD') AS d FROM stock_counts")).rows[0].d;
+    const purchase=(await manager.post('/api/purchases').send({ordered_quantity:100,purchase_date:day,supplier_id:ids.supplier,item_id:kernel,unit_cost:300}).expect(201)).body;
+    await storekeeper.patch('/api/weighing-requests/'+purchase.request_id+'/complete').send({quantity:100}).expect(200);
+    const production=(await manager.post('/api/production').send({production_date:day,production_hours:'08:00',down_time:'00:00'}).expect(201)).body;
+    const url='/api/weighing-requests/'+production.request_id+'/complete';
+    // 100 kg issued, 20 kg returned unused, the other 80 kg weighed as product.
+    await storekeeper.patch(url).send({submission_key:crypto.randomUUID(),kernel_used:100,pko_produced:0,pkc_produced:0,sludge_produced:0}).expect(200);
+    const back={count_date:day,item_id:kernel,received:20,issued:0,adjustment_reason:'Return to store'};
+    await admin.post('/api/stock_counts').send(back).expect(400);
+    await admin.post('/api/stock_counts').send({...back,received:120,return_request_id:production.request_id}).expect(400);
+    assert.ok((await admin.get('/api/kernel-return-days').expect(200)).body.some(row=>row.request_id===production.request_id));
+    // Entered on a later date, the return is still dated on its production day.
+    const returned=(await admin.post('/api/stock_counts').send({...back,count_date:'2099-12-30',return_request_id:production.request_id}).expect(201)).body;
+    assert.equal((await applicationPool.query("SELECT to_char(count_date,'YYYY-MM-DD') AS d FROM stock_counts WHERE count_id=$1",[returned.count_id])).rows[0].d,day);
+    // Inventory Data shows it as less kernel issued that day (100 − 20), not as kernel received, and no line for the entry day.
+    const summary=(await storekeeper.get('/api/inventory-summary').expect(200)).body.filter(row=>row.item_id===kernel);
+    const kernelDay=summary.find(row=>row.count_date===day);
+    assert.equal(Number(kernelDay.received),100);assert.equal(Number(kernelDay.issued),80);
+    assert.ok(!summary.some(row=>row.count_date==='2099-12-30'));
+    await storekeeper.patch(url).send({submission_key:crypto.randomUUID(),kernel_used:0,pko_produced:60,pkc_produced:20,sludge_produced:0}).expect(200);
+    const finished=(await storekeeper.patch('/api/weighing-requests/'+production.request_id+'/finish').expect(200)).body;
+    assert.doesNotMatch(finished.message,/loss/i);
+    const row=async()=>(await applicationPool.query('SELECT p.process_loss,p.kernel_returned FROM production p JOIN weighing_requests w ON w.completed_record_id=p.production_id WHERE w.request_id=$1',[production.request_id])).rows[0];
+    assert.equal(Number((await row()).process_loss),0);assert.equal(Number((await row()).kernel_returned),20);
+    // Production Data gives kernel issued and returned, so the page shows 80 kg kernel used.
+    const listed=(await admin.get('/api/production').expect(200)).body.find(row=>row.request_id===production.request_id);
+    assert.equal(Number(listed.kernel_used)-Number(listed.kernel_returned),80);
+    // Correcting the return to 15 kg after the day is finished makes 5 kg production loss.
+    await admin.patch('/api/correction_edit').send({kind:'stock',record:{count_id:returned.count_id,count_date:day,item_id:kernel,received:15,issued:0,adjustment_reason:'Return to store'}}).expect(200);
+    assert.equal(Number((await row()).process_loss),5);
+    // A production day with kernel returned from it cannot be deleted while the return points to it.
+    const productionId=(await applicationPool.query('SELECT completed_record_id FROM weighing_requests WHERE request_id=$1',[production.request_id])).rows[0].completed_record_id;
+    await admin.delete('/api/correction_delete').send({kind:'production',record:{production_id:productionId}}).expect(409);
+    // The production card lists the return, and the Director can remove it from there.
+    const card=(await admin.get('/api/production').expect(200)).body.find(row=>row.request_id===production.request_id);
+    assert.equal(card.kernel_returns.length,1);assert.equal(card.kernel_returns[0].count_id,returned.count_id);
+    await admin.delete('/api/correction_delete').send({kind:'stock',record:{count_id:returned.count_id}}).expect(200);
+    assert.equal(Number((await row()).kernel_returned),0);
+});
+
 test('A price correction keeps the original authorisation date',async function(){
     const purchase=(await manager.post('/api/purchases').send({ordered_quantity:100,purchase_date:'2026-11-16',supplier_id:ids.supplier,item_id:ids['P Kernel'],unit_cost:300}).expect(201)).body;
     const saved=(await storekeeper.patch('/api/weighing-requests/'+purchase.request_id+'/complete').send({quantity:100,movement_date:'2026-11-18'}).expect(200)).body;
     await admin.patch('/api/correction_edit').send({kind:'purchases',record:{purchase_id:saved.record_id,purchase_date:'2026-11-18',supplier_id:ids.supplier,item_id:ids['P Kernel'],quantity_supplied:100,unit_cost:310}}).expect(200);
     const row=(await applicationPool.query("SELECT to_char(request_date,'YYYY-MM-DD') AS d,unit_cost FROM weighing_requests WHERE request_id=$1",[purchase.request_id])).rows[0];
     assert.equal(row.d,'2026-11-16');assert.equal(Number(row.unit_cost),310);
+    // Delivery corrected to before the approval: the approval keeps its date and the reason is required and kept.
+    const earlier={purchase_id:saved.record_id,purchase_date:'2026-11-14',supplier_id:ids.supplier,item_id:ids['P Kernel'],quantity_supplied:100,unit_cost:310};
+    await admin.patch('/api/correction_edit').send({kind:'purchases',record:earlier}).expect(400);
+    await admin.patch('/api/correction_edit').send({kind:'purchases',record:{...earlier,early_movement_reason:'Supplier delivered on credit before approval'}}).expect(200);
+    const early=(await applicationPool.query("SELECT to_char(request_date,'YYYY-MM-DD') AS d,early_movement_reason FROM weighing_requests WHERE request_id=$1",[purchase.request_id])).rows[0];
+    assert.equal(early.d,'2026-11-16');assert.equal(early.early_movement_reason,'Supplier delivered on credit before approval');
 });
 
 test('Invoices are rounded to the kobo once, so the rounded amount pays them in full',async function(){
     await admin.post('/api/prices').send({item_id:ids.PKO,unit_price:100.1,effective_date:'2026-11-22'});
-    const request=(await manager.post('/api/sales').send({ordered_quantity:10.25,sales_date:'2026-11-22',customer_id:ids.customer,item_id:ids.PKO,agreed_due_date:'2026-12-05'}).expect(201)).body;
+    // Only the Director agrees credit terms.
+    await manager.post('/api/sales').send({ordered_quantity:10.25,sales_date:'2026-11-22',customer_id:ids.customer,item_id:ids.PKO,agreed_due_date:'2026-12-05'}).expect(403);
+    const request=(await admin.post('/api/sales').send({ordered_quantity:10.25,sales_date:'2026-11-22',customer_id:ids.customer,item_id:ids.PKO,agreed_due_date:'2026-12-05',representative_id:ids.managerUser}).expect(201)).body;
     const sale=(await storekeeper.patch('/api/weighing-requests/'+request.request_id+'/complete').send({quantity:10.25,...driver}).expect(200)).body;
     const listed=(await admin.get('/api/sales').expect(200)).body.find(row=>row.sales_id===sale.record_id);
     assert.equal(Number(listed.total),1026.03);assert.equal(listed.due_date,'2026-12-05');assert.equal(Number(listed.days_overdue),0);

@@ -12,14 +12,17 @@ const router=require('express').Router();
 router.get("/api/production",requireRole(['admin','manager','storekeeper']),function(req,res) {
 	pool.query(
 		`SELECT production.production_id,to_char(production.production_date,'YYYY-MM-DD') AS production_date,
-		production.created_at,production.kernel_used,production.pko_produced,production.pkc_produced,
-		production.sludge_produced,production.process_loss,ROUND((production.pko_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pko_yield,
-		ROUND((production.pkc_produced/NULLIF(production.kernel_used,0)*100)::numeric,2) AS pkc_yield,
+		production.created_at,production.kernel_used,production.kernel_returned,production.pko_produced,production.pkc_produced,
+		production.sludge_produced,production.process_loss,ROUND((production.pko_produced/NULLIF(production.kernel_used-production.kernel_returned,0)*100)::numeric,2) AS pko_yield,
+		ROUND((production.pkc_produced/NULLIF(production.kernel_used-production.kernel_returned,0)*100)::numeric,2) AS pkc_yield,
 		to_char(production.production_hours,'HH24:MI') AS production_hours,
 		to_char(production.down_time,'HH24:MI') AS down_time,wr.request_id,wr.scale_ticket,wr.completed_by AS weighed_by,wr.status,
         CASE WHEN wr.status='Awaiting Storekeeper' THEN 'Provisional' ELSE 'Final' END AS yield_status,
         (SELECT COALESCE(json_agg(pb ORDER BY pb.batch_id),'[]'::json)
-         FROM production_batches pb WHERE pb.request_id=wr.request_id) AS batches
+         FROM production_batches pb WHERE pb.request_id=wr.request_id) AS batches,
+        (SELECT COALESCE(json_agg(json_build_object('count_id',s.count_id,'quantity',s.received,'count_date',to_char(s.count_date,'YYYY-MM-DD'),
+                'recorded_by_name',(SELECT username FROM users WHERE user_id=s.recorded_by)) ORDER BY s.count_id),'[]'::json)
+             FROM stock_counts s WHERE s.return_request_id=wr.request_id) AS kernel_returns
 		FROM production LEFT JOIN weighing_requests wr
 		ON wr.request_type='Production' AND wr.completed_record_id=production.production_id AND wr.status IN ('Completed','Awaiting Storekeeper')
 		ORDER BY production.created_at DESC`,
@@ -145,7 +148,8 @@ router.patch('/api/weighing-requests/:id/finish',requireRole(['admin','storekeep
         AND completed_record_id IS NOT NULL RETURNING completed_record_id`,[req.session.user_id,requestId]);
     if(!result.rows.length) { await client.query('ROLLBACK');return res.status(409).json({ err:'Save at least one batch before finishing an open production day' }); }
     // Finish Day means every material has been processed, so kernel not recovered as weighed product is production loss.
-    const loss=await client.query(`UPDATE production SET process_loss=GREATEST(ROUND(kernel_used-pko_produced-pkc_produced-sludge_produced,2),0)
+    // Kernel returned to store from this day was not processed, so it is taken off first.
+    const loss=await client.query(`UPDATE production SET process_loss=GREATEST(ROUND(kernel_used-kernel_returned-pko_produced-pkc_produced-sludge_produced,2),0)
         WHERE production_id=$1 RETURNING process_loss`,[result.rows[0].completed_record_id]);
     await client.query('COMMIT');
     const lossQuantity=Number(loss.rows[0]?.process_loss)||0;

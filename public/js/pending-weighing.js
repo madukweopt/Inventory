@@ -156,11 +156,48 @@ function createProductionHistory(entries, request, onSaved) {
     history.appendChild(list);return history;
 }
 
+// Lists kernel returned to store from a production day. The Director can remove a return entered by mistake
+// (it stays in Stock Change History); onChanged reloads whichever page shows the card.
+function createKernelReturnsNote(record,onChanged) {
+    const returns=record.kernel_returns||[];
+    if(!returns.length) return document.createDocumentFragment();
+    const box=document.createElement('div');box.className='kernel-returns-note';
+    const title=document.createElement('p');title.className='kernel-returns-title';
+    title.textContent='Returned to store: '+formatNumber(returns.reduce((sum,row)=>sum+Number(row.quantity||0),0))+' kg of kernel (taken off kernel used)';
+    box.appendChild(title);
+    for(const row of returns) {
+        const line=document.createElement('p');line.className='kernel-return-line';
+        const text=document.createElement('span');
+        text.textContent=formatNumber(row.quantity)+' kg'+(row.recorded_by_name?' · entered by '+row.recorded_by_name:'');
+        line.appendChild(text);
+        if(document.documentElement.dataset.userRole==='admin') {
+            const remove=document.createElement('button');remove.type='button';remove.className='reverse-entry-button';remove.textContent='Remove return';
+            remove.onclick=async()=>{
+                if(!confirm('Remove this '+formatNumber(row.quantity)+' kg kernel return? The kernel goes back to being counted as issued to this production day. The removal is kept in Stock Change History.'))return;
+                remove.disabled=true;
+                try {
+                    const response=await fetch('/api/correction_delete',{method:'DELETE',headers:{'content-type':'application/json'},
+                        body:JSON.stringify({kind:'stock',record:{count_id:row.count_id}})});
+                    const result=await response.json().catch(()=>({}));
+                    if(!response.ok){appNotify(result.err||'Could not remove the return.',{position:'top'});return;}
+                    appNotify('Kernel return removed.',{position:'top'});
+                    await onChanged();
+                } catch(error){appNotify('Could not remove the return.',{position:'top'});}
+                finally{remove.disabled=false;}
+            };
+            line.appendChild(remove);
+        }
+        box.appendChild(line);
+    }
+    return box;
+}
+
 // Shows a production day's loss: the kernel not recovered as weighed PKO, PKC or sludge.
 // A finished day shows the loss saved at Finish Day (the figure used in profit). An open day shows the
 // kernel not yet accounted for, which may still be in the machines, so it is marked Provisional.
 function createProductionLossNote(record,isFinal) {
-    const kernel=Number(record.kernel_used)||0;
+    // Kernel used is net of any kernel returned to store unused.
+    const kernel=(Number(record.kernel_used)||0)-(Number(record.kernel_returned)||0);
     const running=Math.max(kernel-(Number(record.pko_produced)||0)-(Number(record.pkc_produced)||0)-(Number(record.sludge_produced)||0),0);
     const loss=isFinal&&record.process_loss!==undefined&&record.process_loss!==null?Number(record.process_loss)||0:Math.round(running*100)/100;
     const note=document.createElement('p');note.className='production-loss-note'+(isFinal?' is-final':' is-provisional');
@@ -242,7 +279,7 @@ function createWeighingTaskCard(request) {
     if(request.request_type==='Production') {
         const totals=document.createElement('p');
         totals.className='weighing-task-totals';
-        [['Kernel',request.kernel_used],['PKO',request.pko_produced],['PKC',request.pkc_produced],['Sludge',request.sludge_produced]].forEach(([name,value]) => {
+        [['Kernel used',Number(request.kernel_used||0)-Number(request.kernel_returned||0)],['PKO',request.pko_produced],['PKC',request.pkc_produced],['Sludge',request.sludge_produced]].forEach(([name,value]) => {
             const metric=document.createElement('span');
             const label=document.createElement('span');
             const amount=document.createElement('strong');
@@ -253,8 +290,11 @@ function createWeighingTaskCard(request) {
         });
         heading.appendChild(totals);
         const yieldNote=document.createElement('p');yieldNote.className='production-yield-status';
-        yieldNote.textContent='Oil yield: '+(Number(request.kernel_used)>0?formatNumber(Number((Number(request.pko_produced||0)/Number(request.kernel_used)*100).toFixed(2)))+'%':'—')+' · '+(request.status==='Completed'?'Final':'Provisional');heading.appendChild(yieldNote);
+        // Yield uses the kernel processed: issued minus any kernel returned to store unused.
+        const processed=Number(request.kernel_used||0)-Number(request.kernel_returned||0);
+        yieldNote.textContent='Oil yield: '+(processed>0?formatNumber(Number((Number(request.pko_produced||0)/processed*100).toFixed(2)))+'%':'—')+' · '+(request.status==='Completed'?'Final':'Provisional');heading.appendChild(yieldNote);
         heading.appendChild(createProductionLossNote(request,request.status==='Completed'));
+        heading.appendChild(createKernelReturnsNote(request,()=>loadWeighingTasks({quiet:true})));
         heading.appendChild(createProductionHistory(request.batches||[],request));
     }
     if(request.status==='Completed') {
@@ -354,7 +394,7 @@ function createWeighingTaskCard(request) {
             limitInventoryDecimals(input);return input;
         });
         const guidance=document.createElement('p');guidance.className='weighing-task-guidance';
-        guidance.textContent='These entries belong to production dated '+formatDate(request.request_date)+'. Enter the kernel issued, any products received, or both, then save. Each quantity is added to stock straight away as its own entry, and the form stays open for the next weighing. Leave production open while materials remain in the machines.';
+        guidance.textContent='These entries belong to production dated '+formatDate(request.request_date)+'. Enter the kernel issued, any products received, or both, then save. Each quantity is added to stock straight away as its own entry. After a save the form closes; open it again for the next weighing. Leave production open while materials remain in the machines.';
         const status=document.createElement('p');status.className='production-entry-status';status.setAttribute('role','status');
         function updateButton(){
             const filled=PRODUCTION_ENTRY_FIELDS.filter((_,index)=>inputs[index].value!=='');
@@ -598,13 +638,21 @@ async function saveProductionEntries(form,submit) {
         message='The save could not be confirmed. Select Save again to retry it safely.';
     }
     form.querySelectorAll('input[type="number"]').forEach(input=>input.dispatchEvent(new Event('input')));
+    status.textContent=message;status.classList.toggle('error',!saved);
+    submit.disabled=false;
     if(saved) {
+        // The entry form closes after a save; the production card stays on screen with its updated entries,
+        // and the success message shows at the top of the screen.
+        const entry=form.closest('.weighing-task-entry');
+        if(entry) entry.open=false;
+        status.textContent='';
         try { await refreshProductionCard(form.closest('.weighing-task-card'),form.dataset.requestId); } catch(error) { console.error(error); }
         if(window.refreshPendingWeighingBadge) window.refreshPendingWeighingBadge();
+        appNotify(message,{position:'top'});
+        return;
     }
-    status.textContent=message;status.classList.toggle('error',!saved);
-    appNotify(message);
-    submit.disabled=false;
+    // Not saved: the form stays open with the quantities, ready to try again.
+    appNotify(message,{position:'top'});
     const next=PRODUCTION_ENTRY_FIELDS.map(([name])=>form.elements[name]).find(input=>input.value!=='')||form.elements.kernel_used;
     if(next&&form.isConnected) next.focus({preventScroll:true});
 }

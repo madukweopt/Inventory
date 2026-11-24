@@ -65,7 +65,8 @@ function buildPriceGuide({costs,running,manualReceipts=[],prices={},normalDays=2
     normalDays=Math.min(Math.max(Math.round(Number(normalDays)||26),1),31);
     // Production days and output per month.
     const days=costs.production_costs.map(row=>({date:dayOf(row.production_date),created:String(row.created_at||''),
-        quantities:{pko:Number(row.storekeeper_pko_received)||0,pkc:Number(row.storekeeper_pkc_received)||0,sludge:Number(row.sludge_received)||0}}))
+        quantities:{pko:Number(row.storekeeper_pko_received)||0,pkc:Number(row.storekeeper_pkc_received)||0,sludge:Number(row.sludge_received)||0},
+        unitCosts:{pko:Number(row.pko_daily_cost_per_kg)||0,pkc:Number(row.pkc_daily_cost_per_kg)||0,sludge:Number(row.sludge_daily_cost_per_kg)||0}}))
         .filter(day=>day.quantities.pko+day.quantities.pkc+day.quantities.sludge>0);
     const productionDays={};
     for(const day of days)(productionDays[monthOf(day.date)]??=new Set()).add(day.date);
@@ -81,21 +82,39 @@ function buildPriceGuide({costs,running,manualReceipts=[],prices={},normalDays=2
     for(const day of days) {
         const split=shares(day.quantities),share=monthInfo(monthOf(day.date)).per_production_day;
         for(const [name,key] of PRODUCTS) if(day.quantities[key]>0)
-            events.push({date:day.date,created:day.created,order:0,name,quantity:day.quantities[key],running:share*split[key]});
+            events.push({date:day.date,created:day.created,order:0,name,quantity:day.quantities[key],running:share*split[key],value:day.quantities[key]*day.unitCosts[key]});
     }
-    for(const receipt of manualReceipts) events.push({date:dayOf(receipt.date),created:String(receipt.created_at||''),order:0,name:receipt.name,quantity:Number(receipt.quantity),running:0});
+    // Product returned to store goes back at the stock's own cost. Any other stock added by hand (opening stock, a count
+    // that found more) has no known cost, so it is kept apart and the guide gives no margin while any of it remains.
+    for(const receipt of manualReceipts) events.push({date:dayOf(receipt.date),created:String(receipt.created_at||''),order:0,name:receipt.name,
+        quantity:Number(receipt.quantity),returned:receipt.adjustment_reason==='Return to store',manual:true});
     for(const out of costs.product_dispatch_costs) events.push({date:dayOf(out.dispatch_date),created:String(out.created_at||''),order:1,name:out.name,quantity:-Number(out.quantity_dispatched)});
     // Same order as the app's own costing: each day's production and added stock first, then what left, by time.
     events.sort((a,b)=>a.date.localeCompare(b.date)||a.order-b.order||a.created.localeCompare(b.created));
-    const held=Object.fromEntries(PRODUCTS.map(([name])=>[name,{quantity:0,running:0,last:0}]));
+    // Each product's stock in two layers: costed stock (production and running cost known) and stock of unknown cost,
+    // which is treated as sold first because opening stock is the oldest in the tank or store.
+    const held=Object.fromEntries(PRODUCTS.map(([name])=>[name,{quantity:0,uncosted:0,value:0,running:0,last:0}]));
     for(const event of events) {
         const stock=held[event.name];if(!stock)continue;
-        if(event.quantity>=0) { stock.quantity+=event.quantity;stock.running+=event.running;if(stock.quantity>0)stock.last=stock.running/stock.quantity; }
-        else {
+        const costed=stock.quantity-stock.uncosted;
+        if(event.quantity>=0) {
+            if(event.manual&&!event.returned) stock.uncosted+=event.quantity;
+            else if(event.manual) {
+                // A return carries the current average of the costed stock; with none in stock it has no known cost.
+                if(costed>0){stock.value+=stock.value/costed*event.quantity;stock.running+=stock.running/costed*event.quantity;}
+                else stock.uncosted+=event.quantity;
+            } else {stock.value+=event.value;stock.running+=event.running;}
+            stock.quantity+=event.quantity;
+            const nowCosted=stock.quantity-stock.uncosted;
+            if(nowCosted>0)stock.last=stock.running/nowCosted;
+        } else {
             const leaving=Math.min(-event.quantity,stock.quantity);
-            if(stock.quantity>0) stock.running-=stock.running*leaving/stock.quantity;
+            const fromUncosted=Math.min(leaving,stock.uncosted),fromCosted=leaving-fromUncosted;
+            stock.uncosted-=fromUncosted;
+            if(costed>0){stock.value-=stock.value*fromCosted/costed;stock.running-=stock.running*fromCosted/costed;}
             stock.quantity-=leaving;
-            if(stock.quantity<=0.000001) { stock.quantity=0;stock.running=0; }
+            if(stock.quantity<=0.000001) { stock.quantity=0;stock.uncosted=0;stock.value=0;stock.running=0; }
+            if(stock.uncosted<=0.000001) stock.uncosted=0;
         }
     }
     // Normal loss rate: kernel cost lost in the machines as a share of the cost that became products.
@@ -108,15 +127,21 @@ function buildPriceGuide({costs,running,manualReceipts=[],prices={},normalDays=2
     const products=PRODUCTS.map(([name,key])=>{
         const finished=costs.finished_stock.find(row=>row.name===name)||{quantity:0,weighted_average_cost:0};
         const quantity=Number(finished.quantity)||0;
-        let production=Number(finished.weighted_average_cost)||0,runningPerKg=held[name].quantity>0?held[name].running/held[name].quantity:0;
+        const stock=held[name],costedQuantity=stock.quantity-stock.uncosted;
+        // Production cost of the costed layer; without daily product costs (older data) the costing's own average is used.
+        let production=costedQuantity>0&&stock.value>0?stock.value/costedQuantity:Number(finished.weighted_average_cost)||0;
+        let runningPerKg=costedQuantity>0?stock.running/costedQuantity:0;
         let basis='stock',costDate=null;
+        const current=prices[name]==null?null:Number(prices[name]);
+        // Stock whose cost is unknown would make the break-even ₦0 and the margin 100%, so no figures are given.
+        if(quantity>0&&stock.uncosted>0.005)
+            return {name,stock_quantity:round(quantity),uncosted_quantity:round(stock.uncosted),cost_basis:'unknown',cost_date:null,margins:[],current_price:current,current:null};
         if(!(quantity>0)) {
             // Stock is empty: use the last production that made this product.
             const last=[...(costs.production_costs||[])].reverse().find(row=>Number(row[key+'_daily_cost_per_kg'])>0);
             production=last?Number(last[key+'_daily_cost_per_kg']):0;runningPerKg=last?held[name].last:0;
             basis=last?'last':'none';costDate=last?dayOf(last.production_date):null;
         }
-        const current=prices[name]==null?null:Number(prices[name]);
         if(basis==='none') return {name,stock_quantity:0,cost_basis:basis,cost_date:null,margins:[],current_price:current,current:null};
         const lossPerKg=production*lossRate;
         const full=production+lossPerKg+runningPerKg;
@@ -156,7 +181,7 @@ function registerPriceGuide(router,{pool,requireRole,calculateCosts}) {
                 calculateCosts(),
                 monthlyRunningCosts(pool),
                 // Product stock added by hand (for example returned to store) carries no production days.
-                pool.query(`SELECT i.name,s.received AS quantity,to_char(s.count_date,'YYYY-MM-DD') AS date,s.created_at
+                pool.query(`SELECT i.name,s.received AS quantity,to_char(s.count_date,'YYYY-MM-DD') AS date,s.created_at,s.adjustment_reason
                     FROM stock_counts s JOIN items i USING(item_id)
                     WHERE i.name IN ('PKO','PKC','Sludge') AND s.received>0 AND s.source_type='Manual'`),
                 pool.query(`SELECT DISTINCT ON (p.item_id) i.name,p.unit_price FROM product_prices p JOIN items i USING(item_id)

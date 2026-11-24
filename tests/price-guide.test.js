@@ -96,3 +96,18 @@ test('empty stock shows the last production cost with its date, and no estimate 
     assert.ok(pko.current.margin<100,'a sold-out product never shows a 100% margin');
     assert.equal(product(guide,'PKC').cost_basis,'none');assert.equal(product(guide,'PKC').margins.length,0);
 });
+test('stock added by hand with no cost gives no break-even or margin until it is sold',()=>{
+    // 100 kg of PKO entered as opening stock, no production cost, price ₦1,000/kg.
+    const costs={production_costs:[],product_dispatch_costs:[],finished_stock:[{name:'PKO',quantity:100,weighted_average_cost:0}]};
+    const guide=buildPriceGuide({costs,running:{payroll:{},spread:{},oneOff:{}},manualReceipts:[{name:'PKO',quantity:100,date:'2026-10-01',created_at:'2026-10-01T08:00:00Z'}],
+        prices:{PKO:1000},normalDays:26,today:'2026-11-05'});
+    const pko=product(guide,'PKO');
+    assert.equal(pko.cost_basis,'unknown');assert.equal(pko.uncosted_quantity,100);
+    assert.deepEqual(pko.margins,[]);assert.equal(pko.current,null);assert.equal(pko.full_cost_per_kg,undefined);
+    // Once the opening stock has been sold, the stock left is produced stock with a known cost.
+    const made={...costs,production_costs:[{production_date:'2026-10-02',created_at:'2026-10-02T12:00:00Z',storekeeper_pko_received:50,storekeeper_pkc_received:0,sludge_received:0,pko_daily_cost_per_kg:600}],
+        product_dispatch_costs:[{dispatch_date:'2026-10-03',created_at:'2026-10-03T09:00:00Z',name:'PKO',quantity_dispatched:100}],finished_stock:[{name:'PKO',quantity:50,weighted_average_cost:300}]};
+    const later=product(buildPriceGuide({costs:made,running:{payroll:{},spread:{},oneOff:{}},manualReceipts:[{name:'PKO',quantity:100,date:'2026-10-01',created_at:'2026-10-01T08:00:00Z'}],
+        prices:{PKO:1000},normalDays:26,today:'2026-11-05'}),'PKO');
+    assert.equal(later.cost_basis,'stock');close(later.production_cost_per_kg,600,'cost of the produced stock, not diluted by the opening stock');
+});

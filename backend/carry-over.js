@@ -33,7 +33,7 @@ async function exportCarryOver(pool) {
             partner_jobs:await rows(client,'SELECT to_jsonb(t) AS record FROM partner_jobs t ORDER BY job_id'),
             expenses:await rows(client,`SELECT to_jsonb(t) AS record FROM expenses t
                 WHERE startup_months>0 OR spread_months>1
-                   OR expense_id IN (SELECT expense_id FROM partner_payments WHERE expense_id IS NOT NULL)
+                   OR expense_id IN (SELECT expense_id FROM partner_payments WHERE expense_id IS NOT NULL UNION SELECT reversal_expense_id FROM partner_payments WHERE reversal_expense_id IS NOT NULL)
                 ORDER BY expense_id`),
             partner_payments:await rows(client,'SELECT to_jsonb(t) AS record FROM partner_payments t ORDER BY payment_id'),
             capital_assets:await rows(client,'SELECT to_jsonb(t) AS record FROM capital_assets t ORDER BY asset_id')

@@ -3,6 +3,7 @@
 const express=require('express');
 const argon2=require('argon2');
 const {pool}=require('../db');
+const {writeActivity}=require('../activity-log');
 const router=require('express').Router();
 
 // Counts recent failed sign-ins for each username and device so passwords cannot be guessed endlessly.
@@ -68,10 +69,18 @@ router.post('/api/login',express.urlencoded({extended:false,limit:'4kb'}),async 
 			req.session.user_name=user.username;
 			req.session.role=user.role;
 			req.session.session_version=user.session_version;
-			req.session.save(function(saveError) {
+			req.session.save(async function(saveError) {
 				if(saveError) {
 					console.error(saveError);
 					return reply(500,{ message: 'Could not sign in. Please try again.' },'failed');
+				}
+				// Every sign-in is in the Activity Log, from the login page or a script. A sign-in that cannot be logged
+				// is refused, so the Director never sees actions without the sign-in that started them.
+				try {
+					await writeActivity(pool,{userId:user.user_id,actingId:user.user_id,action:'Signed in',type:'Account',id:null,method:'POST',path:'/api/login'});
+				} catch(logError) {
+					console.error('Could not write the activity log:',logError.message);
+					return req.session.destroy(()=>reply(500,{ message: 'Could not sign in. Please try again.' },'failed'));
 				}
 				return reply(200,{
 					message: 'Login successful',

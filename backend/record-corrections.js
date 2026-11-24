@@ -1,10 +1,13 @@
 const {lockStock,stockFloor,protectStock}=require('./stock-safety');
+const {checkKernelReturn,refreshKernelReturns}=require('./kernel-returns');
 // Keep corrections to a business record and its generated movements atomic.
 const records={
     purchases:{ table:'purchases',id:'purchase_id',type:'Purchase',date:'purchase_date',quantity:'quantity_supplied',party:'supplier_id',price:'unit_cost',part:'Received' },
     sales:{ table:'sales',id:'sales_id',type:'Sale',date:'sales_date',quantity:'quantity',party:'customer_id',price:'unit_price',part:'Issued' },
     production:{ table:'production',id:'production_id',type:'Production',date:'production_date' }
 };
+// pg reads a date column as local midnight; take the day from local parts.
+const dayText=value=>value instanceof Date?value.getFullYear()+'-'+String(value.getMonth()+1).padStart(2,'0')+'-'+String(value.getDate()).padStart(2,'0'):String(value).slice(0,10);
 function fail(status,message) { throw Object.assign(new Error(message),{ status }); }
 function quantity(value) {
     if(!/^\d+(?:\.\d{1,2})?$/.test(String(value??''))) fail(400,'Quantities and prices must be non-negative numbers with no more than two decimal places');
@@ -52,6 +55,8 @@ async function correctRecord(pool,kind,record,operation,userId=null) {
         }
         let result;
         if(operation==='delete') {
+            if(kind==='production'&&(await client.query('SELECT 1 FROM stock_counts WHERE return_request_id=ANY($1::integer[]) LIMIT 1',[requestIds])).rowCount)
+                fail(409,'Kernel was returned to store from this production day. Delete or correct those returns first.');
             if(kind==='sales'&&receipts>0) fail(409,'This sale has payment receipts, including any reversed payments. Receipts cannot be silently deleted, so correct the sale instead.');
             result=await client.query(`DELETE FROM ${config.table} WHERE ${config.id}=$1 RETURNING *`,[id]);
             await client.query('DELETE FROM stock_counts WHERE source_type=$1 AND source_id=ANY($2::integer[])',[config.type,requestIds]);
@@ -90,11 +95,17 @@ async function correctRecord(pool,kind,record,operation,userId=null) {
                 ${kind==='sales'?',factory_quantity=CASE WHEN factory_quantity IS NOT NULL THEN $4::numeric ELSE NULL END,due_date=CASE WHEN due_date=sales_date THEN $1::date ELSE due_date END':''}
                 WHERE ${config.id}=$6 RETURNING *`,
                 [record[config.date],record[config.party],record.item_id,amount,price,id]);
-            // The authorisation keeps its own date. It moves only if the goods are now dated before it, because goods
-            // cannot move before they are authorised.
-            await client.query(`UPDATE weighing_requests SET request_date=LEAST(request_date,$1::date),${config.party}=$2,
-                item_id=$3,quantity=$4,${config.price}=$5 WHERE request_id=ANY($6::integer[])`,
-                [record[config.date],record[config.party],record.item_id,amount,price,requestIds]);
+            // The authorisation always keeps its own date, so the record still shows when approval was given. Goods dated
+            // before that approval need a reason, which is kept with the authorisation.
+            const early=links.rows.some(row=>String(record[config.date])<dayText(row.request_date));
+            // A reason already recorded for an earlier correction is kept unless a new one is entered.
+            const earlyReason=String(record.early_movement_reason||record.correction_reason||links.rows.find(row=>row.early_movement_reason)?.early_movement_reason||'').trim();
+            if(early&&(!earlyReason||earlyReason.length>300))
+                fail(400,'This date is before the authorisation date. Enter the reason the goods '+(kind==='sales'?'left':'arrived')+' before they were authorised.');
+            await client.query(`UPDATE weighing_requests SET ${config.party}=$2,
+                item_id=$3,quantity=$4,${config.price}=$5,
+                early_movement_reason=CASE WHEN $1::date<request_date THEN $7 ELSE NULL END WHERE request_id=ANY($6::integer[])`,
+                [record[config.date],record[config.party],record.item_id,amount,price,requestIds,early?earlyReason:null]);
             if(kind==='sales'&&(Number(record.customer_id)!==original.customer_id||Number(record.item_id)!==original.item_id)) {
                 const party=await client.query('SELECT name,phone_number,email,address FROM customers WHERE customer_id=$1',[record.customer_id]);
                 const item=await client.query('SELECT name FROM items WHERE item_id=$1',[record.item_id]);
@@ -158,9 +169,15 @@ async function correctManualStock(pool,record,operation,userId) {
             if(!/^\d{4}-\d{2}-\d{2}$/.test(record.count_date||''))fail(400,'Enter a valid stock date');
             const reason=record.adjustment_reason===undefined?current.adjustment_reason:record.adjustment_reason||null;
             if(reason!==null&&!['Spill','Disposal','Count difference','Return to store','Other'].includes(reason))fail(400,'Choose a valid reason for the stock change');
-            result=await client.query('UPDATE stock_counts SET count_date=$1,item_id=$2,received=$3,issued=$4,adjustment_reason=$5 WHERE count_id=$6 RETURNING *',
-                [record.count_date,record.item_id,received,issued,reason,record.count_id]);
+            // A kernel return names its production day. A return saved before that link existed may stay unlinked.
+            const legacyReturn=current.return_request_id==null&&current.adjustment_reason==='Return to store'&&record.return_request_id==null;
+            const kernelReturn=legacyReturn?null:await checkKernelReturn(client,{reason,itemId:record.item_id,received,
+                requestId:record.return_request_id??current.return_request_id,countId:current.count_id});
+            result=await client.query('UPDATE stock_counts SET count_date=$1,item_id=$2,received=$3,issued=$4,adjustment_reason=$5,return_request_id=$7 WHERE count_id=$6 RETURNING *',
+                [kernelReturn?.date||record.count_date,record.item_id,received,issued,reason,record.count_id,kernelReturn?.requestId??null]);
         }
+        await refreshKernelReturns(client,current.return_request_id);
+        if(result.rows[0]?.return_request_id&&result.rows[0].return_request_id!==current.return_request_id)await refreshKernelReturns(client,result.rows[0].return_request_id);
         await protectStock(client,before);
         if(operation==='delete')await recordStockHistory(client,current.count_id,'Deleted',current,null,userId);
         else await recordStockHistory(client,current.count_id,'Edited',current,{...result.rows[0],source_part:current.source_part},userId);

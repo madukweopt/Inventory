@@ -133,6 +133,11 @@
     stack.className = 'notice-stack';
     stack.setAttribute('aria-live', 'polite');
     document.body.appendChild(stack);
+    // A second stack at the top of the screen, for messages that should appear above the page (options.position 'top').
+    const topStack = document.createElement('div');
+    topStack.className = 'notice-stack notice-stack-top';
+    topStack.setAttribute('aria-live', 'polite');
+    document.body.appendChild(topStack);
     let latest = null;
     function notify(message, options = {}) {
         const text = String(message ?? '').trim();
@@ -160,8 +165,9 @@
         }
         close.onclick = dismiss;
         notice.append(icon(type === 'success' ? 'check' : type === 'error' ? 'alert' : 'info'), content, close);
-        stack.appendChild(notice);
-        while (stack.children.length > 3) stack.firstElementChild.remove();
+        const target = options.position === 'top' ? topStack : stack;
+        target.appendChild(notice);
+        while (target.children.length > 3) target.firstElementChild.remove();
         setTimeout(dismiss, type === 'error' ? 10000 : 6500);
     }
     window.AppUI = { icon, messageType };

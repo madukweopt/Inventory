@@ -223,18 +223,19 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
             EXISTS(SELECT 1 FROM weighing_requests WHERE request_type='Production' AND status='Awaiting Storekeeper' AND request_date=${datesql}) AS day,
             EXISTS(SELECT 1 FROM weighing_requests WHERE request_type='Production' AND status='Awaiting Storekeeper' AND request_date>=date_trunc('week',${datesql}) AND request_date<date_trunc('week',${datesql})+INTERVAL '7 days') AS week,
             EXISTS(SELECT 1 FROM weighing_requests WHERE request_type='Production' AND status='Awaiting Storekeeper' AND request_date>=date_trunc('month',${datesql}) AND request_date<date_trunc('month',${datesql})+INTERVAL '1 month') AS month`,param)).rows[0];
+		// Kernel processed is what was issued minus any kernel returned to store unused, so yield is not understated.
 		const RawProduction=await pool.query(
 			`
         SELECT
         'day' AS period,
-        COALESCE(SUM(production.kernel_used), 0) AS kernel_used,
+        COALESCE(SUM(production.kernel_used-production.kernel_returned), 0) AS kernel_used,
         COALESCE(SUM(production.pko_produced), 0) AS pko_produced,
         COALESCE(SUM(production.pkc_produced), 0) AS pkc_produced,
         COALESCE(SUM(production.process_loss), 0) AS production_loss,
         COALESCE(
         ROUND(
         SUM(production.pko_produced) * 100.0 /
-        NULLIF(SUM(production.kernel_used), 0),
+        NULLIF(SUM(production.kernel_used-production.kernel_returned), 0),
         2
         ),
         0
@@ -246,14 +247,14 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
 
         SELECT
         'week',
-        COALESCE(SUM(production.kernel_used), 0),
+        COALESCE(SUM(production.kernel_used-production.kernel_returned), 0),
         COALESCE(SUM(production.pko_produced), 0),
         COALESCE(SUM(production.pkc_produced), 0),
         COALESCE(SUM(production.process_loss), 0),
         COALESCE(
         ROUND(
         SUM(production.pko_produced) * 100.0 /
-        NULLIF(SUM(production.kernel_used), 0),
+        NULLIF(SUM(production.kernel_used-production.kernel_returned), 0),
         2
         ),
         0
@@ -267,14 +268,14 @@ router.get("/api/dashboard_period",requireRole(['admin','manager']),async functi
 
         SELECT
         'month',
-        COALESCE(SUM(production.kernel_used), 0),
+        COALESCE(SUM(production.kernel_used-production.kernel_returned), 0),
         COALESCE(SUM(production.pko_produced), 0),
         COALESCE(SUM(production.pkc_produced), 0),
         COALESCE(SUM(production.process_loss), 0),
         COALESCE(
         ROUND(
         SUM(production.pko_produced) * 100.0 /
-        NULLIF(SUM(production.kernel_used), 0),
+        NULLIF(SUM(production.kernel_used-production.kernel_returned), 0),
         2
         ),
         0

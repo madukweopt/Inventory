@@ -15,7 +15,7 @@ const checks={
             (wr.request_type='Sale' AND NOT EXISTS(SELECT 1 FROM sales s WHERE s.sales_id=wr.completed_record_id)) OR
             (wr.request_type='Production' AND NOT EXISTS(SELECT 1 FROM production p WHERE p.production_id=wr.completed_record_id)))`,
     // Each purchase or sale is compared with its own stock entry and authorisation. Delivery after the authorisation
-    // date is normal and not reported; delivery before it is. A sale price that differs from its authorisation is
+    // date is normal and not reported; delivery before it is, unless the correction recorded why. A sale price that differs from its authorisation is
     // reported only when no saved sale correction explains it. Each row says what is wrong.
     purchase_stock_mismatch:`SELECT * FROM (SELECT wr.request_id,p.purchase_id,CASE
             WHEN sc.count_id IS NULL THEN 'No stock entry for this purchase'
@@ -24,7 +24,7 @@ const checks={
             WHEN sc.count_date<>p.purchase_date THEN 'Stock entry is dated differently from the delivery'
             WHEN wr.quantity IS DISTINCT FROM p.quantity_supplied THEN 'Weighed quantity differs from the purchase quantity'
             WHEN wr.item_id IS DISTINCT FROM p.item_id OR wr.supplier_id IS DISTINCT FROM p.supplier_id THEN 'Item or supplier differs from the authorisation'
-            WHEN p.purchase_date<wr.request_date THEN 'Delivered before it was authorised'
+            WHEN p.purchase_date<wr.request_date AND wr.early_movement_reason IS NULL THEN 'Delivered before it was authorised, with no reason recorded'
             WHEN wr.unit_cost IS DISTINCT FROM p.unit_cost THEN 'Price differs from the authorisation'
         END AS problem
         FROM weighing_requests wr JOIN purchases p ON p.purchase_id=wr.completed_record_id
@@ -37,7 +37,7 @@ const checks={
             WHEN sc.count_date<>s.sales_date THEN 'Stock entry is dated differently from the dispatch'
             WHEN wr.quantity IS DISTINCT FROM COALESCE(s.factory_quantity,s.quantity) THEN 'Weighed quantity differs from the quantity dispatched'
             WHEN wr.item_id IS DISTINCT FROM s.item_id OR wr.customer_id IS DISTINCT FROM s.customer_id THEN 'Item or customer differs from the authorisation'
-            WHEN s.sales_date<wr.request_date THEN 'Dispatched before it was authorised'
+            WHEN s.sales_date<wr.request_date AND wr.early_movement_reason IS NULL THEN 'Dispatched before it was authorised, with no reason recorded'
             WHEN wr.unit_price IS DISTINCT FROM s.unit_price AND NOT EXISTS(SELECT 1 FROM sale_corrections c
                 WHERE c.sales_id=s.sales_id AND (c.new_values->>'unit_price')::numeric=s.unit_price) THEN 'Price differs from the authorisation with no saved correction'
         END AS problem

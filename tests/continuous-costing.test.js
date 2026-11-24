@@ -57,3 +57,11 @@ test('Kernel returned to store the next day leaves production at its cost',()=>{
  const result=calculateContinuousCosts({purchases:[purchase('2026-01-01',100,300)],issues:[issue('2026-01-01',100)],productStock:[],losses:[],productItems:items,production:[],rawReceipts:[back]});
  assert.equal(result.work_in_progress.quantity,60);assert.equal(result.work_in_progress.value,18000);
 });
+test('Kernel returned to store later the same day leaves production at its cost',()=>{
+ // 100 kg bought for ₦1,000, all issued, 20 kg returned that afternoon, no output yet: 80 kg worth ₦800 remain.
+ const bought={date:'2026-01-01',item_id:1,name:'P Kernel',quantity:100,value:1000,created_at:'2026-01-01T07:00:00Z'};
+ const out={date:'2026-01-01',item_id:1,name:'P Kernel',item_type:'raw_material',quantity:100,source_type:'Production',created_at:'2026-01-01T08:00:00Z'};
+ const back={date:'2026-01-01',item_id:1,name:'P Kernel',quantity:20,adjustment_reason:'Return to store',created_at:'2026-01-01T15:00:00Z'};
+ const result=calculateContinuousCosts({purchases:[bought],issues:[out],productStock:[],losses:[],productItems:items,production:[],rawReceipts:[back]});
+ assert.equal(result.work_in_progress.quantity,80);assert.equal(result.work_in_progress.value,800);
+});

@@ -28,6 +28,10 @@ module.exports=function(app,pool,requireRole) {
                 scale_ticket=$5,version=version+1,voided=$6 WHERE batch_id=$7`,[...values,reverse?batch.scale_ticket:String(req.body.scale_ticket||'').trim()||null,reverse,batch.batch_id]);
             await client.query(`UPDATE production SET kernel_used=kernel_used+$1,pko_produced=pko_produced+$2,
                 pkc_produced=pkc_produced+$3,sludge_produced=sludge_produced+$4 WHERE production_id=$5`,[...deltas,request.completed_record_id]);
+            // Kernel already returned to store from this day cannot be more than the kernel issued to it.
+            const returned=(await client.query('SELECT kernel_used<kernel_returned AS short,kernel_returned FROM production WHERE production_id=$1',[request.completed_record_id])).rows[0];
+            if(returned?.short) throw Object.assign(new Error(Number(returned.kernel_returned).toLocaleString('en-NG')+' kg of this day’s kernel was returned to store, which would be more than the kernel issued after this change. '+
+                'Remove the return on this production card first (Returned to store → Remove return), then try again.'),{status:409});
             await client.query(`UPDATE weighing_requests SET kernel_used=kernel_used+$1,pko_produced=pko_produced+$2,
                 pkc_produced=pkc_produced+$3,sludge_produced=sludge_produced+$4 WHERE request_id=$5`,[...deltas,request.request_id]);
             for(const [index,part] of ['Kernel Issued','PKO Received','PKC Received','Sludge Received'].entries()) {

@@ -16,8 +16,10 @@ let databaseAddress=null;
 let databaseLookup=null;
 function refreshDatabaseAddress() {
 	if(!databaseHost) return Promise.resolve();
-	databaseLookup??=dns.promises.lookup(databaseHost)
-		.then(result => { databaseAddress=result.address; })
+	// An IPv4 address is chosen whenever the database has one: some phone networks cannot reach IPv6 addresses
+	// (connect ENETUNREACH), even when the lookup returns one first.
+	databaseLookup??=dns.promises.lookup(databaseHost,{all:true})
+		.then(results => { databaseAddress=(results.find(result => result.family===4)||results[0])?.address||null; })
 		.catch(error => { databaseAddress=null; console.error("Database address lookup failed:",error.message); })
 		.finally(() => { databaseLookup=null; });
 	return databaseLookup;
@@ -70,4 +72,18 @@ pool.on("error",function(err) {
 	console.error("Database connection error:",err.message);
 });
 
-module.exports={pool,refreshDatabaseAddress};
+// Runs fn(client) in one transaction. Saves made this way write their Activity Log entry in the same transaction.
+async function transaction(fn) {
+	const client=await pool.connect();
+	try {
+		await client.query('BEGIN');
+		const result=await fn(client);
+		await client.query('COMMIT');
+		return result;
+	} catch(error) {
+		await client.query('ROLLBACK').catch(()=>{});
+		throw error;
+	} finally { client.release(); }
+}
+
+module.exports={pool,refreshDatabaseAddress,transaction};
