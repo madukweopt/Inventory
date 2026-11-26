@@ -179,11 +179,25 @@ if(require.main===module) {
 	require('./migrations').migrate(pool,{ log: message => console.log(message) }).then(result => {
 		if(result.created) console.log('Database created from database/schema.sql.');
 		else if(result.applied.length) console.log('Applied '+result.applied.length+' database change(s).');
-		app.listen(PORT,() => {
+		const server=app.listen(PORT,() => {
 			console.log(`Server running at http://localhost:${PORT}`);
 			// Opens two connections now, so the first page after a restart does not wait for them.
 			refreshDatabaseAddress().then(() => Promise.all([pool.query('SELECT 1'),pool.query('SELECT 1')])).catch(error => console.error("Database warm-up failed:",error.message));
 		});
+		// When Railway replaces this version it asks it to stop. The server stops taking new requests, lets those in
+		// progress finish, closes its database connections and exits normally, so the stop is not reported as a crash.
+		// Anything still open after 8 seconds is left behind and the server exits anyway.
+		let stopping=false;
+		const stop=signal => {
+			if(stopping) return;
+			stopping=true;
+			console.log(signal+' received: stopping the server.');
+			setTimeout(() => process.exit(0),8000).unref();
+			server.close(() => pool.end().catch(() => {}).finally(() => process.exit(0)));
+			server.closeIdleConnections?.();
+		};
+		process.on('SIGTERM',() => stop('SIGTERM'));
+		process.on('SIGINT',() => stop('SIGINT'));
 	}).catch(error => {
 		console.error('The server did not start: '+error.message);
 		process.exit(1);
